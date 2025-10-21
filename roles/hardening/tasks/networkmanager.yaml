@@ -1,0 +1,13 @@
+---
+- name: 'Ensure /etc/systemd/system/NetworkManager.service.d exists'
+  ansible.builtin.file:
+    path: '/etc/systemd/system/NetworkManager.service.d'
+    state: 'directory'
+    mode: '0755'
+
+- name: 'Download configuration file for NetworkManager'
+  ansible.builtin.copy:
+    src: 'networkmanager_override'
+    dest: '/etc/systemd/system/NetworkManager.service.d/99-brace.conf'
+    mode: '0644'
+  notify: 'Restart NetworkManager'

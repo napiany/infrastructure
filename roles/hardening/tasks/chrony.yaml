@@ -1,0 +1,16 @@
+---
+- name: 'Copy drop-in chrony configuration file'
+  ansible.builtin.copy:
+    src: 'chrony_config'
+    dest: '/etc/chrony.d/10-custom.conf'
+    mode: '0644'
+  notify:
+    - 'Restart chronyd'
+
+- name: 'Configure chronyd command-line options'
+  ansible.builtin.copy:
+    dest: '/etc/sysconfig/chronyd'
+    content: 'OPTIONS=-F1 -r'
+    mode: '0644'
+  notify:
+    - 'Restart chronyd'

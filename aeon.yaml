@@ -1,0 +1,12 @@
+---
+- name: 'Setup Aeon Desktops'
+  hosts: 'desktops'
+  become: true
+  tasks:
+    - name: 'Set hostname to inventory hostname'
+      ansible.builtin.hostname:
+        name: '{{ inventory_hostname }}'
+
+    - name: 'Run hardening role'
+      ansible.builtin.include_role:
+        name: 'hardening'

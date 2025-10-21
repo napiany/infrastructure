@@ -1,0 +1,40 @@
+---
+- name: 'Copy configuration file for ssh'
+  ansible.builtin.copy:
+    src: 'ssh_config'
+    dest: '/etc/ssh/ssh_config.d/10-custom.conf'
+    mode: '0644'
+  notify:
+    - 'Restart sshd'
+
+- name: 'Copy sshd configuration file'
+  ansible.builtin.copy:
+    src: 'sshd_config'
+    dest: '/etc/ssh/sshd_config.d/10-custom.conf'
+    mode: '0644'
+  notify:
+    - 'Restart sshd'
+
+- name: 'Configure sshd service override'
+  block:
+    - name: 'Ensure /etc/systemd/system/sshd.service.d/ exists'
+      ansible.builtin.file:
+        path: '/etc/systemd/system/sshd.service.d/'
+        state: 'directory'
+        mode: '0755'
+
+    - name: 'Copy configuration file for sshd override'
+      ansible.builtin.copy:
+        src: 'sshd_override'
+        dest: '/etc/systemd/system/sshd.service.d/override.conf'
+        mode: '0644'
+      notify: 'Restart sshd'
+
+- name: 'Disable sshd.service and enable sshd.socket'
+  ansible.builtin.systemd:
+    name: '{{ item.name }}'
+    state: '{{ item.state }}'
+    enabled: '{{ item.enabled }}'
+  loop:
+    - { name: 'sshd.service', state: 'stopped', enabled: 'false' }
+    - { name: 'sshd.socket', state: 'started', enabled: 'true' }

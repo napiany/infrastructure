@@ -1,0 +1,37 @@
+---
+- name: 'Copy modprobe blacklist drop-in file'
+  ansible.builtin.copy:
+    src: 'modprobe_blacklist'
+    dest: '/etc/modprobe.d/server-blacklist.conf'
+    mode: '0644'
+
+- name: 'Copy sysctl drop-in file'
+  ansible.builtin.copy:
+    src: 'sysctl'
+    dest: '/etc/sysctl.d/99-server.conf'
+    mode: '0644'
+
+- name: 'Set kernel arguments'
+  block:
+    - name: 'Read current /etc/kernel/cmdline'
+      ansible.builtin.slurp:
+        src: '/etc/kernel/cmdline'
+      register: 'cmdline_content'
+
+    - name: 'Set current kernel cmdline as a fact'
+      set_fact:
+        current_cmdline: "{{ cmdline_content['content'] | b64decode | trim }}"
+
+    - name: 'Build new kernel cmdline with required arguments'
+      set_fact:
+        new_cmdline: "{{ (current_cmdline.split() + kernel_args) | unique | join(' ') }}"
+
+    - name: 'Update /etc/kernel/cmdline if needed'
+      ansible.builtin.copy:
+        dest: '/etc/kernel/cmdline'
+        content: '{{ new_cmdline }}\n'
+        owner: 'root'
+        group: 'root'
+        mode: '0644'
+      when: 'current_cmdline != new_cmdline'
+      notify: 'Reinstall kernel'

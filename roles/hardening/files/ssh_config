@@ -1,0 +1,4 @@
+# Source: https://raw.githubusercontent.com/Metropolis-nexus/Common-Files/main/etc/ssh/ssh_config.d/10-custom.conf
+
+GSSAPIAuthentication no
+VerifyHostKeyDNS yes

@@ -1,0 +1,36 @@
+---
+- name: 'Setup MicroOS servers'
+  hosts: 'servers'
+  become: true
+  tasks:
+    - name: 'Set hostname to inventory hostname'
+      ansible.builtin.hostname:
+        name: '{{ inventory_hostname }}'
+
+    - name: 'Set timezone to UTC'
+      ansible.builtin.file:
+        src: '../usr/share/zoneinfo/Etc/UTC'
+        dest: '/etc/localtime'
+        state: 'link'
+        force: true
+
+    - name: 'Run hardening role'
+      ansible.builtin.include_role:
+        name: 'hardening'
+
+    - name: 'Run zfs role'
+      ansible.builtin.include_role:
+        name: 'zfs'
+      when: hostvars[inventory_hostname].zfs | default(false)
+
+    - name: 'Configure /etc/issue'
+      ansible.builtin.copy:
+        dest: '/etc/issue'
+        content:
+          "You are accessing an information system that is provided for authorized uses only.
+
+          ALL ACTIVITY MAY BE MONITORED AND REPORTED. UNAUTHORIZED USES SHALL BE PROSECUTED TO THE FULLEST EXTENT OF THE LAW.
+
+          To report a potential security concern, please contact robin@napiany.com.
+          
+          "

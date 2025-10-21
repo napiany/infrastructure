@@ -1,0 +1,30 @@
+---
+- name: 'Ensure /etc/security/limits.d exists'
+  ansible.builtin.file:
+    path: '/etc/security/limits.d'
+    state: 'directory'
+    mode: '0755'
+
+- name: 'Disable coredumps in /etc/security'
+  ansible.builtin.copy:
+    content: '* hard core 0'
+    path: '/etc/security/limits.d/30-disable-coredump.conf'
+    mode: '0644'
+
+- name: 'Ensure /etc/systemd/coredump.conf.d exists'
+  ansible.builtin.file:
+    path: '/etc/systemd/coredump.conf.d'
+    state: 'directory'
+    mode: '0755'
+
+- name: 'Disable coredumps in systemd'
+  ansible.builtin.copy:
+    src: 'coredump'
+    dest: '/etc/systemd/coredump.conf.d/disable.conf'
+    mode: '0644'
+
+- name: 'Mask kdump.service'
+  ansible.builtin.systemd:
+    name: 'kdump.service'
+    enabled: false
+    masked: true

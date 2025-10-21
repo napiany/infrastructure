@@ -1,0 +1,39 @@
+# Based on: https://raw.githubusercontent.com/Metropolis-nexus/Common-Files/main/etc/ssh/sshd_config.d/10-custom.conf
+
+HostKey /etc/ssh/ssh_host_ed25519_key
+HostKeyAlgorithms ssh-ed25519
+KexAlgorithms mlkem768x25519-sha256
+PubkeyAcceptedKeyTypes sk-ssh-ed25519@openssh.com
+Ciphers aes256-gcm@openssh.com
+MACs -*
+
+AuthenticationMethods publickey
+AuthorizedKeysFile .ssh/authorized_keys
+Compression no
+DisableForwarding yes
+LoginGraceTime 5s
+MaxAuthTries 1
+PermitUserEnvironment no
+PermitUserRC no
+StrictModes yes
+UseDNS no
+
+TCPKeepAlive no
+ClientAliveInterval 60
+ClientAliveCountMax 2
+
+UsePAM yes
+
+ChallengeResponseAuthentication no
+GSSAPIAuthentication no
+HostbasedAuthentication no
+PasswordAuthentication no
+PermitRootLogin no
+PermitEmptyPasswords no
+KbdInteractiveAuthentication no
+KerberosAuthentication no
+AllowAgentForwarding no
+
+Banner /etc/issue
+PrintLastLog yes
+PrintMotd yes

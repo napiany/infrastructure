@@ -1,0 +1,25 @@
+---
+- name: 'Restart chronyd'
+  ansible.builtin.systemd:
+    name: 'chronyd'
+    state: 'restarted'
+    enabled: true
+    daemon_reload: true
+
+- name: Restart sshd
+  ansible.builtin.systemd:
+    name: sshd
+    state: restarted
+    daemon_reload: yes
+
+- name: 'Restart NetworkManager'
+  ansible.builtin.systemd:
+    name: 'NetworkManager.service'
+    state: 'restarted'
+    daemon_reload: true
+
+- name: 'Update initrd'
+  ansible.builtin.command: sdbootutil mkinitrd
+
+- name: 'Reboot'
+  ansible.builtin.reboot:

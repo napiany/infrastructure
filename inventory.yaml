@@ -1,0 +1,33 @@
+all:
+  children:
+    servers:
+      children:
+        internal:
+          children:
+            baremetal:
+              hosts:
+                server:
+                  ansible_host: 'X.X.X.X'
+                  zfs: true
+                  on_lvfs: true
+                  services:
+                    - 'step-ca'
+                    - 'nginx'
+                    - 'vaultwarden'
+                    - 'kanidm'
+                    - 'stalwart'
+                    - 'immich'
+                    - 'homeassistant'
+                backup:
+                  ansible_host:
+                  zfs: true
+            virtual:
+              hosts:
+        external:
+          hosts:
+    desktops:
+      hosts:
+        localhost:
+          ansible_connection: 'local'
+  vars:
+    ansible_user: 'robin'

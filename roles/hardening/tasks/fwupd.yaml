@@ -1,0 +1,15 @@
+---
+- name: 'Install and configure fwupd'
+  block:
+    - name: 'Install fwupd'
+      community.general.zypper:
+        name: 'fwupd'
+      notify:
+        - 'Reboot'
+    
+    - name: 'Ensure UriSchemes=file;https is set in fwupd.conf'
+      ansible.builtin.lineinfile:
+        path: '/etc/fwupd/fwupd.conf'
+        line: 'UriSchemes=file;https'
+        insertafter: 'EOF'
+        create: true

@@ -1,0 +1,35 @@
+---
+- include_tasks: 'chrony.yaml'
+
+- include_tasks: 'ssh.yaml'
+  when: "'servers' in group_names"
+
+- include_tasks: 'kernel.yaml'
+  notify: 'Update initrd'
+
+- include_tasks: 'coredump.yaml'
+
+- include_tasks: 'networkmanager.yaml'
+
+- include_tasks: 'fwupd.yaml'
+  when: "ansible_facts['virtualization_role'] == 'host'"
+
+- name: 'Mask debug-shell.service'
+  ansible.builtin.systemd:
+    name: 'debug-shell.service'
+    enabled: false
+    masked: true
+
+- name: 'Remove nullok from /etc/pam.d/common-password-pc'
+  ansible.builtin.replace:
+    path: '/etc/pam.d/common-password-pc'
+    regexp: '\s+nullok'
+    replace: ''
+    backup: true
+
+- name: 'Allow passwordless sudo'
+  ansible.builtin.copy:
+    content: '%wheel        ALL=(ALL)       NOPASSWD: ALL'
+    path: '/etc/sudoers.d/passwordless'
+    mode: '0644'
+  when: "'servers' in group_names"
