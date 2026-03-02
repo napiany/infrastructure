@@ -10,7 +10,7 @@ yamllint:
   script:
     - 'yamllint .'
     - 'echo "Checking for block scalars..."'
-    - '! grep -rn --include="*.yaml" -E ":\s+[|>]\s*$" . || { echo "Block scalars (| or >) are not allowed. Use quoted strings instead."; exit 1; }'
+    - '! find . -name "*.yaml" -exec grep -ln -E ":\s+[|>]\s*$" {} + || { echo "Block scalars (| or >) are not allowed. Use quoted strings instead."; exit 1; }'
 
 ansible-lint:
   stage: 'lint'
