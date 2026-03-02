@@ -66,7 +66,7 @@
         content: '{{ new_cmdline }}'
         owner: 'root'
         group: 'root'
-      when: "current_cmdline != new_cmdline"
+      when: 'current_cmdline != new_cmdline'
       notify: 'Update sdbootutil entries'
   when: "bootloader_type == 'systemd-boot'"
 
@@ -91,6 +91,6 @@
         regexp: '^GRUB_CMDLINE_LINUX_DEFAULT=".*"$'
         line: 'GRUB_CMDLINE_LINUX_DEFAULT="{{ new_cmdline }}"'
         backup: true
-      when: "current_cmdline != new_cmdline"
+      when: 'current_cmdline != new_cmdline'
       notify: 'Update GRUB configuration'
   when: "bootloader_type == 'grub'"
