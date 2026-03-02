@@ -1,0 +1,30 @@
+---
+- ansible.builtin.include_tasks: 'chrony.yaml'
+
+- ansible.builtin.include_tasks: 'coredump.yaml'
+
+- ansible.builtin.include_tasks: 'flatpak.yaml'
+  when: "'desktops' in group_names"
+
+- ansible.builtin.include_tasks: 'fwupd.yaml'
+  when: "ansible_facts['virtualization_role'] == 'host'"
+
+- ansible.builtin.include_tasks: 'kernel.yaml'
+
+- ansible.builtin.include_tasks: 'networkmanager.yaml'
+
+- ansible.builtin.include_tasks: 'ssh.yaml'
+  when: "'servers' in group_names"
+
+- name: 'Mask debug-shell.service'
+  ansible.builtin.systemd:
+    name: 'debug-shell.service'
+    enabled: false
+    masked: true
+
+- name: 'Remove nullok from /etc/pam.d/common-password-pc'
+  ansible.builtin.replace:
+    path: '/etc/pam.d/common-password-pc'
+    regexp: '\s+nullok'
+    replace: ''
+    backup: true

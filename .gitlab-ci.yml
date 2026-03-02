@@ -1,0 +1,21 @@
+---
+stages:
+  - 'lint'
+
+yamllint:
+  stage: 'lint'
+  image: 'python:3-alpine'
+  before_script:
+    - 'pip install --quiet yamllint'
+  script:
+    - 'yamllint .'
+    - 'echo "Checking for block scalars..."'
+    - '! grep -rn --include="*.yaml" -P ":\s+[|>]\s*$" . || { echo "Block scalars (| or >) are not allowed. Use quoted strings instead."; exit 1; }'
+
+ansible-lint:
+  stage: 'lint'
+  image: 'python:3-alpine'
+  before_script:
+    - 'pip install --quiet ansible-lint'
+  script:
+    - 'ansible-lint'

@@ -1,0 +1,22 @@
+---
+- name: 'Install fwupd'
+  community.general.zypper:
+    name: 'fwupd'
+  notify:
+    - 'Reboot'
+
+- name: 'Set UriSchemes=file;https in fwupd.conf'
+  ansible.builtin.lineinfile:
+    path: '/etc/fwupd/fwupd.conf'
+    line: 'UriSchemes=file;https'
+    insertafter: 'EOF'
+    create: true
+  notify:
+    - 'Reboot'
+
+- name: 'Enable and start fwupd-refresh.timer'
+  ansible.builtin.systemd:
+    name: 'fwupd-refresh.timer'
+    state: 'started'
+    enabled: true
+  when: "'servers' in group_names"

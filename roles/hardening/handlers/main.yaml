@@ -1,0 +1,30 @@
+---
+- name: 'Restart chronyd'
+  ansible.builtin.systemd:
+    name: 'chronyd'
+    state: 'restarted'
+    enabled: true
+    daemon_reload: true
+
+- name: 'Restart sshd'
+  ansible.builtin.systemd:
+    name: 'sshd'
+    state: 'restarted'
+    daemon_reload: true
+
+- name: 'Restart NetworkManager'
+  ansible.builtin.systemd:
+    name: 'NetworkManager.service'
+    state: 'restarted'
+    daemon_reload: true
+
+- name: 'Update sdbootutil entries'
+  ansible.builtin.command: 'sdbootutil update-all-entries'
+  changed_when: false
+
+- name: 'Update GRUB configuration'
+  ansible.builtin.command: 'grub2-mkconfig -o /boot/grub2/grub.cfg'
+  changed_when: false
+
+- name: 'Reboot'
+  ansible.builtin.reboot:

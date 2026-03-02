@@ -1,0 +1,14 @@
+---
+all:
+  children:
+    servers:
+      hosts:
+        miniserver:
+          ansible_host: 'miniserver.internal'
+    desktops:
+      hosts:
+        localhost:
+          ansible_connection: 'local'
+  vars:
+    ansible_user: 'robin'
+    ansible_python_interpreter: '/usr/bin/python3'

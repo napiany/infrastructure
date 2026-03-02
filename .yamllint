@@ -1,0 +1,27 @@
+---
+extends: 'default'
+
+rules:
+  truthy:
+    allowed-values:
+      - 'true'
+      - 'false'
+
+  quoted-strings:
+    required: 'only-when-needed'
+    quote-type: 'single'
+    extra-allowed:
+      - '.*\\n.*'
+
+  trailing-spaces: 'enable'
+
+  comments:
+    require-starting-space: true
+    min-spaces-from-content: 1
+
+  indentation:
+    spaces: 2
+    indent-sequences: true
+
+  line-length:
+    max: 500

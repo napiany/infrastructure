@@ -1,0 +1,22 @@
+---
+- name: 'Setup Aeon Desktops'
+  hosts: 'desktops'
+  become: true
+  tasks:
+    - name: 'Set hostname to inventory hostname'
+      ansible.builtin.hostname:
+        name: '{{ inventory_hostname }}'
+
+    - name: 'Clear contents of /var/lib/zypp/AnonymousUniqueId'
+      ansible.builtin.copy:
+        dest: '/var/lib/zypp/AnonymousUniqueId'
+        content: ''
+
+    - name: 'Disable XWayland'
+      ansible.builtin.copy:
+        dest: '/etc/systemd/user/org.gnome.Shell@wayland.service.d/override.conf'
+        content: "[Service]\nExecStart=\nExecStart=/usr/bin/gnome-shell --no-x11\n"
+
+    - name: 'Run hardening role'
+      ansible.builtin.include_role:
+        name: 'hardening'

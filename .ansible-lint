@@ -1,0 +1,10 @@
+---
+enable_list:
+  - 'fqcn'
+  - 'no-changed-when'
+  - 'name'
+
+skip_list: []
+
+exclude_paths:
+  - '.gitlab-ci.yml'

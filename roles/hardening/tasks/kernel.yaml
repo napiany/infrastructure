@@ -1,0 +1,96 @@
+---
+- name: 'Download modprobe blacklist drop-in file'
+  ansible.builtin.get_url:
+    url: 'https://raw.githubusercontent.com/Metropolis-nexus/Common-Files/refs/heads/main/etc/modprobe.d/server-blacklist.conf'
+    dest: '/etc/modprobe.d/server-blacklist.conf'
+    checksum: 'sha256:20bd816b27542030bb84cd6e683f075e91358bef20331b2cb2e061cc2d85155f'
+  when: "'servers' in group_names"
+
+- name: 'Download modprobe blacklist drop-in file'
+  ansible.builtin.get_url:
+    url: 'https://raw.githubusercontent.com/Metropolis-nexus/Common-Files/refs/heads/main/etc/modprobe.d/workstation-blacklist.conf'
+    dest: '/etc/modprobe.d/workstation-blacklist.conf'
+    checksum: 'sha256:c7a344125309cafb3dd9b266c62506d6a798e937f1bf32e038baec7b689bfc55'
+  when: "'desktops' in group_names"
+
+- name: 'Download sysctl drop-in file'
+  ansible.builtin.get_url:
+    url: 'https://raw.githubusercontent.com/Metropolis-nexus/Common-Files/refs/heads/main/etc/sysctl.d/99-server.conf'
+    dest: '/etc/sysctl.d/99-server.conf'
+    checksum: 'sha256:3114aadfdaf21e197e86cf8cc61367174261de0e183909b9c4da04a8570a0176'
+  when: "'servers' in group_names"
+
+- name: 'Download sysctl drop-in file'
+  ansible.builtin.get_url:
+    url: 'https://raw.githubusercontent.com/Metropolis-nexus/Common-Files/refs/heads/main/etc/sysctl.d/99-workstation.conf'
+    dest: '/etc/sysctl.d/99-workstation.conf'
+    checksum: 'sha256:59e337dd2c4c9ff89896f795093205705b9bd1edd64d6d2da461a06e4268f27b'
+  when: "'desktops' in group_names"
+
+- name: 'Detect bootloader type'
+  block:
+    - name: 'Check if systemd-boot is active'
+      ansible.builtin.command:
+        cmd: 'bootctl is-installed'
+      register: 'bootctl_result'
+      failed_when: false
+      changed_when: false
+
+    - name: 'Check for GRUB configuration file'
+      ansible.builtin.stat:
+        path: '/etc/default/grub'
+      register: 'grub_config'
+
+    - name: 'Set bootloader_type fact'
+      ansible.builtin.set_fact:
+        bootloader_type: "{{ 'systemd-boot' if bootctl_result.rc == 0 else 'grub' if grub_config.stat.exists else 'unknown' }}"
+
+- name: 'Set kernel arguments in /etc/kernel/cmdline'
+  block:
+    - name: 'Read current /etc/kernel/cmdline'
+      ansible.builtin.slurp:
+        src: '/etc/kernel/cmdline'
+      register: 'cmdline_content'
+
+    - name: 'Set current kernel cmdline as a fact'
+      ansible.builtin.set_fact:
+        current_cmdline: "{{ cmdline_content['content'] | b64decode | trim }}"
+
+    - name: 'Build new kernel cmdline with required arguments'
+      ansible.builtin.set_fact:
+        new_cmdline: "{{ (current_cmdline.split() + kernel_args) | unique | join(' ') }}"
+
+    - name: 'Update /etc/kernel/cmdline if needed'
+      ansible.builtin.copy:
+        dest: '/etc/kernel/cmdline'
+        content: '{{ new_cmdline }}'
+        owner: 'root'
+        group: 'root'
+      when: "current_cmdline != new_cmdline"
+      notify: 'Update sdbootutil entries'
+  when: "bootloader_type == 'systemd-boot'"
+
+- name: 'Set kernel arguments in /etc/default/grub'
+  block:
+    - name: 'Read current /etc/default/grub'
+      ansible.builtin.slurp:
+        src: '/etc/default/grub'
+      register: 'grub_content'
+
+    - name: 'Set current kernel cmdline as a fact'
+      ansible.builtin.set_fact:
+        current_cmdline: "{{ (grub_content['content'] | b64decode | regex_search('GRUB_CMDLINE_LINUX_DEFAULT=\"([^\"]+)\"', '\\1') or ['']) | first }}"
+
+    - name: 'Build new kernel cmdline with required arguments'
+      ansible.builtin.set_fact:
+        new_cmdline: "{{ (current_cmdline.split() + kernel_args) | unique | join(' ') }}"
+
+    - name: 'Update GRUB_CMDLINE_LINUX_DEFAULT if needed'
+      ansible.builtin.lineinfile:
+        path: '/etc/default/grub'
+        regexp: '^GRUB_CMDLINE_LINUX_DEFAULT=".*"$'
+        line: 'GRUB_CMDLINE_LINUX_DEFAULT="{{ new_cmdline }}"'
+        backup: true
+      when: "current_cmdline != new_cmdline"
+      notify: 'Update GRUB configuration'
+  when: "bootloader_type == 'grub'"

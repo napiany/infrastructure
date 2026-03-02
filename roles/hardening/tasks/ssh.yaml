@@ -1,0 +1,30 @@
+---
+- name: 'Copy sshd configuration file'
+  ansible.builtin.copy:
+    src: 'sshd_config'
+    dest: '/etc/ssh/sshd_config.d/10-custom.conf'
+  notify:
+    - 'Restart sshd'
+
+- name: 'Configure sshd service override'
+  block:
+    - name: 'Ensure /etc/systemd/system/sshd.service.d/ exists'
+      ansible.builtin.file:
+        path: '/etc/systemd/system/sshd.service.d/'
+        state: 'directory'
+
+    - name: 'Copy configuration file for sshd override'
+      ansible.builtin.get_url:
+        url: 'https://github.com/GrapheneOS/infrastructure/raw/refs/heads/main/etc/systemd/system/sshd.service.d/override.conf'
+        dest: '/etc/systemd/system/sshd.service.d/override.conf'
+        checksum: 'sha256:53fe45ce0909078f30a9c742eda4bab8c512e82a15dbe788c5cff2a6116aa3c8'
+      notify: 'Restart sshd'
+
+- name: 'Disable sshd.service and enable sshd.socket'
+  ansible.builtin.systemd:
+    name: '{{ item.name }}'
+    state: '{{ item.state }}'
+    enabled: '{{ item.enabled }}'
+  loop:
+    - { name: 'sshd.service', state: 'stopped', enabled: false }
+    - { name: 'sshd.socket', state: 'started', enabled: true }
