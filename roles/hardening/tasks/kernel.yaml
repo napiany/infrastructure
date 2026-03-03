@@ -1,17 +1,15 @@
 ---
 - name: 'Download modprobe blacklist drop-in file'
   ansible.builtin.get_url:
-    url: 'https://raw.githubusercontent.com/Metropolis-nexus/Common-Files/refs/heads/main/etc/modprobe.d/server-blacklist.conf'
-    dest: '/etc/modprobe.d/server-blacklist.conf'
-    checksum: 'sha256:20bd816b27542030bb84cd6e683f075e91358bef20331b2cb2e061cc2d85155f'
-  when: "'servers' in group_names"
+    url: 'https://raw.githubusercontent.com/secureblue/secureblue/live/files/system/usr/lib/modprobe.d/secureblue.conf'
+    dest: '/etc/modprobe.d/blacklist.conf'
+    checksum: 'sha256:4d6e754a3547f1a0e5b826f428e08e2e5be163196b4f739bccbf083522f54e5c'
 
-- name: 'Download modprobe blacklist drop-in file'
+- name: 'Download framebuffer blacklist drop-in file'
   ansible.builtin.get_url:
-    url: 'https://raw.githubusercontent.com/Metropolis-nexus/Common-Files/refs/heads/main/etc/modprobe.d/workstation-blacklist.conf'
-    dest: '/etc/modprobe.d/workstation-blacklist.conf'
-    checksum: 'sha256:c7a344125309cafb3dd9b266c62506d6a798e937f1bf32e038baec7b689bfc55'
-  when: "'desktops' in group_names"
+    url: 'https://raw.githubusercontent.com/secureblue/secureblue/live/files/system/usr/lib/modprobe.d/secureblue-framebuffer.conf'
+    dest: '/etc/modprobe.d/framebuffer-blacklist.conf'
+    checksum: 'sha256:636d9d214ca13a98db0174c8c277e8924253d72423c8339dd23a2088431c0fe2'
 
 - name: 'Download sysctl drop-in file'
   ansible.builtin.get_url:
