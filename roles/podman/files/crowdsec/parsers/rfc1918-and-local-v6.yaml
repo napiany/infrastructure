@@ -1,0 +1,12 @@
+---
+name: 'local/rfc1918-and-local-v6'
+description: 'Whitelist RFC1918 and local IPv6 source ranges'
+whitelist:
+  reason: 'Trusted local address space'
+  cidr:
+    - '10.0.0.0/8'
+    - '172.16.0.0/12'
+    - '192.168.0.0/16'
+    - '::1/128'
+    - 'fc00::/7'
+    - 'fe80::/10'

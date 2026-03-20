@@ -1,0 +1,32 @@
+{% for block in stalwart_certificate_blocks %}
+server {
+    listen 443 ssl;
+    listen 8443 ssl proxy_protocol;
+    listen [::]:443 ssl;
+
+    server_name {{ block.domains | join(' ') }};
+
+    ssl_certificate /etc/letsencrypt/live/{{ block.domains | first }}/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/{{ block.domains | first }}/privkey.pem;
+    ssl_trusted_certificate /etc/letsencrypt/live/{{ block.domains | first }}/chain.pem;
+
+    include snippets/universal_paths.conf;
+    include snippets/security.conf;
+    include snippets/permissions.conf;
+    include snippets/cross-origin-security.conf;
+    include snippets/proxy.conf;
+    include snippets/robots.conf;
+
+    resolver 10.89.103.1 valid=30s ipv6=off;
+
+    location / {
+        set $upstream_stalwart https://stalwart:443;
+        proxy_ssl_name {{ block.domains | first }};
+        proxy_ssl_server_name on;
+        # Stalwart bootstraps with a local cert before its mail TLS cert is configured.
+        proxy_ssl_verify off;
+        proxy_pass $upstream_stalwart;
+    }
+}
+
+{% endfor %}

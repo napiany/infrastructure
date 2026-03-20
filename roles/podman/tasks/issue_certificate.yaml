@@ -1,0 +1,123 @@
+---
+- name: 'Ensure certbot certificate request is valid'
+  ansible.builtin.assert:
+    that:
+      - 'certbot_certificate.domains | length > 0'
+      - '(certbot_certificate.domains | first | default("")) | length > 0'
+
+- name: 'Set effective certbot certificate name'
+  ansible.builtin.set_fact:
+    certbot_certificate_name: '{{ certbot_certificate.domains | first }}'
+
+- name: 'Check whether certificate already exists for {{ certbot_certificate_name }}'
+  vars:
+    cert_name: '{{ certbot_certificate_name }}'
+    lineage_dir: '{{ certbot_mountpoint }}/live/{{ cert_name }}'
+  ansible.builtin.stat:
+    path: '{{ lineage_dir }}/fullchain.pem'
+  register: 'certbot_certificate_file'
+
+- name: 'Check whether manifest exists for {{ certbot_certificate_name }}'
+  vars:
+    manifest_name: '{{ certbot_certificate_name }}.domains'
+  ansible.builtin.stat:
+    path: '{{ certbot_mountpoint }}/ansible/{{ manifest_name }}'
+  register: 'certbot_certificate_manifest_file'
+
+- name: 'Read manifest for {{ certbot_certificate_name }}'
+  vars:
+    manifest_name: '{{ certbot_certificate_name }}.domains'
+  ansible.builtin.slurp:
+    path: '{{ certbot_mountpoint }}/ansible/{{ manifest_name }}'
+  register: 'certbot_certificate_manifest_slurp'
+  when: 'certbot_certificate_manifest_file.stat.exists'
+
+- name: 'Set desired certificate manifest'
+  vars:
+    domains: '{{ certbot_certificate.domains }}'
+  ansible.builtin.set_fact:
+    certbot_desired_manifest: '{{ domains | join("\n") ~ "\n" }}'
+
+- name: 'Set current certificate manifest'
+  vars:
+    manifest_content: '{{ certbot_certificate_manifest_slurp.content }}'
+  ansible.builtin.set_fact:
+    certbot_current_manifest: '{{ manifest_content | b64decode }}'
+  when: 'certbot_certificate_manifest_file.stat.exists'
+
+- name: 'Set empty current certificate manifest'
+  ansible.builtin.set_fact:
+    certbot_current_manifest: ''
+  when: 'not certbot_certificate_manifest_file.stat.exists'
+
+- name: 'Set certificate missing state'
+  ansible.builtin.set_fact:
+    certbot_cert_missing: '{{ not certbot_certificate_file.stat.exists }}'
+
+- name: 'Set certificate manifest state'
+  vars:
+    current_manifest: '{{ certbot_current_manifest }}'
+    desired_manifest: '{{ certbot_desired_manifest }}'
+  ansible.builtin.set_fact:
+    certbot_manifest_ok: '{{ current_manifest == desired_manifest }}'
+
+- name: 'Reset certbot domain argv'
+  ansible.builtin.set_fact:
+    certbot_domain_argv: []
+
+- name: 'Build certbot domain argv'
+  ansible.builtin.set_fact:
+    certbot_domain_argv: '{{ certbot_domain_argv + ["-d", item] }}'
+  loop: '{{ certbot_certificate.domains }}'
+
+- name: 'Set certbot issue argv'
+  ansible.builtin.set_fact:
+    certbot_issue_argv:
+      - 'podman'
+      - 'run'
+      - '--rm'
+      - '-v'
+      - 'certbot:/etc/letsencrypt:z'
+      - '-v'
+      - 'certbot-config:/usr/local/bin:ro,z'
+      - 'localhost/certbot:latest'
+      - 'certonly'
+      - '--authenticator'
+      - 'dns-desec'
+      - '--dns-desec-credentials'
+      - '/etc/letsencrypt/secrets/DESEC.ini'
+      - '--dns-desec-propagation-seconds'
+      - '120'
+      - '--deploy-hook'
+      - '/usr/local/bin/certbot-deploy-hook.sh'
+      - '--non-interactive'
+      - '--agree-tos'
+      - '--no-eff-email'
+      - '--key-type'
+      - 'ecdsa'
+      - '--reuse-key'
+      - '--required-profile'
+      - 'shortlived'
+      - '--cert-name'
+      - '{{ certbot_certificate_name }}'
+
+- name: 'Issue certificate for {{ certbot_certificate_name }}'
+  ansible.builtin.command:
+    argv: '{{ certbot_issue_argv + certbot_domain_argv }}'
+  when:
+    - 'certbot_cert_missing or not certbot_manifest_ok'
+  changed_when: true
+  notify:
+    - 'Refresh cert consumers'
+
+- name: 'Record issued domains for {{ certbot_certificate_name }}'
+  vars:
+    manifest_name: '{{ certbot_certificate_name }}.domains'
+  ansible.builtin.copy:
+    dest: '{{ certbot_mountpoint }}/ansible/{{ manifest_name }}'
+    content: '{{ certbot_desired_manifest }}'
+    owner: 'root'
+    group: 'root'
+    mode: '0644'
+  when:
+    - 'certbot_cert_missing or not certbot_manifest_ok'

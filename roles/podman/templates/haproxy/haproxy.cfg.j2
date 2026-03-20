@@ -1,0 +1,137 @@
+global
+    log stdout format raw local0
+    tune.bufsize 65536
+    stats socket /tmp/haproxy.sock mode 660 level admin
+    stats timeout 30s
+    tune.lua.bool-sample-conversion pre-3.1-bug
+    lua-prepend-path /usr/lib/crowdsec-haproxy-spoa-bouncer/lua/?.lua
+    lua-load /usr/lib/crowdsec-haproxy-spoa-bouncer/lua/crowdsec.lua
+    setenv CROWDSEC_BAN_TEMPLATE_PATH /var/lib/crowdsec-haproxy-spoa-bouncer/html/ban.html
+    setenv CROWDSEC_CAPTCHA_TEMPLATE_PATH /var/lib/crowdsec-haproxy-spoa-bouncer/html/captcha.html
+
+defaults
+    log global
+    timeout client 10m
+    timeout server 10m
+    timeout connect 10s
+    timeout http-keep-alive 2m
+    timeout queue 15s
+    timeout tunnel 4h
+
+frontend public_http
+    mode http
+    bind 0.0.0.0:80
+    bind [::]:80 v6only
+    option httplog
+    option http-buffer-request
+    unique-id-format %[uuid()]
+    unique-id-header X-Unique-ID
+    filter spoe engine crowdsec config /usr/local/etc/haproxy/crowdsec.cfg
+    acl body_within_limit req.body_size -m int le 51200
+    http-request send-spoe-group crowdsec crowdsec-http-body if body_within_limit || !{ req.body_size -m found }
+    http-request send-spoe-group crowdsec crowdsec-http-no-body if !body_within_limit { req.body_size -m found }
+    http-request set-header X-Crowdsec-Remediation %[var(txn.crowdsec.remediation)] if { var(txn.crowdsec.remediation) -m found }
+    http-request set-header X-Crowdsec-IsoCode %[var(txn.crowdsec.isocode)] if { var(txn.crowdsec.isocode) -m found }
+    http-request redirect code 302 location %[url] if { var(txn.crowdsec.remediation) -m str allow } { var(txn.crowdsec.redirect) -m found }
+    http-request lua.crowdsec_handle if { var(txn.crowdsec.remediation) -m str captcha }
+    http-request lua.crowdsec_handle if { var(txn.crowdsec.remediation) -m str ban }
+    http-after-response set-header Set-Cookie %[var(txn.crowdsec.captcha_cookie)] if { var(txn.crowdsec.captcha_status) -m found } { var(txn.crowdsec.captcha_cookie) -m found }
+    http-after-response set-header Set-Cookie %[var(txn.crowdsec.captcha_cookie)] if { var(txn.crowdsec.captcha_cookie) -m found } !{ var(txn.crowdsec.captcha_status) -m found }
+{% for backend in podman_edge_backends %}
+{% for domain in backend.domains %}
+    acl host_{{ backend.id }}_{{ loop.index }} hdr(host) -i {{ domain }}
+{% endfor %}
+{% endfor %}
+{% set http_use_backend_rules = namespace(items=[]) %}
+{% for backend in podman_edge_backends %}
+{% set http_rule_conditions = namespace(items=[]) %}
+{% for domain in backend.domains %}
+{% set http_rule_conditions.items = http_rule_conditions.items + ['host_' ~ backend.id ~ '_' ~ (loop.index | string)] %}
+{% endfor %}
+{% set http_use_backend_rules.items = http_use_backend_rules.items + ['    use_backend ' ~ backend.id ~ '_http if ' ~ (http_rule_conditions.items | join(' || '))] %}
+{% endfor %}
+{{ http_use_backend_rules.items | join('
+') }}
+    default_backend {{ podman_edge_default_backend.id }}_http
+
+frontend public_https
+    mode tcp
+    bind 0.0.0.0:443
+    bind [::]:443 v6only
+    option tcplog
+    unique-id-format %[uuid()]
+    tcp-request inspect-delay 5s
+    filter spoe engine crowdsec config /usr/local/etc/haproxy/crowdsec.cfg
+    tcp-request content reject if { var(txn.crowdsec.remediation) -m str ban }
+    tcp-request content accept if { req.ssl_hello_type 1 }
+{% for backend in podman_edge_backends %}
+{% for domain in backend.domains %}
+    acl sni_{{ backend.id }}_{{ loop.index }} req.ssl_sni -i {{ domain }}
+{% endfor %}
+{% endfor %}
+{% set https_use_backend_rules = namespace(items=[]) %}
+{% for backend in podman_edge_backends %}
+{% set https_rule_conditions = namespace(items=[]) %}
+{% for domain in backend.domains %}
+{% set https_rule_conditions.items = https_rule_conditions.items + ['sni_' ~ backend.id ~ '_' ~ (loop.index | string)] %}
+{% endfor %}
+{% set https_use_backend_rules.items = https_use_backend_rules.items + ['    use_backend ' ~ backend.id ~ '_https if ' ~ (https_rule_conditions.items | join(' || '))] %}
+{% endfor %}
+{{ https_use_backend_rules.items | join('
+') }}
+    default_backend {{ podman_edge_default_backend.id }}_https
+
+{% if podman_stalwart_mail_backend | default({}) | length > 0 %}
+listen public_smtp
+    mode tcp
+    bind 0.0.0.0:25
+    bind [::]:25 v6only
+    option tcplog
+    timeout client 4h
+    timeout server 4h
+    server stalwart_mail {{ podman_stalwart_mail_backend.wireguard_ip }}:25
+
+listen public_submissions
+    mode tcp
+    bind 0.0.0.0:465
+    bind [::]:465 v6only
+    option tcplog
+    timeout client 4h
+    timeout server 4h
+    server stalwart_mail {{ podman_stalwart_mail_backend.wireguard_ip }}:465
+
+listen public_submission
+    mode tcp
+    bind 0.0.0.0:587
+    bind [::]:587 v6only
+    option tcplog
+    timeout client 4h
+    timeout server 4h
+    server stalwart_mail {{ podman_stalwart_mail_backend.wireguard_ip }}:587
+
+listen public_imaptls
+    mode tcp
+    bind 0.0.0.0:993
+    bind [::]:993 v6only
+    option tcplog
+    timeout client 4h
+    timeout server 4h
+    server stalwart_mail {{ podman_stalwart_mail_backend.wireguard_ip }}:993
+
+{% endif %}
+
+{% for backend in podman_edge_backends %}
+backend {{ backend.id }}_http
+    mode http
+    server {{ backend.id }} {{ backend.wireguard_ip }}:80 send-proxy-v2
+
+backend {{ backend.id }}_https
+    mode tcp
+    server {{ backend.id }} {{ backend.wireguard_ip }}:443 send-proxy-v2
+
+{% endfor %}
+backend crowdsec-spoa
+    mode tcp
+    timeout connect 2s
+    timeout server 60s
+    server crowdsec-spoa 10.89.106.2:9000

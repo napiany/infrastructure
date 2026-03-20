@@ -1,0 +1,629 @@
+---
+- name: 'Set CrowdSec LAPI host facts'
+  vars:
+    crowdsec_lapi_hosts_candidate: "{%- set ns = namespace(hosts=[]) -%}
+      {%- for item in groups['servers'] | default([]) -%}
+      {%- if hostvars[item].crowdsec_lapi_server | default(false) -%}
+      {%- set ns.hosts = ns.hosts + [item] -%}
+      {%- endif -%}
+      {%- endfor -%}
+      {{ ns.hosts }}"
+  ansible.builtin.set_fact:
+    crowdsec_lapi_hosts: "{{ crowdsec_lapi_hosts_candidate }}"
+    crowdsec_lapi_host: "{{ (crowdsec_lapi_hosts_candidate | first) | default('') }}"
+
+- name: 'Set CrowdSec topology facts'
+  vars:
+    crowdsec_lapi_primary_host: "{{ (crowdsec_lapi_hosts | default([]) | first) | default(inventory_hostname) }}"
+    crowdsec_lapi_address_candidate: "{{ '10.66.66.1' if inventory_hostname not in (crowdsec_lapi_hosts | default([])) else (hostvars[crowdsec_lapi_primary_host].ansible_host | default(crowdsec_lapi_primary_host)) }}"
+  ansible.builtin.set_fact:
+    crowdsec_is_lapi_server: "{{ inventory_hostname in (crowdsec_lapi_hosts | default([])) }}"
+    crowdsec_agent_enabled: "{{ 'nginx' in (podman_containers_selected | default([])) }}"
+    crowdsec_edge_bouncer_enabled: "{{ 'haproxy' in (podman_containers_selected | default([])) }}"
+    crowdsec_lapi_address: "{{ crowdsec_lapi_address_candidate }}"
+    crowdsec_lapi_url: "{{ 'http://' ~ crowdsec_lapi_address_candidate ~ ':8080' }}"
+
+- name: 'Set CrowdSec agent and AppSec facts'
+  vars:
+    crowdsec_appsec_configs_candidate:
+      - 'crowdsecurity/appsec-default'
+      - 'crowdsecurity/generic-rules'
+      - 'crowdsecurity/virtual-patching'
+      - 'crowdsecurity/crs'
+    crowdsec_appsec_collection_map:
+      crowdsecurity/generic-rules: 'crowdsecurity/appsec-generic-rules'
+      crowdsecurity/virtual-patching: 'crowdsecurity/appsec-virtual-patching'
+      crowdsecurity/crs: 'crowdsecurity/appsec-crs'
+    crowdsec_appsec_configs_requiring_default:
+      - 'crowdsecurity/appsec-default'
+      - 'crowdsecurity/generic-rules'
+      - 'crowdsecurity/virtual-patching'
+    crowdsec_appsec_configs_hidden_from_acquisition:
+      - 'crowdsecurity/generic-rules'
+      - 'crowdsecurity/virtual-patching'
+      - 'crowdsecurity/appsec-default'
+    crowdsec_appsec_passthrough_configs: "{{ crowdsec_appsec_configs_candidate | reject('in', crowdsec_appsec_configs_hidden_from_acquisition) | list }}"
+    crowdsec_appsec_required_collections_candidate: "{{ crowdsec_appsec_collection_map | dict2items | selectattr('key', 'in', crowdsec_appsec_configs_candidate) | map(attribute='value') | list }}"
+    crowdsec_appsec_acquisition_configs_candidate: "{{ ((['crowdsecurity/appsec-default'] if (crowdsec_appsec_configs_candidate | intersect(crowdsec_appsec_configs_requiring_default) | length > 0) else []) + crowdsec_appsec_passthrough_configs) | unique | list }}"
+  ansible.builtin.set_fact:
+    crowdsec_appsec_configs_effective: "{{ crowdsec_appsec_configs_candidate }}"
+    crowdsec_appsec_acquisition_configs_effective: "{{ crowdsec_appsec_acquisition_configs_candidate }}"
+    crowdsec_appsec_enabled: "{{ crowdsec_agent_enabled | bool and (crowdsec_appsec_configs_candidate | length > 0) }}"
+    crowdsec_appsec_required_collections: "{{ crowdsec_appsec_required_collections_candidate }}"
+    crowdsec_agent_collections_effective: "{{ ((['crowdsecurity/nginx', 'crowdsecurity/linux', 'crowdsecurity/sshd', 'crowdsecurity/base-http-scenarios', 'crowdsecurity/http-dos', 'crowdsecurity/appsec-crs', 'crowdsecurity/whitelist-good-actors'] + crowdsec_appsec_required_collections_candidate) | unique | list) }}"
+    crowdsec_appsec_listen_host_effective: "{{ crowdsec_appsec_listen_host | default('0.0.0.0') }}"
+    crowdsec_appsec_listen_port_effective: "{{ crowdsec_appsec_listen_port | default(7422) }}"
+    crowdsec_appsec_failure_action_effective: "{{ crowdsec_appsec_failure_action | default('passthrough') }}"
+    crowdsec_appsec_always_send_effective: "{{ crowdsec_appsec_always_send | default(false) | bool }}"
+
+- name: 'Set CrowdSec AppSec collections fact'
+  ansible.builtin.set_fact:
+    crowdsec_appsec_collections_effective: '{{ crowdsec_agent_collections_effective | select(''match'', ''^crowdsecurity/appsec-'') | list }}'
+
+- name: 'Ensure CrowdSec AppSec has at least one AppSec collection'
+  ansible.builtin.assert:
+    that:
+      - 'crowdsec_appsec_collections_effective | length > 0'
+    fail_msg: 'crowdsec_appsec_configs is set, but no matching AppSec collection is enabled. Add an AppSec collection such as crowdsecurity/appsec-generic-rules, crowdsecurity/appsec-virtual-patching, or crowdsecurity/appsec-crs.'
+  when: 'crowdsec_appsec_enabled | bool'
+
+- name: 'Ensure CrowdSec AppSec failure action is supported'
+  ansible.builtin.assert:
+    that:
+      - "crowdsec_appsec_failure_action_effective in ['passthrough', 'deny']"
+    fail_msg: 'crowdsec_appsec_failure_action must be either passthrough or deny.'
+  when: 'crowdsec_appsec_enabled | bool'
+
+- name: 'Ensure exactly one CrowdSec LAPI host is configured'
+  ansible.builtin.assert:
+    that:
+      - 'crowdsec_lapi_hosts | length == 1'
+    fail_msg: 'Configure exactly one server with crowdsec_lapi_server: true before deploying CrowdSec.'
+
+- name: 'Set CrowdSec agent password fact'
+  ansible.builtin.set_fact:
+    crowdsec_agent_password_value: '{{ (vault_crowdsec_agent_passwords | default({}))[inventory_hostname] }}'
+  when:
+    - 'crowdsec_agent_enabled | bool'
+    - 'not (crowdsec_is_lapi_server | bool)'
+  no_log: true
+
+- name: 'Ensure CrowdSec agent password exists for this host'
+  ansible.builtin.assert:
+    that:
+      - 'crowdsec_agent_password_value | length > 0'
+    fail_msg: 'Missing vault_crowdsec_agent_passwords[{{ inventory_hostname }}] for the CrowdSec agent host.'
+  when:
+    - 'crowdsec_agent_enabled | bool'
+    - 'not (crowdsec_is_lapi_server | bool)'
+  no_log: true
+
+- name: 'Manage CrowdSec agent podman secret'
+  ansible.builtin.include_tasks: 'manage_secret.yaml'
+  vars:
+    podman_secret:
+      name: 'crowdsec_agent_password'
+      value_var: 'crowdsec_agent_password_value'
+  when:
+    - 'crowdsec_agent_enabled | bool'
+    - 'not (crowdsec_is_lapi_server | bool)'
+
+- name: 'Ensure the shared CrowdSec LAPI host is dedicated'
+  ansible.builtin.assert:
+    that:
+      - 'not (crowdsec_is_lapi_server | bool and crowdsec_agent_enabled | bool)'
+    fail_msg: 'The shared CrowdSec LAPI host must not also run nginx in this setup.'
+  when: 'crowdsec_is_lapi_server | bool'
+
+- name: 'Ensure the shared nginx CrowdSec bouncer key exists on nginx hosts'
+  ansible.builtin.assert:
+    that:
+      - "lookup('vars', 'vault_crowdsec_nginx_bouncer_key', default='') | length > 0"
+    fail_msg: 'Missing vault_crowdsec_nginx_bouncer_key for the shared nginx CrowdSec remediation bouncer.'
+  when:
+    - 'crowdsec_agent_enabled | bool'
+    - 'not (crowdsec_is_lapi_server | bool)'
+  no_log: true
+
+- name: 'Copy the shared CrowdSec HAProxy network file'
+  ansible.builtin.copy:
+    src: 'crowdsec/haproxy-crowdsec.network'
+    dest: '/etc/containers/systemd/haproxy-crowdsec.network'
+  register: 'crowdsec_haproxy_network_unit'
+  when:
+    - 'crowdsec_is_lapi_server | bool'
+    - 'crowdsec_edge_bouncer_enabled | bool'
+  notify:
+    - 'Daemon reload'
+    - 'Restart crowdsec'
+    - 'Restart crowdsec-spoa'
+    - 'Restart haproxy'
+
+- name: 'Copy the shared nginx CrowdSec network file'
+  ansible.builtin.copy:
+    src: 'crowdsec/nginx-crowdsec.network'
+    dest: '/etc/containers/systemd/nginx-crowdsec.network'
+  register: 'crowdsec_nginx_network_unit'
+  when:
+    - 'crowdsec_agent_enabled | bool'
+    - 'not (crowdsec_is_lapi_server | bool)'
+  notify:
+    - 'Daemon reload'
+    - 'Restart crowdsec'
+    - 'Restart nginx'
+
+- name: 'Copy CrowdSec LAPI container unit'
+  ansible.builtin.copy:
+    src: 'crowdsec/crowdsec-lapi.container'
+    dest: '/etc/containers/systemd/crowdsec.container'
+  register: 'crowdsec_lapi_container_unit'
+  when: 'crowdsec_is_lapi_server | bool'
+  notify:
+    - 'Daemon reload'
+    - 'Restart crowdsec'
+
+- name: 'Template CrowdSec agent container unit'
+  ansible.builtin.template:
+    src: 'crowdsec/crowdsec.container.j2'
+    dest: '/etc/containers/systemd/crowdsec.container'
+  register: 'crowdsec_agent_container_unit'
+  when:
+    - 'crowdsec_agent_enabled | bool'
+    - 'not (crowdsec_is_lapi_server | bool)'
+  notify:
+    - 'Daemon reload'
+    - 'Restart crowdsec'
+
+- name: 'Create CrowdSec volumes'
+  ansible.builtin.command:
+    cmd: 'podman volume create {{ item }}'
+  loop: '{{ [''crowdsec-config'', ''crowdsec-data''] + ([''nginx-logs''] if crowdsec_agent_enabled | bool else []) }}'
+  register: 'volume_create'
+  changed_when: 'volume_create.rc == 0'
+  failed_when:
+    - 'volume_create.rc != 0'
+    - "'already exists' not in volume_create.stderr"
+
+- name: 'Get CrowdSec config volume mount point'
+  ansible.builtin.command:
+    argv:
+      - 'podman'
+      - 'volume'
+      - 'inspect'
+      - 'crowdsec-config'
+      - '--format'
+      - '{{ "{{.Mountpoint}}" }}'
+  register: 'crowdsec_config_mountpoint'
+  changed_when: false
+  failed_when: 'not ansible_check_mode and crowdsec_config_mountpoint.rc != 0'
+  check_mode: false
+  when: 'crowdsec_agent_enabled | bool'
+
+- name: 'Ensure CrowdSec config subdirectories exist for agent hosts'
+  ansible.builtin.file:
+    path: '{{ crowdsec_config_mountpoint.stdout }}/{{ item }}'
+    state: 'directory'
+    owner: 'root'
+    group: 'root'
+    mode: '0755'
+  loop:
+    - 'acquis.d'
+    - 'parsers/s02-enrich'
+  when:
+    - 'crowdsec_agent_enabled | bool'
+    - 'crowdsec_config_mountpoint.stdout | default("") | trim | length > 0'
+
+- name: 'Copy CrowdSec acquisition files into the config volume'
+  ansible.builtin.copy:
+    src: '{{ item.src }}'
+    dest: '{{ crowdsec_config_mountpoint.stdout }}/{{ item.dest }}'
+    owner: 'root'
+    group: 'root'
+    mode: '0644'
+  loop:
+    - src: 'crowdsec/acquis.d/nginx.yaml'
+      dest: 'acquis.d/nginx.yaml'
+    - src: 'crowdsec/parsers/rfc1918-and-local-v6.yaml'
+      dest: 'parsers/s02-enrich/10-rfc1918-and-local-v6.yaml'
+  when:
+    - 'crowdsec_agent_enabled | bool'
+    - 'crowdsec_config_mountpoint.stdout | default("") | trim | length > 0'
+  notify:
+    - 'Restart crowdsec'
+
+- name: 'Template CrowdSec AppSec acquisition file into the config volume'
+  ansible.builtin.template:
+    src: 'crowdsec/appsec.yaml.j2'
+    dest: '{{ crowdsec_config_mountpoint.stdout }}/acquis.d/appsec.yaml'
+    owner: 'root'
+    group: 'root'
+    mode: '0644'
+  register: 'crowdsec_appsec_acquisition_file'
+  when:
+    - 'crowdsec_agent_enabled | bool'
+    - 'not (crowdsec_is_lapi_server | bool)'
+    - 'crowdsec_appsec_enabled | bool'
+    - 'crowdsec_config_mountpoint.stdout | default("") | trim | length > 0'
+  notify:
+    - 'Restart crowdsec'
+
+- name: 'Remove CrowdSec AppSec acquisition file from the config volume when AppSec is disabled'
+  ansible.builtin.file:
+    path: '{{ crowdsec_config_mountpoint.stdout }}/acquis.d/appsec.yaml'
+    state: 'absent'
+  register: 'crowdsec_appsec_acquisition_file_removed'
+  when:
+    - 'crowdsec_agent_enabled | bool'
+    - 'not (crowdsec_is_lapi_server | bool)'
+    - 'not (crowdsec_appsec_enabled | bool)'
+    - 'crowdsec_config_mountpoint.stdout | default("") | trim | length > 0'
+  notify:
+    - 'Restart crowdsec'
+
+- name: 'Remove legacy CrowdSec config files from /etc/containers/systemd'
+  ansible.builtin.file:
+    path: '/etc/containers/systemd/{{ item }}'
+    state: 'absent'
+  loop:
+    - 'crowdsec-nginx.yaml'
+    - 'crowdsec-rfc1918-and-local-v6.yaml'
+    - 'crowdsec-appsec.yaml'
+  when: 'crowdsec_agent_enabled | bool'
+
+- name: 'Reload systemd after CrowdSec unit changes'
+  ansible.builtin.systemd:
+    daemon_reload: true
+  when:
+    - "(crowdsec_haproxy_network_unit is defined and crowdsec_haproxy_network_unit.changed) or (crowdsec_nginx_network_unit is defined and crowdsec_nginx_network_unit.changed) or (crowdsec_lapi_container_unit is defined and crowdsec_lapi_container_unit.changed) or (crowdsec_agent_container_unit is defined and crowdsec_agent_container_unit.changed)"
+
+- name: 'Get nginx-logs volume mount point for CrowdSec agent hosts'
+  ansible.builtin.command:
+    argv:
+      - 'podman'
+      - 'volume'
+      - 'inspect'
+      - 'nginx-logs'
+      - '--format'
+      - '{{ "{{.Mountpoint}}" }}'
+  register: 'crowdsec_nginx_logs_mountpoint'
+  changed_when: false
+  failed_when: 'not ansible_check_mode and crowdsec_nginx_logs_mountpoint.rc != 0'
+  check_mode: false
+  when:
+    - 'crowdsec_agent_enabled | bool'
+    - 'not (crowdsec_is_lapi_server | bool)'
+
+- name: 'Seed nginx log files before starting CrowdSec on agent hosts'
+  ansible.builtin.command:
+    argv:
+      - 'install'
+      - '-o'
+      - '300001'
+      - '-g'
+      - '300001'
+      - '-m'
+      - '0644'
+      - '/dev/null'
+      - '{{ crowdsec_nginx_logs_mountpoint.stdout }}/{{ item }}'
+    creates: '{{ crowdsec_nginx_logs_mountpoint.stdout }}/{{ item }}'
+  loop:
+    - 'access.log'
+    - 'error.log'
+  when:
+    - 'crowdsec_agent_enabled | bool'
+    - 'not (crowdsec_is_lapi_server | bool)'
+    - 'crowdsec_nginx_logs_mountpoint.stdout | default("") | trim | length > 0'
+
+- name: 'Ensure nginx log file ownership and mode before starting CrowdSec on agent hosts'
+  ansible.builtin.file:
+    path: '{{ crowdsec_nginx_logs_mountpoint.stdout }}/{{ item }}'
+    state: 'file'
+    owner: '300001'
+    group: '300001'
+    mode: '0644'
+  loop:
+    - 'access.log'
+    - 'error.log'
+  when:
+    - 'crowdsec_agent_enabled | bool'
+    - 'not (crowdsec_is_lapi_server | bool)'
+    - 'crowdsec_nginx_logs_mountpoint.stdout | default("") | trim | length > 0'
+
+- name: 'Ensure the HAProxy CrowdSec Podman network exists before starting edge services'
+  ansible.builtin.command:
+    argv:
+      - 'podman'
+      - 'network'
+      - 'create'
+      - '--ignore'
+      - '--ipv6'
+      - '--subnet'
+      - '10.89.106.0/24'
+      - '--gateway'
+      - '10.89.106.1'
+      - 'systemd-haproxy-crowdsec'
+  register: 'crowdsec_haproxy_network_ensure'
+  changed_when: false
+  failed_when: 'crowdsec_haproxy_network_ensure.rc != 0'
+  when:
+    - 'crowdsec_is_lapi_server | bool'
+    - 'crowdsec_edge_bouncer_enabled | bool'
+
+- name: 'Enable and start crowdsec.service on the LAPI host'
+  ansible.builtin.systemd:
+    name: 'crowdsec.service'
+    state: 'started'
+    enabled: true
+    daemon_reload: true
+  when: 'crowdsec_is_lapi_server | bool'
+
+- name: 'Wait for the CrowdSec LAPI host CLI to become ready'
+  ansible.builtin.command:
+    argv:
+      - 'podman'
+      - 'exec'
+      - 'crowdsec'
+      - 'cscli'
+      - 'machines'
+      - 'list'
+  register: 'crowdsec_lapi_cli_ready'
+  changed_when: false
+  retries: 10
+  delay: 3
+  until: 'crowdsec_lapi_cli_ready.rc == 0'
+  when: 'crowdsec_is_lapi_server | bool'
+
+- name: 'Ensure CrowdSec remote agent passwords exist on the LAPI host'
+  vars:
+    crowdsec_remote_agent_hosts: "{%- set ns = namespace(hosts=[]) -%}
+      {%- for item in groups['servers'] | default([]) -%}
+      {%- if
+        'nginx' in (hostvars[item].podman_containers | default([])) and
+        item != inventory_hostname
+      -%}
+      {%- set ns.hosts = ns.hosts + [item] -%}
+      {%- endif -%}
+      {%- endfor -%}
+      {{ ns.hosts }}"
+  ansible.builtin.assert:
+    that:
+      - "(vault_crowdsec_agent_passwords | default({})).get(item, '') | length > 0"
+    fail_msg: 'Missing vault_crowdsec_agent_passwords[{{ item }}] for remote CrowdSec agent registration.'
+  loop: '{{ crowdsec_remote_agent_hosts }}'
+  when: 'crowdsec_is_lapi_server | bool'
+  no_log: true
+
+- name: 'Inspect the shared nginx remediation bouncer'
+  ansible.builtin.command:
+    argv:
+      - 'podman'
+      - 'exec'
+      - 'crowdsec'
+      - 'cscli'
+      - 'bouncers'
+      - 'inspect'
+      - 'nginx-remediation'
+  register: 'crowdsec_nginx_bouncer_inspect'
+  changed_when: false
+  failed_when: false
+  when: 'crowdsec_is_lapi_server | bool'
+
+- name: 'Ensure the shared nginx remediation bouncer is registered'
+  ansible.builtin.command:
+    argv:
+      - 'podman'
+      - 'exec'
+      - 'crowdsec'
+      - 'cscli'
+      - 'bouncers'
+      - 'add'
+      - 'nginx-remediation'
+      - '--key'
+      - '{{ lookup(''vars'', ''vault_crowdsec_nginx_bouncer_key'') }}'
+  register: 'crowdsec_nginx_bouncer_add'
+  changed_when: 'crowdsec_nginx_bouncer_add.rc == 0'
+  failed_when:
+    - 'crowdsec_nginx_bouncer_add.rc != 0'
+    - "'already exists' not in ((crowdsec_nginx_bouncer_add.stderr | default('')) | lower)"
+  when:
+    - 'crowdsec_is_lapi_server | bool'
+    - "lookup('vars', 'vault_crowdsec_nginx_bouncer_key', default='') | length > 0"
+  no_log: true
+
+- name: 'Ensure the CrowdSec SPOA bouncer key is defined'
+  ansible.builtin.assert:
+    that:
+      - "lookup('vars', 'vault_crowdsec_spoa_bouncer_key', default='') | length > 0"
+    fail_msg: 'Missing vault_crowdsec_spoa_bouncer_key for the CrowdSec SPOA bouncer.'
+  when:
+    - 'crowdsec_is_lapi_server | bool'
+    - 'crowdsec_edge_bouncer_enabled | bool'
+  no_log: true
+
+- name: 'Set the CrowdSec SPOA bouncer key fact from vault'
+  ansible.builtin.set_fact:
+    crowdsec_spoa_bouncer_key: '{{ lookup(''vars'', ''vault_crowdsec_spoa_bouncer_key'') }}'
+    crowdsec_spoa_bouncer_checksum: '{{ lookup(''vars'', ''vault_crowdsec_spoa_bouncer_key'') | hash(''sha256'') }}'
+  when:
+    - 'crowdsec_is_lapi_server | bool'
+    - 'crowdsec_edge_bouncer_enabled | bool'
+  no_log: true
+
+- name: 'Check for the CrowdSec SPOA bouncer checksum file'
+  ansible.builtin.stat:
+    path: '/etc/containers/systemd/crowdsec-spoa.api-key.sha256'
+  register: 'crowdsec_spoa_bouncer_checksum_stat'
+  when:
+    - 'crowdsec_is_lapi_server | bool'
+    - 'crowdsec_edge_bouncer_enabled | bool'
+
+- name: 'Read the saved CrowdSec SPOA bouncer checksum'
+  ansible.builtin.slurp:
+    src: '/etc/containers/systemd/crowdsec-spoa.api-key.sha256'
+  register: 'crowdsec_spoa_bouncer_checksum_raw'
+  when:
+    - 'crowdsec_is_lapi_server | bool'
+    - 'crowdsec_edge_bouncer_enabled | bool'
+    - 'crowdsec_spoa_bouncer_checksum_stat.stat.exists'
+
+- name: 'Set the current CrowdSec SPOA bouncer checksum'
+  ansible.builtin.set_fact:
+    crowdsec_spoa_bouncer_current_checksum: '{{ crowdsec_spoa_bouncer_checksum_raw.content | b64decode | trim }}'
+  when:
+    - 'crowdsec_is_lapi_server | bool'
+    - 'crowdsec_edge_bouncer_enabled | bool'
+    - 'crowdsec_spoa_bouncer_checksum_stat.stat.exists'
+
+- name: 'Set an empty CrowdSec SPOA bouncer checksum'
+  ansible.builtin.set_fact:
+    crowdsec_spoa_bouncer_current_checksum: ''
+  when:
+    - 'crowdsec_is_lapi_server | bool'
+    - 'crowdsec_edge_bouncer_enabled | bool'
+    - 'not crowdsec_spoa_bouncer_checksum_stat.stat.exists'
+
+- name: 'Inspect the gateway SPOA bouncer registration'
+  ansible.builtin.command:
+    argv:
+      - 'podman'
+      - 'exec'
+      - 'crowdsec'
+      - 'cscli'
+      - 'bouncers'
+      - 'inspect'
+      - 'gateway-spoa-bouncer'
+  register: 'crowdsec_spoa_bouncer_inspect'
+  changed_when: false
+  failed_when: false
+  when:
+    - 'crowdsec_is_lapi_server | bool'
+    - 'crowdsec_edge_bouncer_enabled | bool'
+
+- name: 'Remove a stale gateway SPOA bouncer registration'
+  ansible.builtin.command:
+    argv:
+      - 'podman'
+      - 'exec'
+      - 'crowdsec'
+      - 'cscli'
+      - 'bouncers'
+      - 'delete'
+      - 'gateway-spoa-bouncer'
+  register: 'crowdsec_spoa_bouncer_delete'
+  changed_when: 'crowdsec_spoa_bouncer_delete.rc == 0'
+  failed_when: 'crowdsec_spoa_bouncer_delete.rc != 0'
+  when:
+    - 'crowdsec_is_lapi_server | bool'
+    - 'crowdsec_edge_bouncer_enabled | bool'
+    - 'crowdsec_spoa_bouncer_inspect.rc == 0'
+    - 'crowdsec_spoa_bouncer_current_checksum != crowdsec_spoa_bouncer_checksum'
+  no_log: true
+
+- name: 'Register the gateway SPOA bouncer with the vault key'
+  ansible.builtin.command:
+    argv:
+      - 'podman'
+      - 'exec'
+      - 'crowdsec'
+      - 'cscli'
+      - 'bouncers'
+      - 'add'
+      - 'gateway-spoa-bouncer'
+      - '--key'
+      - '{{ crowdsec_spoa_bouncer_key }}'
+  register: 'crowdsec_spoa_bouncer_add'
+  changed_when: 'crowdsec_spoa_bouncer_add.rc == 0'
+  failed_when:
+    - 'crowdsec_spoa_bouncer_add.rc != 0'
+    - "'already exists' not in ((crowdsec_spoa_bouncer_add.stderr | default('')) | lower)"
+  when:
+    - 'crowdsec_is_lapi_server | bool'
+    - 'crowdsec_edge_bouncer_enabled | bool'
+    - "crowdsec_spoa_bouncer_inspect.rc != 0 or (crowdsec_spoa_bouncer_delete is defined and crowdsec_spoa_bouncer_delete.changed)"
+  no_log: true
+
+- name: 'Persist the CrowdSec SPOA bouncer checksum locally'
+  ansible.builtin.copy:
+    dest: '/etc/containers/systemd/crowdsec-spoa.api-key.sha256'
+    content: '{{ crowdsec_spoa_bouncer_checksum }}\n'
+    owner: 'root'
+    group: 'root'
+    mode: '0600'
+  when:
+    - 'crowdsec_is_lapi_server | bool'
+    - 'crowdsec_edge_bouncer_enabled | bool'
+    - 'crowdsec_spoa_bouncer_current_checksum != crowdsec_spoa_bouncer_checksum'
+  no_log: true
+
+- name: 'Wait for the shared CrowdSec LAPI to be ready for this agent'
+  ansible.builtin.command:
+    argv:
+      - 'podman'
+      - 'exec'
+      - 'crowdsec'
+      - 'cscli'
+      - 'machines'
+      - 'list'
+  delegate_to: '{{ crowdsec_lapi_host }}'
+  register: 'crowdsec_agent_lapi_cli_ready'
+  changed_when: false
+  retries: 10
+  delay: 3
+  until: 'crowdsec_agent_lapi_cli_ready.rc == 0'
+  when:
+    - 'crowdsec_agent_enabled | bool'
+    - 'not (crowdsec_is_lapi_server | bool)'
+
+- name: 'Inspect this CrowdSec agent in the shared LAPI'
+  ansible.builtin.command:
+    argv:
+      - 'podman'
+      - 'exec'
+      - 'crowdsec'
+      - 'cscli'
+      - 'machines'
+      - 'inspect'
+      - '{{ inventory_hostname }}'
+  delegate_to: '{{ crowdsec_lapi_host }}'
+  register: 'crowdsec_agent_machine_inspect'
+  changed_when: false
+  failed_when: false
+  when:
+    - 'crowdsec_agent_enabled | bool'
+    - 'not (crowdsec_is_lapi_server | bool)'
+
+- name: 'Ensure this CrowdSec agent is registered with the shared LAPI'
+  ansible.builtin.command:
+    argv:
+      - 'podman'
+      - 'exec'
+      - 'crowdsec'
+      - 'cscli'
+      - 'machines'
+      - 'add'
+      - '{{ inventory_hostname }}'
+      - '-f'
+      - '-'
+      - '--password'
+      - '{{ crowdsec_agent_password_value }}'
+  delegate_to: '{{ crowdsec_lapi_host }}'
+  register: 'crowdsec_agent_machine_add'
+  changed_when: 'crowdsec_agent_machine_add.rc == 0'
+  failed_when:
+    - 'crowdsec_agent_machine_add.rc != 0'
+    - "'already exists' not in (((crowdsec_agent_machine_add.stderr | default('')) ~ ' ' ~ (crowdsec_agent_machine_add.stdout | default(''))) | lower)"
+  when:
+    - 'crowdsec_agent_enabled | bool'
+    - 'not (crowdsec_is_lapi_server | bool)'
+    - 'crowdsec_agent_machine_inspect.rc != 0'
+  no_log: true
+
+- name: 'Enable and start crowdsec.service on agent hosts'
+  ansible.builtin.systemd:
+    name: 'crowdsec.service'
+    state: 'started'
+    enabled: true
+    daemon_reload: true
+  when:
+    - 'crowdsec_agent_enabled | bool'
+    - 'not (crowdsec_is_lapi_server | bool)'

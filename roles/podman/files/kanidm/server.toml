@@ -1,0 +1,11 @@
+version = "2"
+bindaddress = "0.0.0.0:8443"
+db_path = "/data/kanidm.db"
+tls_chain = "/etc/letsencrypt/live/idm.napiany.com/fullchain.pem"
+tls_key = "/etc/letsencrypt/live/idm.napiany.com/privkey.pem"
+domain = "idm.napiany.com"
+origin = "https://idm.napiany.com"
+
+[online_backup]
+path = "/data/kanidm/backups/"
+schedule = "00 22 * * *"

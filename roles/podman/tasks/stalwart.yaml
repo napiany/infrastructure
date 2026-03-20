@@ -1,0 +1,203 @@
+---
+- name: 'Set Stalwart domain facts'
+  vars:
+    stalwart_settings_candidate: '{{ (podman_services | default({})).get("stalwart", {}) }}'
+    stalwart_certificate_blocks_candidate: '{{ stalwart_settings_candidate.certificate_blocks | default(([{"domains": stalwart_settings_candidate.domains}] if (stalwart_settings_candidate.domains | default([]) | length > 0) else [])) }}'
+  ansible.builtin.set_fact:
+    stalwart_certificate_blocks: '{{ stalwart_certificate_blocks_candidate }}'
+    stalwart_primary_domain: '{{ (((stalwart_certificate_blocks_candidate | first | default({})).domains | default([])) | first | default("")) }}'
+
+- name: 'Ensure Stalwart domain config is defined'
+  ansible.builtin.assert:
+    that:
+      - 'stalwart_certificate_blocks | length > 0'
+      - 'stalwart_primary_domain | length > 0'
+    fail_msg: 'Missing podman_services.stalwart.certificate_blocks for the Stalwart host.'
+
+- name: 'Ensure each Stalwart certificate block contains at least one domain'
+  ansible.builtin.assert:
+    that:
+      - 'item.domains | default([]) | length > 0'
+    fail_msg: 'Each podman_services.stalwart.certificate_blocks item must define at least one domain.'
+  loop: '{{ stalwart_certificate_blocks }}'
+
+- name: 'Manage Stalwart podman secrets'
+  vars:
+    stalwart_podman_secrets:
+      - name: 'stalwart-postgres_password'
+        value_var: 'vault_podman_secret_stalwart_postgres_password'
+      - name: 'stalwart_adminsecret'
+        value_var: 'vault_podman_secret_stalwart_adminsecret'
+  block:
+    - name: 'Ensure required Stalwart podman secret variables are defined'
+      ansible.builtin.assert:
+        that:
+          - 'lookup(''vars'', item.value_var, default='''') | length > 0'
+        fail_msg: 'Missing {{ item.value_var }} for Stalwart secret {{ item.name }}'
+      loop: '{{ stalwart_podman_secrets }}'
+      no_log: true
+
+    - name: 'Manage Stalwart podman secrets'
+      ansible.builtin.include_tasks: 'manage_secret.yaml'
+      loop: '{{ stalwart_podman_secrets }}'
+      loop_control:
+        loop_var: 'podman_secret'
+
+- name: 'Copy nginx-stalwart.network'
+  ansible.builtin.copy:
+    src: 'stalwart/nginx-stalwart.network'
+    dest: '/etc/containers/systemd/nginx-stalwart.network'
+  notify:
+    - 'Daemon reload'
+    - 'Restart nginx'
+    - 'Restart stalwart'
+
+- name: 'Copy stalwart-postgres.network'
+  ansible.builtin.copy:
+    src: 'stalwart/stalwart-postgres.network'
+    dest: '/etc/containers/systemd/stalwart-postgres.network'
+  notify:
+    - 'Daemon reload'
+    - 'Restart stalwart-postgres'
+    - 'Restart stalwart'
+
+- name: 'Copy stalwart-postgres.container'
+  ansible.builtin.copy:
+    src: 'stalwart/stalwart-postgres.container'
+    dest: '/etc/containers/systemd/stalwart-postgres.container'
+  notify:
+    - 'Daemon reload'
+    - 'Restart stalwart-postgres'
+
+- name: 'Template stalwart.container'
+  ansible.builtin.template:
+    src: 'stalwart/stalwart.container.j2'
+    dest: '/etc/containers/systemd/stalwart.container'
+    owner: 'root'
+    group: 'root'
+    mode: '0644'
+  notify:
+    - 'Daemon reload'
+    - 'Restart stalwart'
+
+- name: 'Create stalwart volumes'
+  ansible.builtin.command:
+    cmd: 'podman volume create {{ item }}'
+  loop:
+    - 'stalwart'
+    - 'stalwart-postgres'
+  register: 'volume_create'
+  changed_when: 'volume_create.rc == 0'
+  failed_when:
+    - 'volume_create.rc != 0'
+    - "'already exists' not in volume_create.stderr"
+
+- name: 'Set stalwart-postgres volume ownership'
+  block:
+    - name: 'Get stalwart-postgres volume mount point'
+      ansible.builtin.command:
+        argv:
+          - 'podman'
+          - 'volume'
+          - 'inspect'
+          - 'stalwart-postgres'
+          - '--format'
+          - '{{ "{{.Mountpoint}}" }}'
+      register: 'stalwart_postgres_mountpoint'
+      changed_when: false
+      failed_when: 'not ansible_check_mode and stalwart_postgres_mountpoint.rc != 0'
+      check_mode: false
+
+    - name: 'Set stalwart-postgres volume ownership'
+      ansible.builtin.file:
+        path: '{{ stalwart_postgres_mountpoint.stdout }}'
+        owner: '300007'
+        group: '300007'
+        mode: '0700'
+      when: 'stalwart_postgres_mountpoint.stdout | default("") | trim | length > 0'
+
+- name: 'Set stalwart volume ownership'
+  block:
+    - name: 'Get stalwart volume mount point'
+      ansible.builtin.command:
+        cmd: 'podman volume inspect stalwart --format {{ "{{.Mountpoint}}" }}'
+      register: 'stalwart_mountpoint'
+      changed_when: false
+      failed_when: 'not ansible_check_mode and stalwart_mountpoint.rc != 0'
+      check_mode: false
+
+    - name: 'Set stalwart volume ownership'
+      ansible.builtin.file:
+        path: '{{ stalwart_mountpoint.stdout }}'
+        owner: '300006'
+        group: '300006'
+        mode: '0700'
+      when: 'stalwart_mountpoint.stdout | default("") | trim | length > 0'
+
+    - name: 'Ensure stalwart directories exist'
+      ansible.builtin.file:
+        path: '{{ stalwart_mountpoint.stdout }}/{{ item.path }}'
+        state: 'directory'
+        owner: '300006'
+        group: '300006'
+        mode: '{{ item.mode }}'
+      loop:
+        - {path: 'etc', mode: '0700'}
+        - {path: 'data', mode: '0700'}
+        - {path: 'logs', mode: '0700'}
+      when: 'stalwart_mountpoint.stdout | default("") | trim | length > 0'
+
+    - name: 'Template stalwart config.toml'
+      ansible.builtin.template:
+        src: 'stalwart/config.toml.j2'
+        dest: '{{ stalwart_mountpoint.stdout }}/etc/config.toml'
+        owner: '300006'
+        group: '300006'
+        mode: '0600'
+      when: 'stalwart_mountpoint.stdout | default("") | trim | length > 0'
+      notify:
+        - 'Restart stalwart'
+
+- name: 'Enable and start stalwart-postgres.service'
+  ansible.builtin.systemd:
+    name: 'stalwart-postgres.service'
+    state: 'started'
+    enabled: true
+    daemon_reload: true
+
+- name: 'Ensure Stalwart certificates are issued'
+  ansible.builtin.include_tasks: 'issue_certificate.yaml'
+  vars:
+    certbot_certificate: '{{ item }}'
+  loop: '{{ stalwart_certificate_blocks }}'
+  loop_control:
+    label: '{{ item.domains | first }}'
+  when: 'not ansible_check_mode or certbot_mountpoint | default("") | trim | length > 0'
+
+- name: 'Enable and start stalwart.service'
+  ansible.builtin.systemd:
+    name: 'stalwart.service'
+    state: 'started'
+    enabled: true
+    daemon_reload: true
+
+- name: 'Template nginx config to nginx-conf volume'
+  block:
+    - name: 'Get nginx-conf volume mount point'
+      ansible.builtin.command:
+        cmd: 'podman volume inspect nginx-conf --format {{ "{{.Mountpoint}}" }}'
+      register: 'nginx_conf_mountpoint'
+      changed_when: false
+      failed_when: 'not ansible_check_mode and nginx_conf_mountpoint.rc != 0'
+      check_mode: false
+
+    - name: 'Template stalwart nginx config'
+      ansible.builtin.template:
+        src: 'stalwart/stalwart.conf.j2'
+        dest: '{{ nginx_conf_mountpoint.stdout }}/stalwart.conf'
+        owner: 'root'
+        group: 'root'
+        mode: '0644'
+      when: 'nginx_conf_mountpoint.stdout | default("") | trim | length > 0'
+      notify:
+        - 'Restart nginx'

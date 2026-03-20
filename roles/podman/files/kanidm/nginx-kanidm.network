@@ -1,0 +1,4 @@
+[Network]
+Subnet=10.89.100.0/24
+Gateway=10.89.100.1
+IPv6=true

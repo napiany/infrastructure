@@ -1,0 +1,133 @@
+---
+- name: 'Manage MollySocket podman secrets'
+  vars:
+    mollysocket_podman_secrets:
+      - name: 'mollysocket_vapid_privkey'
+        value_var: 'vault_podman_secret_mollysocket_vapid_privkey'
+  block:
+    - name: 'Ensure required MollySocket podman secret variables are defined'
+      ansible.builtin.assert:
+        that:
+          - 'lookup(''vars'', item.value_var, default='''') | length > 0'
+        fail_msg: 'Missing {{ item.value_var }} for MollySocket secret {{ item.name }}'
+      loop: '{{ mollysocket_podman_secrets }}'
+      no_log: true
+
+    - name: 'Manage MollySocket podman secrets'
+      ansible.builtin.include_tasks: 'manage_secret.yaml'
+      loop: '{{ mollysocket_podman_secrets }}'
+      loop_control:
+        loop_var: 'podman_secret'
+
+- name: 'Copy MollySocket Quadlet files'
+  block:
+    - name: 'Copy nginx-mollysocket.network'
+      ansible.builtin.copy:
+        src: 'mollysocket/nginx-mollysocket.network'
+        dest: '/etc/containers/systemd/nginx-mollysocket.network'
+      register: 'nginx_mollysocket_network_file'
+      notify:
+        - 'Daemon reload'
+        - 'Restart nginx'
+        - 'Restart mollysocket'
+
+    - name: 'Copy mollysocket.container'
+      ansible.builtin.copy:
+        src: 'mollysocket/mollysocket.container'
+        dest: '/etc/containers/systemd/mollysocket.container'
+      register: 'mollysocket_unit'
+      notify:
+        - 'Daemon reload'
+        - 'Restart mollysocket'
+
+- name: 'Reload systemd after MollySocket unit changes'
+  ansible.builtin.systemd:
+    daemon_reload: true
+  when:
+    - 'nginx_mollysocket_network_file.changed or mollysocket_unit.changed'
+
+- name: 'Create MollySocket volume'
+  ansible.builtin.command:
+    cmd: 'podman volume create mollysocket'
+  register: 'mollysocket_volume_create'
+  changed_when: 'mollysocket_volume_create.rc == 0'
+  failed_when:
+    - 'mollysocket_volume_create.rc != 0'
+    - '''already exists'' not in mollysocket_volume_create.stderr'
+
+- name: 'Prepare MollySocket volume contents'
+  block:
+    - name: 'Get mollysocket volume mount point'
+      ansible.builtin.command:
+        argv:
+          - 'podman'
+          - 'volume'
+          - 'inspect'
+          - 'mollysocket'
+          - '--format'
+          - '{{ ''{{.Mountpoint}}'' }}'
+      register: 'mollysocket_mountpoint'
+      changed_when: false
+      failed_when: 'not ansible_check_mode and mollysocket_mountpoint.rc != 0'
+      check_mode: false
+
+    - name: 'Set MollySocket volume ownership'
+      ansible.builtin.file:
+        path: '{{ mollysocket_mountpoint.stdout }}'
+        owner: '300009'
+        group: '300009'
+        mode: '0700'
+      when: 'mollysocket_mountpoint.stdout | default("") | trim | length > 0'
+
+    - name: 'Copy MollySocket config'
+      ansible.builtin.copy:
+        src: 'mollysocket/config.toml'
+        dest: '{{ mollysocket_mountpoint.stdout }}/config.toml'
+        owner: '300009'
+        group: '300009'
+        mode: '0600'
+      when: 'mollysocket_mountpoint.stdout | default("") | trim | length > 0'
+      notify:
+        - 'Restart mollysocket'
+
+- name: 'Ensure MollySocket certificate is issued'
+  ansible.builtin.include_tasks: 'issue_certificate.yaml'
+  vars:
+    certbot_certificate:
+      domains:
+        - 'mollysocket.napiany.com'
+  when: 'not ansible_check_mode or certbot_mountpoint | default("") | trim | length > 0'
+
+- name: 'Enable and start mollysocket.service'
+  ansible.builtin.systemd:
+    name: 'mollysocket.service'
+    state: 'started'
+    enabled: true
+    daemon_reload: true
+
+- name: 'Copy nginx config to nginx-conf volume'
+  block:
+    - name: 'Get nginx-conf volume mount point'
+      ansible.builtin.command:
+        argv:
+          - 'podman'
+          - 'volume'
+          - 'inspect'
+          - 'nginx-conf'
+          - '--format'
+          - '{{ ''{{.Mountpoint}}'' }}'
+      register: 'nginx_conf_mountpoint'
+      changed_when: false
+      failed_when: 'not ansible_check_mode and nginx_conf_mountpoint.rc != 0'
+      check_mode: false
+
+    - name: 'Copy MollySocket nginx config'
+      ansible.builtin.copy:
+        src: 'mollysocket/mollysocket.conf'
+        dest: '{{ nginx_conf_mountpoint.stdout }}/mollysocket.conf'
+        owner: 'root'
+        group: 'root'
+        mode: '0644'
+      when: 'nginx_conf_mountpoint.stdout | default("") | trim | length > 0'
+      notify:
+        - 'Restart nginx'

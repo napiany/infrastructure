@@ -1,0 +1,177 @@
+---
+- name: 'Reboot'
+  ansible.builtin.reboot:
+
+- name: 'Daemon reload'
+  ansible.builtin.systemd:
+    daemon_reload: true
+
+- name: 'Restart haproxy'
+  ansible.builtin.systemd:
+    name: 'haproxy.service'
+    state: 'restarted'
+    enabled: true
+
+- name: 'Restart crowdsec'
+  ansible.builtin.systemd:
+    name: 'crowdsec.service'
+    state: 'restarted'
+    enabled: true
+
+- name: 'Restart crowdsec-spoa'
+  ansible.builtin.systemd:
+    name: 'crowdsec-spoa.service'
+    state: 'restarted'
+    enabled: true
+
+- name: 'Restart nginx'
+  ansible.builtin.systemd:
+    name: 'nginx.service'
+    state: 'restarted'
+    enabled: true
+
+- name: 'Restart wireguard'
+  ansible.builtin.systemd:
+    name: 'wg-quick@wg0.service'
+    state: 'restarted'
+    enabled: true
+
+- name: 'Restart kanidm'
+  ansible.builtin.systemd:
+    name: 'kanidm.service'
+    state: 'restarted'
+    enabled: true
+
+- name: 'Restart vaultwarden-postgres'
+  ansible.builtin.systemd:
+    name: 'vaultwarden-postgres.service'
+    state: 'restarted'
+    enabled: true
+
+- name: 'Restart vaultwarden'
+  ansible.builtin.systemd:
+    name: 'vaultwarden.service'
+    state: 'restarted'
+    enabled: true
+
+- name: 'Restart containercve'
+  ansible.builtin.systemd:
+    name: 'containercve.service'
+    state: 'restarted'
+    enabled: true
+
+- name: 'Restart stalwart-postgres'
+  ansible.builtin.systemd:
+    name: 'stalwart-postgres.service'
+    state: 'restarted'
+    enabled: true
+
+- name: 'Restart stalwart'
+  ansible.builtin.systemd:
+    name: 'stalwart.service'
+    state: 'restarted'
+    enabled: true
+
+- name: 'Restart autopush-valkey'
+  ansible.builtin.systemd:
+    name: 'autopush-valkey.service'
+    state: 'restarted'
+    enabled: true
+
+- name: 'Restart autoconnect'
+  ansible.builtin.systemd:
+    name: 'autoconnect.service'
+    state: 'restarted'
+    enabled: true
+
+- name: 'Restart autoendpoint'
+  ansible.builtin.systemd:
+    name: 'autoendpoint.service'
+    state: 'restarted'
+    enabled: true
+
+- name: 'Restart mollysocket'
+  ansible.builtin.systemd:
+    name: 'mollysocket.service'
+    state: 'restarted'
+    enabled: true
+
+- name: 'Restart certbot timer'
+  ansible.builtin.systemd:
+    name: 'certbot.timer'
+    state: 'restarted'
+    enabled: true
+
+- name: 'Restart gvisor-auto-update timer'
+  ansible.builtin.systemd:
+    name: 'gvisor-auto-update.timer'
+    state: 'restarted'
+    enabled: true
+
+- name: 'Refresh nginx certificates'
+  ansible.builtin.command:
+    argv:
+      - 'podman'
+      - 'kill'
+      - '--signal'
+      - 'HUP'
+      - 'nginx'
+  changed_when: false
+  failed_when: false
+  listen: 'Refresh cert consumers'
+
+- name: 'Refresh kanidm certificates'
+  ansible.builtin.command:
+    argv:
+      - 'podman'
+      - 'kill'
+      - '--signal'
+      - 'HUP'
+      - 'kanidm'
+  changed_when: false
+  failed_when: false
+  listen: 'Refresh cert consumers'
+
+- name: 'Refresh stalwart certificates'
+  ansible.builtin.command:
+    argv:
+      - 'systemctl'
+      - 'try-restart'
+      - 'stalwart.service'
+  changed_when: false
+  failed_when: false
+  listen: 'Refresh cert consumers'
+
+- name: 'Try restart podman secret consumers'
+  vars:
+    podman_selected_containers: "{{ podman_containers_selected | default(podman_containers | default([])) }}"
+    podman_secret_consumers:
+      - service: 'crowdsec.service'
+        enabled: "{{ 'nginx' in podman_selected_containers and not (crowdsec_lapi_server | default(false) | bool) }}"
+      - service: 'haproxy.service'
+        enabled: "{{ 'haproxy' in podman_selected_containers }}"
+      - service: 'crowdsec-spoa.service'
+        enabled: "{{ 'haproxy' in podman_selected_containers }}"
+      - service: 'vaultwarden-postgres.service'
+        enabled: "{{ 'vaultwarden' in podman_selected_containers }}"
+      - service: 'vaultwarden.service'
+        enabled: "{{ 'vaultwarden' in podman_selected_containers }}"
+      - service: 'stalwart-postgres.service'
+        enabled: "{{ 'stalwart' in podman_selected_containers }}"
+      - service: 'stalwart.service'
+        enabled: "{{ 'stalwart' in podman_selected_containers }}"
+      - service: 'autoconnect.service'
+        enabled: "{{ 'autopush' in podman_selected_containers }}"
+      - service: 'autoendpoint.service'
+        enabled: "{{ 'autopush' in podman_selected_containers }}"
+      - service: 'mollysocket.service'
+        enabled: "{{ 'mollysocket' in podman_selected_containers }}"
+  ansible.builtin.command:
+    argv:
+      - 'systemctl'
+      - 'try-restart'
+      - '{{ item.service }}'
+  loop: '{{ podman_secret_consumers }}'
+  when: 'item.enabled | bool'
+  changed_when: false
+  failed_when: false

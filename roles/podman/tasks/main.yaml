@@ -1,0 +1,114 @@
+---
+- name: 'Ensure podman is installed'
+  community.general.zypper:
+    name:
+      - 'podman'
+    update_cache: true
+    state: 'present'
+  notify:
+    - 'Reboot'
+
+- name: 'Enable and start podman-auto-update.timer'
+  ansible.builtin.systemd:
+    name: 'podman-auto-update.timer'
+    state: 'started'
+    enabled: true
+
+- name: 'Set podman container metadata'
+  ansible.builtin.set_fact:
+    podman_available_containers:
+      - 'nginx'
+      - 'haproxy'
+      - 'kanidm'
+      - 'vaultwarden'
+      - 'containercve'
+      - 'stalwart'
+      - 'autopush'
+      - 'mollysocket'
+    podman_reverse_proxy_containers:
+      - 'kanidm'
+      - 'vaultwarden'
+      - 'containercve'
+      - 'stalwart'
+      - 'autopush'
+      - 'mollysocket'
+    podman_gvisor_containers:
+      - 'kanidm'
+      - 'vaultwarden'
+      - 'containercve'
+      - 'stalwart'
+      - 'autopush'
+      - 'mollysocket'
+    podman_edge_proxy_containers:
+      - 'nginx'
+      - 'haproxy'
+
+- name: 'Set effective podman container list'
+  ansible.builtin.set_fact:
+    podman_containers_selected: '{{ podman_containers | default(podman_available_containers) }}'
+
+- name: 'Ensure WireGuard tools are installed for edge proxy hosts'
+  community.general.zypper:
+    name:
+      - 'wireguard-tools'
+    update_cache: true
+    state: 'present'
+  when: "podman_containers_selected | intersect(podman_edge_proxy_containers) | length > 0"
+  notify:
+    - 'Reboot'
+
+- name: 'Ensure selected podman containers are supported'
+  ansible.builtin.assert:
+    that:
+      - "podman_containers_selected | difference(podman_available_containers) | length == 0"
+    fail_msg: 'Unsupported podman_containers for {{ inventory_hostname }}: {{ podman_containers_selected | difference(podman_available_containers) | join('', '') }}'
+
+- name: 'Ensure reverse-proxied containers include nginx'
+  ansible.builtin.assert:
+    that:
+      - "'nginx' in podman_containers_selected or (podman_containers_selected | intersect(podman_reverse_proxy_containers) | length == 0)"
+    fail_msg: 'Hosts selecting kanidm, vaultwarden, containercve, stalwart, autopush, or mollysocket must also include nginx in podman_containers.'
+
+- name: 'Ensure only one edge nginx service is selected per host'
+  ansible.builtin.assert:
+    that:
+      - "podman_containers_selected | intersect(podman_edge_proxy_containers) | length <= 1"
+    fail_msg: 'Hosts may select only one of nginx or haproxy because both bind the public HTTP and HTTPS ports.'
+
+- ansible.builtin.include_tasks: 'gvisor.yaml'
+  when: "podman_containers_selected | intersect(podman_gvisor_containers) | length > 0"
+
+- ansible.builtin.include_tasks: 'crowdsec.yaml'
+  when: "'nginx' in podman_containers_selected or (crowdsec_lapi_server | default(false))"
+  
+- ansible.builtin.include_tasks: 'nginx.yaml'
+  when: '''nginx'' in podman_containers_selected'
+
+- ansible.builtin.include_tasks: 'haproxy.yaml'
+  when: '''haproxy'' in podman_containers_selected'
+
+- ansible.builtin.include_tasks: 'kanidm.yaml'
+  when: '''kanidm'' in podman_containers_selected'
+
+- ansible.builtin.include_tasks: 'vaultwarden.yaml'
+  when: '''vaultwarden'' in podman_containers_selected'
+
+- ansible.builtin.include_tasks: 'containercve.yaml'
+  when: '''containercve'' in podman_containers_selected'
+
+- ansible.builtin.include_tasks: 'stalwart.yaml'
+  when: '''stalwart'' in podman_containers_selected'
+
+- ansible.builtin.include_tasks: 'autopush.yaml'
+  when: '''autopush'' in podman_containers_selected'
+
+- ansible.builtin.include_tasks: 'mollysocket.yaml'
+  when: '''mollysocket'' in podman_containers_selected'
+
+- name: 'Ensure nginx.service is running after reverse-proxy tasks'
+  ansible.builtin.systemd:
+    name: 'nginx.service'
+    state: 'started'
+    enabled: true
+    daemon_reload: true
+  when: '''nginx'' in podman_containers_selected'

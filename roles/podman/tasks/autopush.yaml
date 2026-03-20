@@ -1,0 +1,252 @@
+---
+- name: 'Set effective Autopush podman secret values'
+  ansible.builtin.set_fact:
+    autopush_podman_secret_definitions_effective:
+      - name: 'autopush_crypto_keys'
+        value: '{{ "[" ~ (lookup("vars", "vault_podman_secret_autopush_crypto_keys", default="") | regex_replace("\\s+", "") | replace("\"", "") | replace("[", "") | replace("]", "")) ~ "]" }}'
+      - name: 'autopush_auth_keys'
+        value: '{{ lookup(''vars'', ''vault_podman_secret_autopush_auth_keys'', default='''') }}'
+  no_log: true
+
+- name: 'Ensure required Autopush podman secret values are defined'
+  ansible.builtin.assert:
+    that:
+      - 'item.value | length > 0'
+    fail_msg: 'Missing Autopush secret {{ item.name }}'
+  loop: '{{ autopush_podman_secret_definitions_effective }}'
+  no_log: true
+
+- name: 'Manage Autopush podman secrets'
+  ansible.builtin.include_tasks: 'manage_secret.yaml'
+  loop: '{{ autopush_podman_secret_definitions_effective }}'
+  loop_control:
+    loop_var: 'podman_secret'
+
+- name: 'Copy Autopush Quadlet files'
+  block:
+    - name: 'Copy nginx-autopush.network'
+      ansible.builtin.copy:
+        src: 'autopush/nginx-autopush.network'
+        dest: '/etc/containers/systemd/nginx-autopush.network'
+      register: 'nginx_autopush_network_file'
+      notify:
+        - 'Daemon reload'
+        - 'Restart nginx'
+        - 'Restart autoconnect'
+        - 'Restart autoendpoint'
+
+    - name: 'Copy autopush-valkey.network'
+      ansible.builtin.copy:
+        src: 'autopush/autopush-valkey.network'
+        dest: '/etc/containers/systemd/autopush-valkey.network'
+      register: 'autopush_valkey_network_file'
+      notify:
+        - 'Daemon reload'
+        - 'Restart autopush-valkey'
+        - 'Restart autoconnect'
+        - 'Restart autoendpoint'
+
+    - name: 'Copy autopush-valkey.container'
+      ansible.builtin.copy:
+        src: 'autopush/autopush-valkey.container'
+        dest: '/etc/containers/systemd/autopush-valkey.container'
+      register: 'autopush_valkey_unit'
+      notify:
+        - 'Daemon reload'
+        - 'Restart autopush-valkey'
+
+    - name: 'Copy autoconnect.container'
+      ansible.builtin.copy:
+        src: 'autopush/autoconnect.container'
+        dest: '/etc/containers/systemd/autoconnect.container'
+      register: 'autoconnect_unit'
+      notify:
+        - 'Daemon reload'
+        - 'Restart autoconnect'
+
+    - name: 'Copy autoconnect.build'
+      ansible.builtin.copy:
+        src: 'autopush/autoconnect.build'
+        dest: '/etc/containers/systemd/autoconnect.build'
+      register: 'autoconnect_build_unit'
+      notify:
+        - 'Daemon reload'
+        - 'Restart autoconnect'
+
+    - name: 'Copy autoconnect Containerfile'
+      ansible.builtin.copy:
+        src: 'autopush/autoconnect.containerfile'
+        dest: '/etc/containers/systemd/autoconnect.containerfile'
+      register: 'autoconnect_containerfile_file'
+      notify:
+        - 'Daemon reload'
+        - 'Restart autoconnect'
+
+    - name: 'Copy autoendpoint.container'
+      ansible.builtin.copy:
+        src: 'autopush/autoendpoint.container'
+        dest: '/etc/containers/systemd/autoendpoint.container'
+      register: 'autoendpoint_unit'
+      notify:
+        - 'Daemon reload'
+        - 'Restart autoendpoint'
+
+    - name: 'Copy autoendpoint.build'
+      ansible.builtin.copy:
+        src: 'autopush/autoendpoint.build'
+        dest: '/etc/containers/systemd/autoendpoint.build'
+      register: 'autoendpoint_build_unit'
+      notify:
+        - 'Daemon reload'
+        - 'Restart autoendpoint'
+
+    - name: 'Copy autoendpoint Containerfile'
+      ansible.builtin.copy:
+        src: 'autopush/autoendpoint.containerfile'
+        dest: '/etc/containers/systemd/autoendpoint.containerfile'
+      register: 'autoendpoint_containerfile_file'
+      notify:
+        - 'Daemon reload'
+        - 'Restart autoendpoint'
+
+- name: 'Reload systemd after Autopush unit changes'
+  ansible.builtin.systemd:
+    daemon_reload: true
+  when: 'nginx_autopush_network_file.changed or autopush_valkey_network_file.changed or autopush_valkey_unit.changed or autoconnect_unit.changed or autoconnect_build_unit.changed or autoconnect_containerfile_file.changed or autoendpoint_unit.changed or autoendpoint_build_unit.changed or autoendpoint_containerfile_file.changed'
+
+- name: 'Create Autopush volumes'
+  ansible.builtin.command:
+    cmd: 'podman volume create {{ item }}'
+  loop:
+    - 'autopush-valkey'
+  register: 'volume_create'
+  changed_when: 'volume_create.rc == 0'
+  failed_when:
+    - 'volume_create.rc != 0'
+    - '''already exists'' not in volume_create.stderr'
+
+- name: 'Set Autopush Valkey volume ownership'
+  block:
+    - name: 'Get autopush-valkey volume mount point'
+      ansible.builtin.command:
+        argv:
+          - 'podman'
+          - 'volume'
+          - 'inspect'
+          - 'autopush-valkey'
+          - '--format'
+          - '{{ ''{{.Mountpoint}}'' }}'
+      register: 'autopush_valkey_mountpoint'
+      changed_when: false
+      failed_when: 'not ansible_check_mode and autopush_valkey_mountpoint.rc != 0'
+      check_mode: false
+
+    - name: 'Set autopush-valkey volume ownership'
+      ansible.builtin.file:
+        path: '{{ autopush_valkey_mountpoint.stdout }}'
+        owner: '300012'
+        group: '300012'
+        mode: '0700'
+        recurse: true
+      when: 'autopush_valkey_mountpoint.stdout | default("") | trim | length > 0'
+
+- name: 'Inspect autoconnect image'
+  ansible.builtin.command:
+    argv:
+      - 'podman'
+      - 'image'
+      - 'inspect'
+      - 'localhost/autoconnect:latest'
+  register: 'autoconnect_image_inspect'
+  changed_when: false
+  failed_when: false
+
+- name: 'Build autoconnect image'
+  ansible.builtin.command:
+    argv:
+      - 'systemctl'
+      - 'start'
+      - 'autoconnect-build.service'
+  register: 'autoconnect_build_start'
+  when: 'autoconnect_image_inspect.rc != 0 or autoconnect_build_unit.changed or autoconnect_containerfile_file.changed'
+  changed_when: 'autoconnect_build_start.rc == 0'
+  failed_when: 'autoconnect_build_start.rc != 0'
+
+- name: 'Inspect autoendpoint image'
+  ansible.builtin.command:
+    argv:
+      - 'podman'
+      - 'image'
+      - 'inspect'
+      - 'localhost/autoendpoint:latest'
+  register: 'autoendpoint_image_inspect'
+  changed_when: false
+  failed_when: false
+
+- name: 'Build autoendpoint image'
+  ansible.builtin.command:
+    argv:
+      - 'systemctl'
+      - 'start'
+      - 'autoendpoint-build.service'
+  register: 'autoendpoint_build_start'
+  when: 'autoendpoint_image_inspect.rc != 0 or autoendpoint_build_unit.changed or autoendpoint_containerfile_file.changed'
+  changed_when: 'autoendpoint_build_start.rc == 0'
+  failed_when: 'autoendpoint_build_start.rc != 0'
+
+- name: 'Enable and start autopush-valkey.service'
+  ansible.builtin.systemd:
+    name: 'autopush-valkey.service'
+    state: 'started'
+    enabled: true
+    daemon_reload: true
+
+- name: 'Ensure Autopush certificate is issued'
+  ansible.builtin.include_tasks: 'issue_certificate.yaml'
+  vars:
+    certbot_certificate:
+      domains:
+        - 'push.napiany.com'
+        - 'updates.push.napiany.com'
+  when: 'not ansible_check_mode or certbot_mountpoint | default("") | trim | length > 0'
+
+- name: 'Enable and start autoconnect.service'
+  ansible.builtin.systemd:
+    name: 'autoconnect.service'
+    state: 'started'
+    enabled: true
+    daemon_reload: true
+
+- name: 'Enable and start autoendpoint.service'
+  ansible.builtin.systemd:
+    name: 'autoendpoint.service'
+    state: 'started'
+    enabled: true
+    daemon_reload: true
+
+- name: 'Copy nginx config to nginx-conf volume'
+  block:
+    - name: 'Get nginx-conf volume mount point'
+      ansible.builtin.command:
+        argv:
+          - 'podman'
+          - 'volume'
+          - 'inspect'
+          - 'nginx-conf'
+          - '--format'
+          - '{{ ''{{.Mountpoint}}'' }}'
+      register: 'nginx_conf_mountpoint'
+      changed_when: false
+      failed_when: 'not ansible_check_mode and nginx_conf_mountpoint.rc != 0'
+      check_mode: false
+
+    - name: 'Copy Autopush nginx config'
+      ansible.builtin.copy:
+        src: 'autopush/autopush.conf'
+        dest: '{{ nginx_conf_mountpoint.stdout }}/autopush.conf'
+        owner: 'root'
+        group: 'root'
+        mode: '0644'
+      when: 'nginx_conf_mountpoint.stdout | default("") | trim | length > 0'
+      notify:
+        - 'Restart nginx'

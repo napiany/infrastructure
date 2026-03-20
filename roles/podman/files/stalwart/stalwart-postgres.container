@@ -1,0 +1,43 @@
+[Unit]
+Description=Stalwart PostgreSQL
+
+[Container]
+ContainerName=stalwart-postgres
+Image=docker.io/postgres/postgres:18-alpine
+AutoUpdate=registry
+
+Network=stalwart-postgres.network
+NetworkAlias=stalwart-postgres
+
+Volume=stalwart-postgres:/var/lib/postgresql/18/docker:Z
+ReadOnly=true
+Mount=type=tmpfs,tmpfs-size=50M,tmpfs-mode=0770,U,noexec,nosuid,nodev,destination=/var/run/postgresql
+
+Environment=POSTGRES_USER=stalwart
+Secret=stalwart-postgres_password,type=env,target=POSTGRES_PASSWORD
+
+User=300007
+Group=300007
+
+GlobalArgs=--runtime /usr/local/bin/runsc
+SecurityLabelDisable=true
+NoNewPrivileges=true
+DropCapability=ALL
+
+HealthCmd=pg_isready -U stalwart
+HealthInterval=15s
+HealthTimeout=5s
+Notify=healthy
+
+[Service]
+LockPersonality=true
+ProtectClock=true
+RestrictRealtime=true
+RuntimeDirectoryMode=700
+SystemCallArchitectures=native
+SystemCallFilter=~@obsolete
+
+Restart=always
+
+[Install]
+WantedBy=default.target

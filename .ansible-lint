@@ -7,3 +7,4 @@ skip_list:
 
 exclude_paths:
   - '.gitlab-ci.yml'
+  - 'group_vars/servers/vault.yaml'

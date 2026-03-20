@@ -1,0 +1,9 @@
+---
+appsec_configs:
+{% for item in crowdsec_appsec_acquisition_configs_effective %}
+  - {{ item }}
+{% endfor %}
+labels:
+  type: appsec
+listen_addr: {{ crowdsec_appsec_listen_host_effective }}:{{ crowdsec_appsec_listen_port_effective }}
+source: appsec

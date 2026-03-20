@@ -1,0 +1,173 @@
+---
+- name: 'Manage Vaultwarden podman secrets'
+  vars:
+    vaultwarden_podman_secrets:
+      - name: 'vaultwarden-postgres_password'
+        value_var: 'vault_podman_secret_vaultwarden_postgres_password'
+      - name: 'vaultwarden-postgres_dburl'
+        value_var: 'vault_podman_secret_vaultwarden_postgres_dburl'
+      - name: 'vaultwarden_installationid'
+        value_var: 'vault_podman_secret_vaultwarden_installationid'
+      - name: 'vaultwarden_installationkey'
+        value_var: 'vault_podman_secret_vaultwarden_installationkey'
+      - name: 'vaultwarden_admintoken'
+        value_var: 'vault_podman_secret_vaultwarden_admintoken'
+      - name: 'vaultwarden_ssoclientpassword'
+        value_var: 'vault_podman_secret_vaultwarden_ssoclientpassword'
+  block:
+    - name: 'Ensure required Vaultwarden podman secret variables are defined'
+      ansible.builtin.assert:
+        that:
+          - 'lookup(''vars'', item.value_var, default='''') | length > 0'
+        fail_msg: 'Missing {{ item.value_var }} for secret {{ item.name }}'
+      loop: '{{ vaultwarden_podman_secrets }}'
+      no_log: true
+
+    - name: 'Manage Vaultwarden podman secrets'
+      ansible.builtin.include_tasks: 'manage_secret.yaml'
+      loop: '{{ vaultwarden_podman_secrets }}'
+      loop_control:
+        loop_var: 'podman_secret'
+
+- name: 'Copy nginx-vaultwarden.network'
+  ansible.builtin.copy:
+    src: 'vaultwarden/nginx-vaultwarden.network'
+    dest: '/etc/containers/systemd/nginx-vaultwarden.network'
+  notify:
+    - 'Daemon reload'
+    - 'Restart nginx'
+    - 'Restart vaultwarden'
+
+- name: 'Copy vaultwarden-postgres.network'
+  ansible.builtin.copy:
+    src: 'vaultwarden/vaultwarden-postgres.network'
+    dest: '/etc/containers/systemd/vaultwarden-postgres.network'
+  notify:
+    - 'Daemon reload'
+    - 'Restart vaultwarden-postgres'
+    - 'Restart vaultwarden'
+
+- name: 'Copy vaultwarden-postgres.container'
+  ansible.builtin.copy:
+    src: 'vaultwarden/vaultwarden-postgres.container'
+    dest: '/etc/containers/systemd/vaultwarden-postgres.container'
+  notify:
+    - 'Daemon reload'
+    - 'Restart vaultwarden-postgres'
+
+- name: 'Copy vaultwarden.container'
+  ansible.builtin.copy:
+    src: 'vaultwarden/vaultwarden.container'
+    dest: '/etc/containers/systemd/vaultwarden.container'
+  notify:
+    - 'Daemon reload'
+    - 'Restart vaultwarden'
+
+- name: 'Create vaultwarden volumes'
+  ansible.builtin.command:
+    cmd: 'podman volume create {{ item }}'
+  loop:
+    - 'vaultwarden'
+    - 'vaultwarden-postgres'
+  register: 'volume_create'
+  changed_when: 'volume_create.rc == 0'
+  failed_when:
+    - 'volume_create.rc != 0'
+    - "'already exists' not in volume_create.stderr"
+
+- name: 'Set vaultwarden-postgres volume ownership'
+  block:
+    - name: 'Get vaultwarden-postgres volume mount point'
+      ansible.builtin.command:
+        argv:
+          - 'podman'
+          - 'volume'
+          - 'inspect'
+          - 'vaultwarden-postgres'
+          - '--format'
+          - '{{ "{{.Mountpoint}}" }}'
+      register: 'vaultwarden_postgres_mountpoint'
+      changed_when: false
+      failed_when: 'not ansible_check_mode and vaultwarden_postgres_mountpoint.rc != 0'
+      check_mode: false
+
+    - name: 'Set vaultwarden-postgres volume ownership'
+      ansible.builtin.file:
+        path: '{{ vaultwarden_postgres_mountpoint.stdout }}'
+        owner: '300004'
+        group: '300004'
+        mode: '0700'
+      when: 'vaultwarden_postgres_mountpoint.stdout | default("") | trim | length > 0'
+
+- name: 'Set vaultwarden volume ownership'
+  block:
+    - name: 'Get vaultwarden volume mount point'
+      ansible.builtin.command:
+        argv:
+          - 'podman'
+          - 'volume'
+          - 'inspect'
+          - 'vaultwarden'
+          - '--format'
+          - '{{ "{{.Mountpoint}}" }}'
+      register: 'vaultwarden_mountpoint'
+      changed_when: false
+      failed_when: 'not ansible_check_mode and vaultwarden_mountpoint.rc != 0'
+      check_mode: false
+
+    - name: 'Set vaultwarden volume ownership'
+      ansible.builtin.file:
+        path: '{{ vaultwarden_mountpoint.stdout }}'
+        owner: '300003'
+        group: '300003'
+        mode: '0700'
+      when: 'vaultwarden_mountpoint.stdout | default("") | trim | length > 0'
+
+- name: 'Enable and start vaultwarden-postgres.service'
+  ansible.builtin.systemd:
+    name: 'vaultwarden-postgres.service'
+    state: 'started'
+    enabled: true
+    daemon_reload: true
+
+- name: 'Ensure Vaultwarden certificate is issued'
+  ansible.builtin.include_tasks: 'issue_certificate.yaml'
+  vars:
+    certbot_certificate:
+      domains:
+        - 'vault.napiany.com'
+  when: 'not ansible_check_mode or certbot_mountpoint | default("") | trim | length > 0'
+
+- name: 'Enable and start vaultwarden.service'
+  ansible.builtin.systemd:
+    name: 'vaultwarden.service'
+    state: 'started'
+    enabled: true
+    daemon_reload: true
+
+- name: 'Copy nginx config to nginx-conf volume'
+  block:
+    - name: 'Get nginx-conf volume mount point'
+      ansible.builtin.command:
+        argv:
+          - 'podman'
+          - 'volume'
+          - 'inspect'
+          - 'nginx-conf'
+          - '--format'
+          - '{{ "{{.Mountpoint}}" }}'
+      register: 'nginx_conf_mountpoint'
+      changed_when: false
+      failed_when: 'not ansible_check_mode and nginx_conf_mountpoint.rc != 0'
+      check_mode: false
+
+    - name: 'Copy vaultwarden nginx config'
+      ansible.builtin.copy:
+        src: 'vaultwarden/vaultwarden.conf'
+        dest: '{{ nginx_conf_mountpoint.stdout }}/vaultwarden.conf'
+        owner: 'root'
+        group: 'root'
+        mode: '0644'
+      when: 'nginx_conf_mountpoint.stdout | default("") | trim | length > 0'
+      notify:
+        - 'Restart nginx'

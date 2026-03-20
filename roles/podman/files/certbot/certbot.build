@@ -1,0 +1,6 @@
+[Service]
+Environment=BUILDAH_ISOLATION=chroot
+
+[Build]
+ImageTag=localhost/certbot:latest
+File=/etc/containers/systemd/certbot.containerfile
