@@ -1,18 +1,27 @@
 ---
 - name: 'Download modprobe blacklist drop-in file'
   ansible.builtin.get_url:
+    owner: 'root'
+    group: 'root'
+    mode: '0644'
     url: 'https://raw.githubusercontent.com/secureblue/secureblue/live/files/system/usr/lib/modprobe.d/secureblue.conf'
     dest: '/etc/modprobe.d/blacklist.conf'
     checksum: 'sha256:4d6e754a3547f1a0e5b826f428e08e2e5be163196b4f739bccbf083522f54e5c'
 
 - name: 'Download framebuffer blacklist drop-in file'
   ansible.builtin.get_url:
+    owner: 'root'
+    group: 'root'
+    mode: '0644'
     url: 'https://raw.githubusercontent.com/secureblue/secureblue/live/files/system/usr/lib/modprobe.d/secureblue-framebuffer.conf'
     dest: '/etc/modprobe.d/framebuffer-blacklist.conf'
     checksum: 'sha256:636d9d214ca13a98db0174c8c277e8924253d72423c8339dd23a2088431c0fe2'
 
 - name: 'Download sysctl drop-in file'
   ansible.builtin.get_url:
+    owner: 'root'
+    group: 'root'
+    mode: '0644'
     url: 'https://raw.githubusercontent.com/Metropolis-nexus/Common-Files/refs/heads/main/etc/sysctl.d/99-server.conf'
     dest: '/etc/sysctl.d/99-server.conf'
     checksum: 'sha256:3114aadfdaf21e197e86cf8cc61367174261de0e183909b9c4da04a8570a0176'
@@ -20,6 +29,9 @@
 
 - name: 'Download sysctl drop-in file'
   ansible.builtin.get_url:
+    owner: 'root'
+    group: 'root'
+    mode: '0644'
     url: 'https://raw.githubusercontent.com/Metropolis-nexus/Common-Files/refs/heads/main/etc/sysctl.d/99-workstation.conf'
     dest: '/etc/sysctl.d/99-workstation.conf'
     checksum: 'sha256:59e337dd2c4c9ff89896f795093205705b9bd1edd64d6d2da461a06e4268f27b'
@@ -60,6 +72,7 @@
 
     - name: 'Update /etc/kernel/cmdline if needed'
       ansible.builtin.copy:
+        mode: '0644'
         dest: '/etc/kernel/cmdline'
         content: '{{ new_cmdline }}'
         owner: 'root'

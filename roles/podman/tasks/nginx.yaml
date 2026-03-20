@@ -55,6 +55,9 @@
   ansible.builtin.copy:
     src: '{{ item.src }}'
     dest: '/etc/containers/systemd/{{ item.dest }}'
+    owner: 'root'
+    group: 'root'
+    mode: '0644'
   loop:
     - service: 'kanidm'
       src: 'kanidm/nginx-kanidm.network'
@@ -85,6 +88,9 @@
       ansible.builtin.copy:
         src: 'nginx/nginx.build'
         dest: '/etc/containers/systemd/nginx.build'
+        owner: 'root'
+        group: 'root'
+        mode: '0644'
       register: 'nginx_build_unit'
       notify:
         - 'Daemon reload'
@@ -94,6 +100,9 @@
       ansible.builtin.copy:
         src: 'nginx/nginx.containerfile'
         dest: '/etc/containers/systemd/nginx.containerfile'
+        owner: 'root'
+        group: 'root'
+        mode: '0644'
       register: 'nginx_containerfile_file'
       notify:
         - 'Daemon reload'
@@ -103,6 +112,9 @@
       ansible.builtin.copy:
         src: 'nginx/nginx.conf'
         dest: '/etc/containers/systemd/nginx.conf'
+        owner: 'root'
+        group: 'root'
+        mode: '0644'
       register: 'nginx_main_config_file'
       notify:
         - 'Restart nginx'
@@ -140,6 +152,9 @@
       ansible.builtin.copy:
         src: 'certbot/certbot.container'
         dest: '/etc/containers/systemd/certbot.container'
+        owner: 'root'
+        group: 'root'
+        mode: '0644'
       register: 'certbot_container_unit'
       notify:
         - 'Daemon reload'
@@ -149,6 +164,9 @@
       ansible.builtin.copy:
         src: 'certbot/certbot.build'
         dest: '/etc/containers/systemd/certbot.build'
+        owner: 'root'
+        group: 'root'
+        mode: '0644'
       register: 'certbot_build_unit'
       notify:
         - 'Daemon reload'
@@ -158,6 +176,9 @@
       ansible.builtin.copy:
         src: 'certbot/certbot.containerfile'
         dest: '/etc/containers/systemd/certbot.containerfile'
+        owner: 'root'
+        group: 'root'
+        mode: '0644'
       register: 'certbot_containerfile_file'
       notify:
         - 'Daemon reload'
@@ -199,6 +220,9 @@
       ansible.builtin.copy:
         src: 'certbot/certbot.timer'
         dest: '/etc/systemd/system/certbot.timer'
+        owner: 'root'
+        group: 'root'
+        mode: '0644'
       register: 'certbot_timer_unit'
       notify:
         - 'Daemon reload'
@@ -416,6 +440,9 @@
       ansible.builtin.copy:
         src: '{{ item.src }}'
         dest: '{{ nginx_snippets_mountpoint.stdout }}/{{ item.dest }}'
+        owner: 'root'
+        group: 'root'
+        mode: '0644'
       when: 'nginx_snippets_mountpoint.stdout | default("") | trim | length > 0'
       notify:
         - 'Restart nginx'
@@ -466,6 +493,9 @@
       ansible.builtin.copy:
         src: '{{ item.src }}'
         dest: '{{ nginx_conf_mountpoint.stdout }}/{{ item.dest }}'
+        owner: 'root'
+        group: 'root'
+        mode: '0644'
       when: 'nginx_conf_mountpoint.stdout | default("") | trim | length > 0'
       notify:
         - 'Restart nginx'

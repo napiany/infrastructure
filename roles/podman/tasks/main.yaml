@@ -80,7 +80,7 @@
 
 - ansible.builtin.include_tasks: 'crowdsec.yaml'
   when: "'nginx' in podman_containers_selected or (crowdsec_lapi_server | default(false))"
-  
+
 - ansible.builtin.include_tasks: 'nginx.yaml'
   when: '''nginx'' in podman_containers_selected'
 

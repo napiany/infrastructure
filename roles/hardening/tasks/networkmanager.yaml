@@ -8,6 +8,9 @@
 
     - name: 'Download override for NetworkManager'
       ansible.builtin.get_url:
+        owner: 'root'
+        group: 'root'
+        mode: '0644'
         url: 'https://gitlab.com/divested/brace/-/raw/master/brace/usr/lib/systemd/system/NetworkManager.service.d/99-brace.conf'
         dest: '/etc/systemd/system/NetworkManager.service.d/override.conf'
         checksum: 'sha256:85cb7ee1f91dead17ad633bfbc53a4f00ad3882f75d9295c28d6969cf3c35442'
@@ -17,6 +20,9 @@
   block:
     - name: 'Download macrandomize config for NetworkManager'
       ansible.builtin.get_url:
+        owner: 'root'
+        group: 'root'
+        mode: '0644'
         url: 'https://raw.githubusercontent.com/Metropolis-nexus/Common-Files/refs/heads/main/etc/NetworkManager/conf.d/00-macrandomize.conf'
         dest: '/etc/NetworkManager/conf.d/00-macrandomize.conf'
         checksum: 'sha256:25bf82322d4b3f1c7f7f4d6dbd679a7b237da3e2ffedf89cfea60af5dfe577fb'
@@ -24,6 +30,9 @@
 
     - name: 'Download transient hostname config for NetworkManager'
       ansible.builtin.get_url:
+        owner: 'root'
+        group: 'root'
+        mode: '0644'
         url: 'https://raw.githubusercontent.com/Metropolis-nexus/Common-Files/refs/heads/main/etc/NetworkManager/conf.d/01-transient-hostname.conf'
         dest: '/etc/NetworkManager/conf.d/01-transient-hostname.conf'
         checksum: 'sha256:bb19f7aa0d4f5a6fef37fad0d589302b49a1c0bdeb4cbbbd8aad0c7f2ad38f2c'

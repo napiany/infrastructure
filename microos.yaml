@@ -14,6 +14,9 @@
       ansible.builtin.copy:
         dest: '/var/lib/zypp/AnonymousUniqueId'
         content: ''
+        owner: 'root'
+        group: 'root'
+        mode: '0644'
 
     - name: 'Set timezone to UTC'
       ansible.builtin.file:
@@ -26,6 +29,8 @@
       ansible.builtin.copy:
         content: '%wheel        ALL=(ALL)       NOPASSWD: ALL'
         dest: '/etc/sudoers.d/passwordless'
+        owner: 'root'
+        group: 'root'
         mode: '0440'
 
     - name: 'Install required packages'

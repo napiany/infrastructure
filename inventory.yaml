@@ -8,12 +8,6 @@ all:
           crowdsec_lapi_server: true
           podman_containers:
             - 'haproxy'
-        #webserver:
-        #  ansible_host: 'webserver.napiany.com'
-        #  podman_wireguard_ip: '10.66.66.3'
-        #  podman_containers:
-        #    - 'nginx'
-        #    - 'containercve'
         miniserver:
           ansible_host: 'miniserver.napiany.com'
           podman_wireguard_ip: '10.66.66.2'
@@ -34,14 +28,8 @@ all:
                     - 'mta-sts.napiany.com'
                     - 'autoconfig.napiany.com'
                     - 'autodiscover.napiany.com'
-                # - domains:
-                #     - 'mail.napiany.dev'
-                #     - 'mta-sts.napiany.dev'
-                #     - 'autoconfig.napiany.dev'
-                #     - 'autodiscover.napiany.dev'
               mail_domains:
                 - 'napiany.com'
-                # - 'napiany.dev'
     desktops:
       hosts:
         localhost:

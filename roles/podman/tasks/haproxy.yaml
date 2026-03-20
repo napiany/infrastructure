@@ -153,6 +153,9 @@
       ansible.builtin.copy:
         src: 'haproxy/haproxy.build'
         dest: '/etc/containers/systemd/haproxy.build'
+        owner: 'root'
+        group: 'root'
+        mode: '0644'
       register: 'haproxy_build_unit'
       notify:
         - 'Daemon reload'
@@ -162,6 +165,9 @@
       ansible.builtin.copy:
         src: 'haproxy/haproxy.containerfile'
         dest: '/etc/containers/systemd/haproxy.containerfile'
+        owner: 'root'
+        group: 'root'
+        mode: '0644'
       register: 'haproxy_containerfile_file'
       notify:
         - 'Daemon reload'
@@ -183,6 +189,9 @@
       ansible.builtin.copy:
         src: 'haproxy/crowdsec-spoa.container'
         dest: '/etc/containers/systemd/crowdsec-spoa.container'
+        owner: 'root'
+        group: 'root'
+        mode: '0644'
       register: 'crowdsec_spoa_container_unit'
       notify:
         - 'Daemon reload'
@@ -283,7 +292,7 @@
   ansible.builtin.systemd:
     daemon_reload: true
   when: "haproxy_daemon_reload_triggers | map('bool') | select('equalto', true) | list | length > 0"
-  
+
 - name: 'Inspect haproxy image'
   ansible.builtin.command:
     argv:

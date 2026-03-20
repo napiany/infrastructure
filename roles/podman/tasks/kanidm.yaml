@@ -15,6 +15,9 @@
   ansible.builtin.copy:
     src: 'kanidm/nginx-kanidm.network'
     dest: '/etc/containers/systemd/nginx-kanidm.network'
+    owner: 'root'
+    group: 'root'
+    mode: '0644'
   notify:
     - 'Daemon reload'
     - 'Restart nginx'
@@ -24,6 +27,9 @@
   ansible.builtin.copy:
     src: 'kanidm/kanidm.container'
     dest: '/etc/containers/systemd/kanidm.container'
+    owner: 'root'
+    group: 'root'
+    mode: '0644'
   notify:
     - 'Daemon reload'
     - 'Restart kanidm'

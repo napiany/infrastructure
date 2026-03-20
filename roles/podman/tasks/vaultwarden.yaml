@@ -33,6 +33,9 @@
   ansible.builtin.copy:
     src: 'vaultwarden/nginx-vaultwarden.network'
     dest: '/etc/containers/systemd/nginx-vaultwarden.network'
+    owner: 'root'
+    group: 'root'
+    mode: '0644'
   notify:
     - 'Daemon reload'
     - 'Restart nginx'
@@ -42,6 +45,9 @@
   ansible.builtin.copy:
     src: 'vaultwarden/vaultwarden-postgres.network'
     dest: '/etc/containers/systemd/vaultwarden-postgres.network'
+    owner: 'root'
+    group: 'root'
+    mode: '0644'
   notify:
     - 'Daemon reload'
     - 'Restart vaultwarden-postgres'
@@ -51,6 +57,9 @@
   ansible.builtin.copy:
     src: 'vaultwarden/vaultwarden-postgres.container'
     dest: '/etc/containers/systemd/vaultwarden-postgres.container'
+    owner: 'root'
+    group: 'root'
+    mode: '0644'
   notify:
     - 'Daemon reload'
     - 'Restart vaultwarden-postgres'
@@ -59,6 +68,9 @@
   ansible.builtin.copy:
     src: 'vaultwarden/vaultwarden.container'
     dest: '/etc/containers/systemd/vaultwarden.container'
+    owner: 'root'
+    group: 'root'
+    mode: '0644'
   notify:
     - 'Daemon reload'
     - 'Restart vaultwarden'

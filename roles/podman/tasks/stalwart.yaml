@@ -47,6 +47,9 @@
   ansible.builtin.copy:
     src: 'stalwart/nginx-stalwart.network'
     dest: '/etc/containers/systemd/nginx-stalwart.network'
+    owner: 'root'
+    group: 'root'
+    mode: '0644'
   notify:
     - 'Daemon reload'
     - 'Restart nginx'
@@ -56,6 +59,9 @@
   ansible.builtin.copy:
     src: 'stalwart/stalwart-postgres.network'
     dest: '/etc/containers/systemd/stalwart-postgres.network'
+    owner: 'root'
+    group: 'root'
+    mode: '0644'
   notify:
     - 'Daemon reload'
     - 'Restart stalwart-postgres'
@@ -65,6 +71,9 @@
   ansible.builtin.copy:
     src: 'stalwart/stalwart-postgres.container'
     dest: '/etc/containers/systemd/stalwart-postgres.container'
+    owner: 'root'
+    group: 'root'
+    mode: '0644'
   notify:
     - 'Daemon reload'
     - 'Restart stalwart-postgres'

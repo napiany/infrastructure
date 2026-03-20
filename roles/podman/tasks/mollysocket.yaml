@@ -25,6 +25,9 @@
       ansible.builtin.copy:
         src: 'mollysocket/nginx-mollysocket.network'
         dest: '/etc/containers/systemd/nginx-mollysocket.network'
+        owner: 'root'
+        group: 'root'
+        mode: '0644'
       register: 'nginx_mollysocket_network_file'
       notify:
         - 'Daemon reload'
@@ -35,6 +38,9 @@
       ansible.builtin.copy:
         src: 'mollysocket/mollysocket.container'
         dest: '/etc/containers/systemd/mollysocket.container'
+        owner: 'root'
+        group: 'root'
+        mode: '0644'
       register: 'mollysocket_unit'
       notify:
         - 'Daemon reload'

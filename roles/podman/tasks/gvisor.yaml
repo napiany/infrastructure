@@ -4,6 +4,9 @@
     url: 'https://raw.githubusercontent.com/Metropolis-nexus/Common-Files/main/etc/systemd/system/gvisor-auto-update.service'
     dest: '/etc/systemd/system/gvisor-auto-update.service'
     checksum: 'sha256:4b3878ba8fab366ba1da162ad1e5a03c7fd2822b5028ff8c003d430dcfc7b4ba'
+    owner: 'root'
+    group: 'root'
+    mode: '0644'
   notify:
     - 'Daemon reload'
     - 'Restart gvisor-auto-update timer'
@@ -12,6 +15,9 @@
   ansible.builtin.copy:
     src: 'gvisor/auto-update.timer'
     dest: '/etc/systemd/system/gvisor-auto-update.timer'
+    owner: 'root'
+    group: 'root'
+    mode: '0644'
   notify:
     - 'Daemon reload'
     - 'Restart gvisor-auto-update timer'

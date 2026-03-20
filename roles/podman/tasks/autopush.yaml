@@ -28,6 +28,9 @@
       ansible.builtin.copy:
         src: 'autopush/nginx-autopush.network'
         dest: '/etc/containers/systemd/nginx-autopush.network'
+        owner: 'root'
+        group: 'root'
+        mode: '0644'
       register: 'nginx_autopush_network_file'
       notify:
         - 'Daemon reload'
@@ -39,6 +42,9 @@
       ansible.builtin.copy:
         src: 'autopush/autopush-valkey.network'
         dest: '/etc/containers/systemd/autopush-valkey.network'
+        owner: 'root'
+        group: 'root'
+        mode: '0644'
       register: 'autopush_valkey_network_file'
       notify:
         - 'Daemon reload'
@@ -50,6 +56,9 @@
       ansible.builtin.copy:
         src: 'autopush/autopush-valkey.container'
         dest: '/etc/containers/systemd/autopush-valkey.container'
+        owner: 'root'
+        group: 'root'
+        mode: '0644'
       register: 'autopush_valkey_unit'
       notify:
         - 'Daemon reload'
@@ -59,6 +68,9 @@
       ansible.builtin.copy:
         src: 'autopush/autoconnect.container'
         dest: '/etc/containers/systemd/autoconnect.container'
+        owner: 'root'
+        group: 'root'
+        mode: '0644'
       register: 'autoconnect_unit'
       notify:
         - 'Daemon reload'
@@ -68,6 +80,9 @@
       ansible.builtin.copy:
         src: 'autopush/autoconnect.build'
         dest: '/etc/containers/systemd/autoconnect.build'
+        owner: 'root'
+        group: 'root'
+        mode: '0644'
       register: 'autoconnect_build_unit'
       notify:
         - 'Daemon reload'
@@ -77,6 +92,9 @@
       ansible.builtin.copy:
         src: 'autopush/autoconnect.containerfile'
         dest: '/etc/containers/systemd/autoconnect.containerfile'
+        owner: 'root'
+        group: 'root'
+        mode: '0644'
       register: 'autoconnect_containerfile_file'
       notify:
         - 'Daemon reload'
@@ -86,6 +104,9 @@
       ansible.builtin.copy:
         src: 'autopush/autoendpoint.container'
         dest: '/etc/containers/systemd/autoendpoint.container'
+        owner: 'root'
+        group: 'root'
+        mode: '0644'
       register: 'autoendpoint_unit'
       notify:
         - 'Daemon reload'
@@ -95,6 +116,9 @@
       ansible.builtin.copy:
         src: 'autopush/autoendpoint.build'
         dest: '/etc/containers/systemd/autoendpoint.build'
+        owner: 'root'
+        group: 'root'
+        mode: '0644'
       register: 'autoendpoint_build_unit'
       notify:
         - 'Daemon reload'
@@ -104,6 +128,9 @@
       ansible.builtin.copy:
         src: 'autopush/autoendpoint.containerfile'
         dest: '/etc/containers/systemd/autoendpoint.containerfile'
+        owner: 'root'
+        group: 'root'
+        mode: '0644'
       register: 'autoendpoint_containerfile_file'
       notify:
         - 'Daemon reload'

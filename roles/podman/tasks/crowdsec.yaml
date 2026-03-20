@@ -129,6 +129,9 @@
   ansible.builtin.copy:
     src: 'crowdsec/haproxy-crowdsec.network'
     dest: '/etc/containers/systemd/haproxy-crowdsec.network'
+    owner: 'root'
+    group: 'root'
+    mode: '0644'
   register: 'crowdsec_haproxy_network_unit'
   when:
     - 'crowdsec_is_lapi_server | bool'
@@ -143,6 +146,9 @@
   ansible.builtin.copy:
     src: 'crowdsec/nginx-crowdsec.network'
     dest: '/etc/containers/systemd/nginx-crowdsec.network'
+    owner: 'root'
+    group: 'root'
+    mode: '0644'
   register: 'crowdsec_nginx_network_unit'
   when:
     - 'crowdsec_agent_enabled | bool'
@@ -156,6 +162,9 @@
   ansible.builtin.copy:
     src: 'crowdsec/crowdsec-lapi.container'
     dest: '/etc/containers/systemd/crowdsec.container'
+    owner: 'root'
+    group: 'root'
+    mode: '0644'
   register: 'crowdsec_lapi_container_unit'
   when: 'crowdsec_is_lapi_server | bool'
   notify:
@@ -166,6 +175,9 @@
   ansible.builtin.template:
     src: 'crowdsec/crowdsec.container.j2'
     dest: '/etc/containers/systemd/crowdsec.container'
+    owner: 'root'
+    group: 'root'
+    mode: '0644'
   register: 'crowdsec_agent_container_unit'
   when:
     - 'crowdsec_agent_enabled | bool'

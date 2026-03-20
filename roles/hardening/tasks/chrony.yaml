@@ -1,6 +1,9 @@
 ---
 - name: 'Download drop-in chrony configuration file'
   ansible.builtin.get_url:
+    owner: 'root'
+    group: 'root'
+    mode: '0644'
     url: 'https://raw.githubusercontent.com/Metropolis-nexus/Common-Files/refs/heads/main/etc/chrony/conf.d/10-custom.conf'
     dest: '/etc/chrony.d/10-custom.conf'
     checksum: 'sha256:ad42895c1e14fb86ce21c815a451952363ec989a5f6c5e3885c1d92370e3aafa'
@@ -9,6 +12,9 @@
 
 - name: 'Configure chronyd command-line options'
   ansible.builtin.copy:
+    owner: 'root'
+    group: 'root'
+    mode: '0644'
     dest: '/etc/sysconfig/chronyd'
     content: 'OPTIONS="-F1 -r"'
   notify:
@@ -23,6 +29,9 @@
 
     - name: 'Download configuration file for chronyd override'
       ansible.builtin.get_url:
+        owner: 'root'
+        group: 'root'
+        mode: '0644'
         url: 'https://raw.githubusercontent.com/GrapheneOS/infrastructure/refs/heads/main/etc/systemd/system/chronyd.service.d/override.conf'
         dest: '/etc/systemd/system/chronyd.service.d/override.conf'
         checksum: 'sha256:df0ff279b475b99ea9e4692e1792a97b8ebed18e8e79a7f4179f7104eca4a91e'
@@ -30,5 +39,8 @@
 
 - name: 'Configure chronyd state cleanup'
   ansible.builtin.copy:
+    owner: 'root'
+    group: 'root'
+    mode: '0644'
     dest: '/etc/tmpfiles.d/chronyd'
     content: 'd /var/lib/chrony 0755 chrony chrony 30d'
