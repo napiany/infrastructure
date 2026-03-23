@@ -3,7 +3,7 @@ Description=Stalwart PostgreSQL
 
 [Container]
 ContainerName=stalwart-postgres
-Image=docker.io/postgres/postgres:18-alpine
+Image=docker.io/library/postgres:18-alpine
 AutoUpdate=registry
 
 Network=stalwart-postgres.network

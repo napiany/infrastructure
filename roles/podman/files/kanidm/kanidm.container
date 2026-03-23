@@ -3,7 +3,7 @@ Description=kanidm identity management
 
 [Container]
 ContainerName=kanidm
-Image=docker.io/kanidm/server:v1.9.2
+Image=docker.io/kanidm/server:1.9.2
 AutoUpdate=registry
 
 Network=nginx-kanidm.network
