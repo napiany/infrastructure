@@ -38,6 +38,10 @@ find "${archive_dir}" -maxdepth 1 -type f -exec setfacl -m "u:${NGINX_UID}:r" '{
 if [ "${domain}" = '{{ certbot_kanidm_domain }}' ]; then
     setfacl -m "u:${KANIDM_UID}:x" "${archive_dir}" "${live_dir}"
     find "${archive_dir}" -maxdepth 1 -type f -exec setfacl -m "u:${KANIDM_UID}:r" '{}' +
+    install -d -o root -g root -m 0711 /etc/letsencrypt/consumers
+    install -d -o "${KANIDM_UID}" -g "${KANIDM_UID}" -m 0700 /etc/letsencrypt/consumers/kanidm
+    install -o "${KANIDM_UID}" -g "${KANIDM_UID}" -m 0444 "${live_dir}/fullchain.pem" /etc/letsencrypt/consumers/kanidm/fullchain.pem
+    install -o "${KANIDM_UID}" -g "${KANIDM_UID}" -m 0400 "${live_dir}/privkey.pem" /etc/letsencrypt/consumers/kanidm/privkey.pem
 fi
 {% endif %}
 {% for block in certbot_stalwart_certificate_blocks %}

@@ -67,8 +67,10 @@
 
 - name: 'Build certbot domain argv'
   ansible.builtin.set_fact:
-    certbot_domain_argv: '{{ certbot_domain_argv + ["-d", item] }}'
+    certbot_domain_argv: '{{ certbot_domain_argv + ["-d", certbot_domain] }}'
   loop: '{{ certbot_certificate.domains }}'
+  loop_control:
+    loop_var: 'certbot_domain'
 
 - name: 'Set certbot issue argv'
   ansible.builtin.set_fact:
@@ -109,6 +111,25 @@
   changed_when: true
   notify:
     - 'Refresh cert consumers'
+
+- name: 'Replay certbot deploy hook for {{ certbot_certificate_name }}'
+  ansible.builtin.command:
+    argv:
+      - 'podman'
+      - 'run'
+      - '--rm'
+      - '--entrypoint'
+      - '/bin/sh'
+      - '-e'
+      - 'RENEWED_LINEAGE=/etc/letsencrypt/live/{{ certbot_certificate_name }}'
+      - '-v'
+      - 'certbot:/etc/letsencrypt:z'
+      - '-v'
+      - 'certbot-config:/usr/local/bin:ro,z'
+      - 'localhost/certbot:latest'
+      - '/usr/local/bin/certbot-deploy-hook.sh'
+  changed_when: false
+  when: 'not ansible_check_mode'
 
 - name: 'Record issued domains for {{ certbot_certificate_name }}'
   vars:

@@ -148,9 +148,9 @@
 
 - name: 'Copy certbot quadlet and timer files'
   block:
-    - name: 'Copy certbot.container'
-      ansible.builtin.copy:
-        src: 'certbot/certbot.container'
+    - name: 'Template certbot.container'
+      ansible.builtin.template:
+        src: 'certbot/certbot.container.j2'
         dest: '/etc/containers/systemd/certbot.container'
         owner: 'root'
         group: 'root'
