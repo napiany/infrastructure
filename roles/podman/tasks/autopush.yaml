@@ -21,6 +21,7 @@
   loop: '{{ autopush_podman_secret_definitions_effective }}'
   loop_control:
     loop_var: 'podman_secret'
+  no_log: true
 
 - name: 'Copy Autopush Quadlet files'
   block:
