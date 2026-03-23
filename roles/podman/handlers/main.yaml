@@ -54,6 +54,18 @@
     state: 'restarted'
     enabled: true
 
+- name: 'Restart grid-postgres'
+  ansible.builtin.systemd:
+    name: 'grid-postgres.service'
+    state: 'restarted'
+    enabled: true
+
+- name: 'Restart grid'
+  ansible.builtin.systemd:
+    name: 'grid.service'
+    state: 'restarted'
+    enabled: true
+
 - name: 'Restart containercve'
   ansible.builtin.systemd:
     name: 'containercve.service'
@@ -156,6 +168,10 @@
         enabled: "{{ 'vaultwarden' in podman_selected_containers }}"
       - service: 'vaultwarden.service'
         enabled: "{{ 'vaultwarden' in podman_selected_containers }}"
+      - service: 'grid-postgres.service'
+        enabled: "{{ 'grid' in podman_selected_containers }}"
+      - service: 'grid.service'
+        enabled: "{{ 'grid' in podman_selected_containers }}"
       - service: 'stalwart-postgres.service'
         enabled: "{{ 'stalwart' in podman_selected_containers }}"
       - service: 'stalwart.service'

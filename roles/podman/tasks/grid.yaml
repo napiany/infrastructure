@@ -1,0 +1,267 @@
+---
+- name: 'Ensure required Grid secret variables are defined'
+  vars:
+    grid_required_secret_vars:
+      - 'vault_podman_secret_grid_postgres_password'
+      - 'vault_podman_secret_grid_registration_shared_secret'
+      - 'vault_podman_secret_grid_macaroon_secret_key'
+      - 'vault_podman_secret_grid_form_secret'
+  ansible.builtin.assert:
+    that:
+      - 'lookup(''vars'', item, default='''') | length > 0'
+    fail_msg: 'Missing {{ item }} for Grid.'
+  loop: '{{ grid_required_secret_vars }}'
+  no_log: true
+
+- name: 'Manage Grid podman secret'
+  ansible.builtin.include_tasks: 'manage_secret.yaml'
+  vars:
+    podman_secret:
+      name: 'grid-postgres_password'
+      value_var: 'vault_podman_secret_grid_postgres_password'
+  no_log: true
+
+- name: 'Copy Grid Quadlet files'
+  block:
+    - name: 'Copy nginx-grid.network'
+      ansible.builtin.copy:
+        src: 'grid/nginx-grid.network'
+        dest: '/etc/containers/systemd/nginx-grid.network'
+        owner: 'root'
+        group: 'root'
+        mode: '0644'
+      register: 'nginx_grid_network_file'
+      notify:
+        - 'Daemon reload'
+        - 'Restart nginx'
+        - 'Restart grid'
+
+    - name: 'Copy grid-postgres.network'
+      ansible.builtin.copy:
+        src: 'grid/grid-postgres.network'
+        dest: '/etc/containers/systemd/grid-postgres.network'
+        owner: 'root'
+        group: 'root'
+        mode: '0644'
+      register: 'grid_postgres_network_file'
+      notify:
+        - 'Daemon reload'
+        - 'Restart grid-postgres'
+        - 'Restart grid'
+
+    - name: 'Copy grid-postgres.container'
+      ansible.builtin.copy:
+        src: 'grid/grid-postgres.container'
+        dest: '/etc/containers/systemd/grid-postgres.container'
+        owner: 'root'
+        group: 'root'
+        mode: '0644'
+      register: 'grid_postgres_unit'
+      notify:
+        - 'Daemon reload'
+        - 'Restart grid-postgres'
+
+    - name: 'Copy grid.container'
+      ansible.builtin.copy:
+        src: 'grid/grid.container'
+        dest: '/etc/containers/systemd/grid.container'
+        owner: 'root'
+        group: 'root'
+        mode: '0644'
+      register: 'grid_unit'
+      notify:
+        - 'Daemon reload'
+        - 'Restart grid'
+
+- name: 'Reload systemd after Grid unit changes'
+  ansible.builtin.systemd:
+    daemon_reload: true
+  when: 'nginx_grid_network_file.changed or grid_postgres_network_file.changed or grid_postgres_unit.changed or grid_unit.changed'
+
+- name: 'Create Grid volumes'
+  ansible.builtin.command:
+    cmd: 'podman volume create {{ item }}'
+  loop:
+    - 'grid'
+    - 'grid-postgres'
+  register: 'grid_volume_create'
+  changed_when: 'grid_volume_create.rc == 0'
+  failed_when:
+    - 'grid_volume_create.rc != 0'
+    - "'already exists' not in grid_volume_create.stderr"
+
+- name: 'Set grid-postgres volume ownership'
+  block:
+    - name: 'Get grid-postgres volume mount point'
+      ansible.builtin.command:
+        argv:
+          - 'podman'
+          - 'volume'
+          - 'inspect'
+          - 'grid-postgres'
+          - '--format'
+          - '{{ "{{.Mountpoint}}" }}'
+      register: 'grid_postgres_mountpoint'
+      changed_when: false
+      failed_when: 'not ansible_check_mode and grid_postgres_mountpoint.rc != 0'
+      check_mode: false
+
+    - name: 'Set grid-postgres volume ownership'
+      ansible.builtin.file:
+        path: '{{ grid_postgres_mountpoint.stdout }}'
+        owner: '300014'
+        group: '300014'
+        mode: '0700'
+      when: 'grid_postgres_mountpoint.stdout | default("") | trim | length > 0'
+
+- name: 'Manage Grid config volume content'
+  block:
+    - name: 'Get grid volume mount point'
+      ansible.builtin.command:
+        argv:
+          - 'podman'
+          - 'volume'
+          - 'inspect'
+          - 'grid'
+          - '--format'
+          - '{{ "{{.Mountpoint}}" }}'
+      register: 'grid_mountpoint'
+      changed_when: false
+      failed_when: 'not ansible_check_mode and grid_mountpoint.rc != 0'
+      check_mode: false
+
+    - name: 'Set grid volume ownership'
+      ansible.builtin.file:
+        path: '{{ grid_mountpoint.stdout }}'
+        owner: '300013'
+        group: '300013'
+        mode: '0700'
+        recurse: true
+      when: 'grid_mountpoint.stdout | default("") | trim | length > 0'
+
+    - name: 'Check whether Grid homeserver config exists'
+      ansible.builtin.stat:
+        path: '{{ grid_mountpoint.stdout }}/homeserver.yaml'
+      register: 'grid_homeserver_file'
+      when: 'grid_mountpoint.stdout | default("") | trim | length > 0'
+
+    - name: 'Check whether Grid signing key exists'
+      ansible.builtin.stat:
+        path: '{{ grid_mountpoint.stdout }}/grid.napiany.com.signing.key'
+      register: 'grid_signing_key_file'
+      when: 'grid_mountpoint.stdout | default("") | trim | length > 0'
+
+    - name: 'Generate initial Grid Synapse config'
+      ansible.builtin.command:
+        argv:
+          - 'podman'
+          - 'run'
+          - '--rm'
+          - '--user'
+          - '300013:300013'
+          - '-e'
+          - 'SYNAPSE_SERVER_NAME=grid.napiany.com'
+          - '-e'
+          - 'SYNAPSE_REPORT_STATS=no'
+          - '-v'
+          - 'grid:/data:Z'
+          - 'ghcr.io/polarix-containers/synapse:latest'
+          - 'generate'
+      register: 'grid_generate_config'
+      changed_when: 'grid_generate_config.rc == 0'
+      when:
+        - 'not ansible_check_mode'
+        - 'grid_mountpoint.stdout | default("") | trim | length > 0'
+        - 'not (grid_homeserver_file.stat.exists | default(false)) or not (grid_signing_key_file.stat.exists | default(false))'
+
+    - name: 'Refresh Grid homeserver config state'
+      ansible.builtin.stat:
+        path: '{{ grid_mountpoint.stdout }}/homeserver.yaml'
+      register: 'grid_homeserver_file'
+      when: 'grid_mountpoint.stdout | default("") | trim | length > 0'
+
+    - name: 'Refresh Grid signing key state'
+      ansible.builtin.stat:
+        path: '{{ grid_mountpoint.stdout }}/grid.napiany.com.signing.key'
+      register: 'grid_signing_key_file'
+      when: 'grid_mountpoint.stdout | default("") | trim | length > 0'
+
+    - name: 'Ensure Grid volume contents ownership'
+      ansible.builtin.file:
+        path: '{{ grid_mountpoint.stdout }}'
+        owner: '300013'
+        group: '300013'
+        recurse: true
+      when: 'grid_mountpoint.stdout | default("") | trim | length > 0'
+
+    - name: 'Ensure Grid media store directory exists'
+      ansible.builtin.file:
+        path: '{{ grid_mountpoint.stdout }}/media_store'
+        state: 'directory'
+        owner: '300013'
+        group: '300013'
+        mode: '0700'
+      when: 'grid_mountpoint.stdout | default("") | trim | length > 0'
+
+    - name: 'Template Grid homeserver config'
+      ansible.builtin.template:
+        src: 'grid/homeserver.yaml.j2'
+        dest: '{{ grid_mountpoint.stdout }}/homeserver.yaml'
+        owner: '300013'
+        group: '300013'
+        mode: '0600'
+      when:
+        - 'grid_mountpoint.stdout | default("") | trim | length > 0'
+        - 'not ansible_check_mode or (grid_homeserver_file.stat.exists | default(false))'
+      notify:
+        - 'Restart grid'
+      no_log: true
+
+- name: 'Enable and start grid-postgres.service'
+  ansible.builtin.systemd:
+    name: 'grid-postgres.service'
+    state: 'started'
+    enabled: true
+    daemon_reload: true
+
+- name: 'Enable and start grid.service'
+  ansible.builtin.systemd:
+    name: 'grid.service'
+    state: 'started'
+    enabled: true
+    daemon_reload: true
+
+- name: 'Ensure Grid certificate is issued'
+  ansible.builtin.include_tasks: 'issue_certificate.yaml'
+  vars:
+    certbot_certificate:
+      domains:
+        - 'grid.napiany.com'
+  when: 'not ansible_check_mode or certbot_mountpoint | default("") | trim | length > 0'
+
+- name: 'Template nginx config to nginx-conf volume'
+  block:
+    - name: 'Get nginx-conf volume mount point'
+      ansible.builtin.command:
+        argv:
+          - 'podman'
+          - 'volume'
+          - 'inspect'
+          - 'nginx-conf'
+          - '--format'
+          - '{{ "{{.Mountpoint}}" }}'
+      register: 'nginx_conf_mountpoint'
+      changed_when: false
+      failed_when: 'not ansible_check_mode and nginx_conf_mountpoint.rc != 0'
+      check_mode: false
+
+    - name: 'Copy Grid nginx config'
+      ansible.builtin.copy:
+        src: 'grid/grid.conf'
+        dest: '{{ nginx_conf_mountpoint.stdout }}/grid.conf'
+        owner: 'root'
+        group: 'root'
+        mode: '0644'
+      when: 'nginx_conf_mountpoint.stdout | default("") | trim | length > 0'
+      notify:
+        - 'Restart nginx'

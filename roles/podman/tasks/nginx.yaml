@@ -65,6 +65,9 @@
     - service: 'vaultwarden'
       src: 'vaultwarden/nginx-vaultwarden.network'
       dest: 'nginx-vaultwarden.network'
+    - service: 'grid'
+      src: 'grid/nginx-grid.network'
+      dest: 'nginx-grid.network'
     - service: 'containercve'
       src: 'containercve/nginx-containercve.network'
       dest: 'nginx-containercve.network'
@@ -385,15 +388,32 @@
   changed_when: false
   failed_when: false
 
+- name: 'Sanity-check certbot image runtime'
+  ansible.builtin.command:
+    argv:
+      - 'podman'
+      - 'run'
+      - '--rm'
+      - '--entrypoint'
+      - '/bin/sh'
+      - 'localhost/certbot:latest'
+      - '-lc'
+      - 'test -x /usr/local/bin/certbot'
+  register: 'certbot_image_runtime_check'
+  changed_when: false
+  failed_when: false
+  when: 'certbot_image_inspect.rc == 0'
+
 - name: 'Build certbot image'
   ansible.builtin.command:
     argv:
       - 'systemctl'
-      - 'start'
+      - 'restart'
+      - '--wait'
       - 'certbot-build.service'
   register: 'certbot_build_start'
   when:
-    - "certbot_image_inspect.rc != 0 or certbot_build_unit.changed or certbot_containerfile_file.changed"
+    - "certbot_image_inspect.rc != 0 or (certbot_image_runtime_check is defined and certbot_image_runtime_check.rc != 0) or certbot_build_unit.changed or certbot_containerfile_file.changed"
   changed_when: 'certbot_build_start.rc == 0'
   failed_when: 'certbot_build_start.rc != 0'
 
@@ -412,7 +432,8 @@
   ansible.builtin.command:
     argv:
       - 'systemctl'
-      - 'start'
+      - 'restart'
+      - '--wait'
       - 'nginx-build.service'
   register: 'nginx_build_start'
   when:

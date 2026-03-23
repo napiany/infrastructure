@@ -14,6 +14,7 @@ all:
           podman_containers:
             - 'nginx'
             - 'kanidm'
+            - 'grid'
             - 'vaultwarden'
             - 'stalwart'
             - 'mollysocket'

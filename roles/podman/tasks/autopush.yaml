@@ -193,7 +193,8 @@
   ansible.builtin.command:
     argv:
       - 'systemctl'
-      - 'start'
+      - 'restart'
+      - '--wait'
       - 'autoconnect-build.service'
   register: 'autoconnect_build_start'
   when: 'autoconnect_image_inspect.rc != 0 or autoconnect_build_unit.changed or autoconnect_containerfile_file.changed'
@@ -215,7 +216,8 @@
   ansible.builtin.command:
     argv:
       - 'systemctl'
-      - 'start'
+      - 'restart'
+      - '--wait'
       - 'autoendpoint-build.service'
   register: 'autoendpoint_build_start'
   when: 'autoendpoint_image_inspect.rc != 0 or autoendpoint_build_unit.changed or autoendpoint_containerfile_file.changed'

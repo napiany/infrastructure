@@ -78,10 +78,12 @@
       - 'podman'
       - 'run'
       - '--rm'
+      - '--entrypoint'
+      - '/usr/local/bin/certbot'
       - '-v'
       - 'certbot:/etc/letsencrypt:z'
       - '-v'
-      - 'certbot-config:/usr/local/bin:ro,z'
+      - 'certbot-config:/hooks:ro,z'
       - 'localhost/certbot:latest'
       - 'certonly'
       - '--authenticator'
@@ -91,7 +93,7 @@
       - '--dns-desec-propagation-seconds'
       - '120'
       - '--deploy-hook'
-      - '/usr/local/bin/certbot-deploy-hook.sh'
+      - '/hooks/certbot-deploy-hook.sh'
       - '--non-interactive'
       - '--agree-tos'
       - '--no-eff-email'
@@ -102,6 +104,57 @@
       - 'shortlived'
       - '--cert-name'
       - '{{ certbot_certificate_name }}'
+
+- name: 'Check certbot image runtime for {{ certbot_certificate_name }}'
+  ansible.builtin.command:
+    argv:
+      - 'podman'
+      - 'run'
+      - '--rm'
+      - '--entrypoint'
+      - '/usr/local/bin/certbot'
+      - 'localhost/certbot:latest'
+      - '--version'
+  register: 'certbot_issue_runtime_check'
+  changed_when: false
+  failed_when: false
+  when: 'not ansible_check_mode'
+
+- name: 'Rebuild certbot image when runtime is invalid for {{ certbot_certificate_name }}'
+  ansible.builtin.command:
+    argv:
+      - 'systemctl'
+      - 'restart'
+      - '--wait'
+      - 'certbot-build.service'
+  register: 'certbot_issue_build_restart'
+  changed_when: 'certbot_issue_build_restart.rc == 0'
+  failed_when: 'certbot_issue_build_restart.rc != 0'
+  when:
+    - 'not ansible_check_mode'
+    - 'certbot_issue_runtime_check.rc != 0'
+
+- name: 'Recheck certbot image runtime for {{ certbot_certificate_name }}'
+  ansible.builtin.command:
+    argv:
+      - 'podman'
+      - 'run'
+      - '--rm'
+      - '--entrypoint'
+      - '/usr/local/bin/certbot'
+      - 'localhost/certbot:latest'
+      - '--version'
+  register: 'certbot_issue_runtime_check_after_rebuild'
+  changed_when: false
+  failed_when: false
+  when: 'not ansible_check_mode'
+
+- name: 'Ensure certbot image runtime is valid for {{ certbot_certificate_name }}'
+  ansible.builtin.assert:
+    that:
+      - 'certbot_issue_runtime_check_after_rebuild.rc == 0'
+    fail_msg: 'The local certbot image is still invalid after rebuilding certbot-build.service.'
+  when: 'not ansible_check_mode'
 
 - name: 'Issue certificate for {{ certbot_certificate_name }}'
   ansible.builtin.command:
@@ -125,9 +178,9 @@
       - '-v'
       - 'certbot:/etc/letsencrypt:z'
       - '-v'
-      - 'certbot-config:/usr/local/bin:ro,z'
+      - 'certbot-config:/hooks:ro,z'
       - 'localhost/certbot:latest'
-      - '/usr/local/bin/certbot-deploy-hook.sh'
+      - '/hooks/certbot-deploy-hook.sh'
   changed_when: false
   when: 'not ansible_check_mode'
 

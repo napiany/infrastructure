@@ -15,6 +15,9 @@
       {%- if 'vaultwarden' in selected -%}
       {%- set state.domains = state.domains + ['vault.napiany.com'] -%}
       {%- endif -%}
+      {%- if 'grid' in selected -%}
+      {%- set state.domains = state.domains + ['grid.napiany.com'] -%}
+      {%- endif -%}
       {%- if 'stalwart' in selected -%}
       {%- for block in stalwart_certificate_blocks -%}
       {%- set state.domains = state.domains + (block.domains | default([])) -%}
@@ -308,7 +311,8 @@
   ansible.builtin.command:
     argv:
       - 'systemctl'
-      - 'start'
+      - 'restart'
+      - '--wait'
       - 'haproxy-build.service'
   register: 'haproxy_build_start'
   when:

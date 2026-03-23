@@ -20,6 +20,7 @@
       - 'nginx'
       - 'haproxy'
       - 'kanidm'
+      - 'grid'
       - 'vaultwarden'
       - 'containercve'
       - 'stalwart'
@@ -27,6 +28,7 @@
       - 'mollysocket'
     podman_reverse_proxy_containers:
       - 'kanidm'
+      - 'grid'
       - 'vaultwarden'
       - 'containercve'
       - 'stalwart'
@@ -34,6 +36,7 @@
       - 'mollysocket'
     podman_gvisor_containers:
       - 'kanidm'
+      - 'grid'
       - 'vaultwarden'
       - 'containercve'
       - 'stalwart'
@@ -67,7 +70,7 @@
   ansible.builtin.assert:
     that:
       - "'nginx' in podman_containers_selected or (podman_containers_selected | intersect(podman_reverse_proxy_containers) | length == 0)"
-    fail_msg: 'Hosts selecting kanidm, vaultwarden, containercve, stalwart, autopush, or mollysocket must also include nginx in podman_containers.'
+    fail_msg: 'Hosts selecting kanidm, grid, vaultwarden, containercve, stalwart, autopush, or mollysocket must also include nginx in podman_containers.'
 
 - name: 'Ensure only one edge nginx service is selected per host'
   ansible.builtin.assert:
@@ -89,6 +92,9 @@
 
 - ansible.builtin.include_tasks: 'kanidm.yaml'
   when: '''kanidm'' in podman_containers_selected'
+
+- ansible.builtin.include_tasks: 'grid.yaml'
+  when: '''grid'' in podman_containers_selected'
 
 - ansible.builtin.include_tasks: 'vaultwarden.yaml'
   when: '''vaultwarden'' in podman_containers_selected'

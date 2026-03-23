@@ -13,6 +13,9 @@ Network=nginx-kanidm.network
 {% if 'vaultwarden' in (podman_containers_selected | default([])) %}
 Network=nginx-vaultwarden.network
 {% endif %}
+{% if 'grid' in (podman_containers_selected | default([])) %}
+Network=nginx-grid.network
+{% endif %}
 {% if 'containercve' in (podman_containers_selected | default([])) %}
 Network=nginx-containercve.network
 {% endif %}
