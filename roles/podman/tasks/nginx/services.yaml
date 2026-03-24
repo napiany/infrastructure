@@ -1,0 +1,13 @@
+---
+- name: 'Enable and start certbot.timer'
+  ansible.builtin.systemd:
+    name: 'certbot.timer'
+    state: 'started'
+    enabled: true
+
+- name: 'Enable and start nginx.service'
+  ansible.builtin.systemd:
+    name: 'nginx.service'
+    state: 'started'
+    enabled: true
+    daemon_reload: true

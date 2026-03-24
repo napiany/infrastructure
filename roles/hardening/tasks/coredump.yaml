@@ -5,9 +5,15 @@
       ansible.builtin.file:
         dest: '/etc/security/limits.d'
         state: 'directory'
+        owner: 'root'
+        group: 'root'
+        mode: '0755'
 
     - name: 'Disable coredumps in /etc/security'
       ansible.builtin.copy:
+        owner: 'root'
+        group: 'root'
+        mode: '0644'
         content: '* hard core 0'
         dest: '/etc/security/limits.d/30-disable-coredump.conf'
 
@@ -17,9 +23,15 @@
       ansible.builtin.file:
         dest: '/etc/systemd/coredump.conf.d'
         state: 'directory'
+        owner: 'root'
+        group: 'root'
+        mode: '0755'
 
     - name: 'Download coredump override config file'
       ansible.builtin.get_url:
+        owner: 'root'
+        group: 'root'
+        mode: '0644'
         url: 'https://github.com/Metropolis-nexus/Common-Files/raw/refs/heads/main/etc/systemd/coredump.conf.d/disable.conf'
         dest: '/etc/systemd/coredump.conf.d/disable.conf'
         checksum: 'sha256:6f60b705a20ad895f0df031fb3c94e0886edc649beb2b2df4c6718eea84df10c'

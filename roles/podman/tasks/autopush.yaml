@@ -1,0 +1,145 @@
+---
+- name: 'Set effective Autopush podman secret values'
+  vars:
+    autopush_crypto_keys_source: '{{ lookup(
+      "vars", "vault_podman_secret_autopush_crypto_keys", default=[]) }}'
+    autopush_auth_keys_source: '{{ lookup(
+      "vars", "vault_podman_secret_autopush_auth_keys", default=[]) }}'
+    autopush_crypto_keys_candidate: '{{ (
+      autopush_crypto_keys_source if (
+      autopush_crypto_keys_source is sequence and not
+      (autopush_crypto_keys_source is string)
+      ) else (autopush_crypto_keys_source | trim | from_json)) }}'
+    autopush_auth_keys_candidate: '{{ (
+      autopush_auth_keys_source if (
+      autopush_auth_keys_source is sequence and not
+      (autopush_auth_keys_source is string)
+      ) else (autopush_auth_keys_source | trim | from_json)) }}'
+    autopush_crypto_keys_list: '{{ (
+      autopush_crypto_keys_candidate if (
+      autopush_crypto_keys_candidate is sequence and not
+      (autopush_crypto_keys_candidate is string)
+      ) else [autopush_crypto_keys_candidate]) }}'
+    autopush_auth_keys_list: '{{ (
+      autopush_auth_keys_candidate if (
+      autopush_auth_keys_candidate is sequence and not
+      (autopush_auth_keys_candidate is string)
+      ) else [autopush_auth_keys_candidate]) }}'
+  ansible.builtin.set_fact:
+    autopush_podman_secret_definitions_effective:
+      - name: 'autopush_crypto_keys'
+        value_var: 'vault_podman_secret_autopush_crypto_keys'
+        value: '{{ "[" ~ (autopush_crypto_keys_list | join(",")) ~ "]" }}'
+      - name: 'autopush_auth_keys'
+        value_var: 'vault_podman_secret_autopush_auth_keys'
+        value: '{{ "[" ~ (autopush_auth_keys_list | join(",")) ~ "]" }}'
+  no_log: true
+
+- name: 'Manage Autopush podman secrets'
+  ansible.builtin.include_tasks: 'manage_secret.yaml'
+  loop: '{{ autopush_podman_secret_definitions_effective }}'
+  loop_control:
+    loop_var: 'podman_secret'
+  no_log: true
+
+- name: 'Copy Autopush Quadlet files'
+  ansible.builtin.include_tasks: 'copy_quadlet.yaml'
+  vars:
+    podman_quadlet_files_label: 'Autopush Quadlet'
+    podman_quadlet_files:
+      - src: 'autopush/nginx-autopush.network'
+        dest: 'nginx-autopush.network'
+        notify:
+          - 'Daemon reload'
+          - 'Restart nginx'
+          - 'Restart autoconnect'
+          - 'Restart autoendpoint'
+      - src: 'autopush/autopush-valkey.network'
+        dest: 'autopush-valkey.network'
+        notify:
+          - 'Daemon reload'
+          - 'Restart autopush-valkey'
+          - 'Restart autoconnect'
+          - 'Restart autoendpoint'
+      - src: 'autopush/autopush-valkey.container'
+        dest: 'autopush-valkey.container'
+        notify:
+          - 'Daemon reload'
+          - 'Restart autopush-valkey'
+      - src: 'autopush/autoconnect.container'
+        dest: 'autoconnect.container'
+        notify:
+          - 'Daemon reload'
+          - 'Restart autoconnect'
+      - src: 'autopush/autoconnect.build'
+        dest: 'autoconnect.build'
+        notify:
+          - 'Daemon reload'
+          - 'Restart autoconnect'
+      - src: 'autopush/autoconnect.containerfile'
+        dest: 'autoconnect.containerfile'
+        notify:
+          - 'Daemon reload'
+          - 'Restart autoconnect'
+      - src: 'autopush/autoendpoint.container'
+        dest: 'autoendpoint.container'
+        notify:
+          - 'Daemon reload'
+          - 'Restart autoendpoint'
+      - src: 'autopush/autoendpoint.build'
+        dest: 'autoendpoint.build'
+        notify:
+          - 'Daemon reload'
+          - 'Restart autoendpoint'
+      - src: 'autopush/autoendpoint.containerfile'
+        dest: 'autoendpoint.containerfile'
+        notify:
+          - 'Daemon reload'
+          - 'Restart autoendpoint'
+
+- name: 'Prepare Autopush Valkey volume'
+  ansible.builtin.include_tasks: 'manage_volume.yaml'
+  vars:
+    manage_volume_name: 'autopush-valkey'
+    manage_volume_uid: '300012'
+    manage_volume_gid: '300012'
+
+- name: 'Enable and start autopush-valkey.service'
+  ansible.builtin.systemd:
+    name: 'autopush-valkey.service'
+    state: 'started'
+    enabled: true
+    daemon_reload: true
+
+- name: 'Ensure Autopush certificate is issued'
+  ansible.builtin.include_tasks: 'issue_certificate.yaml'
+  vars:
+    certbot_certificate:
+      domains:
+        - 'push.napiany.com'
+        - 'updates.push.napiany.com'
+  when:
+    - 'not ansible_check_mode or
+      certbot_mountpoint | default("") | trim | length > 0'
+
+- name: 'Enable and start autoconnect.service'
+  ansible.builtin.systemd:
+    name: 'autoconnect.service'
+    state: 'started'
+    enabled: true
+    daemon_reload: true
+
+- name: 'Enable and start autoendpoint.service'
+  ansible.builtin.systemd:
+    name: 'autoendpoint.service'
+    state: 'started'
+    enabled: true
+    daemon_reload: true
+
+- name: 'Manage Autopush nginx config'
+  ansible.builtin.include_tasks: 'nginx_config.yaml'
+  vars:
+    podman_nginx_config_name: 'autopush'
+    podman_nginx_config_copies:
+      - src: 'autopush/autopush.conf'
+        dest: 'autopush.conf'

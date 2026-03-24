@@ -1,0 +1,68 @@
+---
+- name: 'Manage MollySocket podman secrets'
+  ansible.builtin.include_tasks: 'manage_secret.yaml'
+  loop:
+    - name: 'mollysocket_vapid_privkey'
+      value_var: 'vault_podman_secret_mollysocket_vapid_privkey'
+  loop_control:
+    loop_var: 'podman_secret'
+
+- name: 'Copy MollySocket Quadlet files'
+  ansible.builtin.include_tasks: 'copy_quadlet.yaml'
+  vars:
+    podman_quadlet_files_label: 'MollySocket Quadlet'
+    podman_quadlet_files:
+      - src: 'mollysocket/nginx-mollysocket.network'
+        dest: 'nginx-mollysocket.network'
+        notify:
+          - 'Daemon reload'
+          - 'Restart nginx'
+          - 'Restart mollysocket'
+      - src: 'mollysocket/mollysocket.container'
+        dest: 'mollysocket.container'
+        notify:
+          - 'Daemon reload'
+          - 'Restart mollysocket'
+
+- name: 'Prepare MollySocket volume'
+  ansible.builtin.include_tasks: 'manage_volume.yaml'
+  vars:
+    manage_volume_name: 'mollysocket'
+    manage_volume_uid: '300009'
+    manage_volume_gid: '300009'
+
+- name: 'Copy MollySocket config into the MollySocket volume'
+  ansible.builtin.copy:
+    src: 'mollysocket/config.toml'
+    dest: '{{ manage_volume_mountpoint.stdout }}/config.toml'
+    owner: '300009'
+    group: '300009'
+    mode: '0600'
+  when: 'manage_volume_mountpoint.stdout | default("") | trim | length > 0'
+  notify:
+    - 'Restart mollysocket'
+
+- name: 'Ensure MollySocket certificate is issued'
+  ansible.builtin.include_tasks: 'issue_certificate.yaml'
+  vars:
+    certbot_certificate:
+      domains:
+        - 'mollysocket.napiany.com'
+  when:
+    - 'not ansible_check_mode or
+      certbot_mountpoint | default("") | trim | length > 0'
+
+- name: 'Enable and start mollysocket.service'
+  ansible.builtin.systemd:
+    name: 'mollysocket.service'
+    state: 'started'
+    enabled: true
+    daemon_reload: true
+
+- name: 'Manage MollySocket nginx config'
+  ansible.builtin.include_tasks: 'nginx_config.yaml'
+  vars:
+    podman_nginx_config_name: 'mollysocket'
+    podman_nginx_config_copies:
+      - src: 'mollysocket/mollysocket.conf'
+        dest: 'mollysocket.conf'

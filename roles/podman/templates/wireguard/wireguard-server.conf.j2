@@ -1,0 +1,11 @@
+[Interface]
+Address = 10.66.66.1/24
+ListenPort = 51820
+PrivateKey = {{ vault_wireguard_private_keys[inventory_hostname] }}
+
+{% for backend in podman_edge_backends %}[Peer]
+PublicKey = {{ vault_wireguard_public_keys[backend.name] }}
+PresharedKey = {{ vault_wireguard_preshared_keys[backend.name] }}
+AllowedIPs = {{ backend.wireguard_ip }}/32
+
+{% endfor %}

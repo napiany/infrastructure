@@ -1,0 +1,46 @@
+[Unit]
+Description=Autopush AutoEndpoint
+After=autopush-valkey.service autoconnect.service
+Wants=autopush-valkey.service autoconnect.service
+
+[Container]
+ContainerName=autoendpoint
+Image=autoendpoint.build
+
+Network=nginx-autopush.network
+Network=autopush-valkey.network
+NetworkAlias=autoendpoint
+
+ReadOnly=true
+Mount=type=tmpfs,tmpfs-size=32M,tmpfs-mode=1777,nosuid,nodev,destination=/tmp
+
+Secret=autopush_crypto_keys,type=env,target=AUTOEND__CRYPTO_KEYS
+Secret=autopush_auth_keys,type=env,target=AUTOEND__AUTH_KEYS
+
+Environment=AUTOEND__HOST=0.0.0.0
+Environment=AUTOEND__PORT=8000
+Environment=AUTOEND__ENDPOINT_URL=https://updates.push.napiany.com
+Environment=AUTOEND__DB_DSN=redis://autopush-valkey:6379/0
+Environment=AUTOEND__HUMAN_LOGS=true
+Environment=RUST_LOG=info
+
+User=300011
+Group=300011
+
+GlobalArgs=--runtime /usr/local/bin/runsc
+SecurityLabelDisable=true
+NoNewPrivileges=true
+DropCapability=ALL
+
+[Service]
+LockPersonality=true
+ProtectClock=true
+RestrictRealtime=true
+RuntimeDirectoryMode=700
+SystemCallArchitectures=native
+SystemCallFilter=~@obsolete
+Restart=on-failure
+RestartSec=10s
+
+[Install]
+WantedBy=default.target

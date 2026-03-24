@@ -1,0 +1,162 @@
+---
+- name: 'Set Stalwart domain facts'
+  vars:
+    stalwart_settings_candidate: '{{ (podman_services | default({})).get(
+      "stalwart", {}) }}'
+    stalwart_certificate_blocks_candidate: '{{
+      stalwart_settings_candidate.certificate_blocks | default(
+      ([{"domains": stalwart_settings_candidate.domains}] if
+      (stalwart_settings_candidate.domains | default([]) | length > 0)
+      else [])) }}'
+  ansible.builtin.set_fact:
+    stalwart_certificate_blocks: '{{ stalwart_certificate_blocks_candidate }}'
+    stalwart_primary_domain: '{{
+      (((stalwart_certificate_blocks_candidate | first | default({})).domains
+      | default([])) | first | default("")) }}'
+
+- name: 'Manage Stalwart podman secrets'
+  ansible.builtin.include_tasks: 'manage_secret.yaml'
+  loop:
+    - name: 'stalwart-postgres_password'
+      value_var: 'vault_podman_secret_stalwart_postgres_password'
+    - name: 'stalwart_adminsecret'
+      value_var: 'vault_podman_secret_stalwart_adminsecret'
+  loop_control:
+    loop_var: 'podman_secret'
+
+- name: 'Copy Stalwart Quadlet files'
+  ansible.builtin.include_tasks: 'copy_quadlet.yaml'
+  vars:
+    podman_quadlet_files_label: 'Stalwart Quadlet'
+    podman_quadlet_files:
+      - src: 'stalwart/nginx-stalwart.network'
+        dest: 'nginx-stalwart.network'
+        notify:
+          - 'Daemon reload'
+          - 'Restart nginx'
+          - 'Restart stalwart'
+      - src: 'stalwart/stalwart-postgres.network'
+        dest: 'stalwart-postgres.network'
+        notify:
+          - 'Daemon reload'
+          - 'Restart stalwart-postgres'
+          - 'Restart stalwart'
+      - src: 'stalwart/stalwart-postgres.container'
+        dest: 'stalwart-postgres.container'
+        notify:
+          - 'Daemon reload'
+          - 'Restart stalwart-postgres'
+
+- name: 'Template stalwart.container'
+  ansible.builtin.template:
+    src: 'stalwart/stalwart.container.j2'
+    dest: '/etc/containers/systemd/stalwart.container'
+    owner: 'root'
+    group: 'root'
+    mode: '0644'
+  notify:
+    - 'Daemon reload'
+    - 'Restart stalwart'
+
+- name: 'Prepare Stalwart Postgres volume'
+  ansible.builtin.include_tasks: 'manage_volume.yaml'
+  vars:
+    manage_volume_name: 'stalwart-postgres'
+    manage_volume_uid: '300007'
+    manage_volume_gid: '300007'
+
+- name: 'Prepare Stalwart volume'
+  ansible.builtin.include_tasks: 'manage_volume.yaml'
+  vars:
+    manage_volume_name: 'stalwart'
+    manage_volume_uid: '300006'
+    manage_volume_gid: '300006'
+    manage_volume_directories:
+      - path: 'etc'
+        mode: '0700'
+      - path: 'data'
+        mode: '0700'
+      - path: 'logs'
+        mode: '0700'
+
+- name: 'Render stalwart config.toml'
+  ansible.builtin.set_fact:
+    stalwart_config_toml_content: '{{ lookup(
+      "template", "stalwart/config.toml.j2") }}'
+  when:
+    - 'manage_volume_mountpoint.stdout | default("") | trim |
+      length > 0'
+
+- name: 'Check whether stalwart config.toml exists'
+  ansible.builtin.stat:
+    path: '{{ manage_volume_mountpoint.stdout }}/etc/config.toml'
+  register: 'stalwart_config_toml_stat'
+  when: 'manage_volume_mountpoint.stdout | default("") | trim | length > 0'
+
+- name: 'Read current stalwart config.toml'
+  ansible.builtin.slurp:
+    src: '{{ manage_volume_mountpoint.stdout }}/etc/config.toml'
+  register: 'stalwart_config_toml_raw'
+  when:
+    - 'manage_volume_mountpoint.stdout | default("") | trim | length > 0'
+    - 'stalwart_config_toml_stat.stat.exists | default(false)'
+
+- name: 'Write stalwart config.toml when content changed'
+  ansible.builtin.copy:
+    content: '{{ stalwart_config_toml_content }}'
+    dest: '{{ manage_volume_mountpoint.stdout }}/etc/config.toml'
+    owner: '300006'
+    group: '300006'
+    mode: '0600'
+    unsafe_writes: true
+  when:
+    - 'manage_volume_mountpoint.stdout | default("") | trim |
+      length > 0'
+    - 'not (stalwart_config_toml_stat.stat.exists | default(false)) or
+      (stalwart_config_toml_raw.content | b64decode) !=
+      stalwart_config_toml_content'
+  notify:
+    - 'Restart stalwart'
+
+- name: 'Ensure stalwart config.toml ownership and mode'
+  ansible.builtin.file:
+    path: '{{ manage_volume_mountpoint.stdout }}/etc/config.toml'
+    owner: '300006'
+    group: '300006'
+    mode: '0600'
+    state: 'file'
+  when: 'manage_volume_mountpoint.stdout | default("") | trim | length > 0'
+  changed_when: false
+
+- name: 'Enable and start stalwart-postgres.service'
+  ansible.builtin.systemd:
+    name: 'stalwart-postgres.service'
+    state: 'started'
+    enabled: true
+    daemon_reload: true
+
+- name: 'Ensure Stalwart certificates are issued'
+  ansible.builtin.include_tasks: 'issue_certificate.yaml'
+  vars:
+    certbot_certificate: '{{ item }}'
+  loop: '{{ stalwart_certificate_blocks }}'
+  loop_control:
+    label: '{{ item.domains | first }}'
+  when:
+    - 'not ansible_check_mode or
+      certbot_mountpoint | default("") | trim | length > 0'
+
+- name: 'Enable and start stalwart.service'
+  ansible.builtin.systemd:
+    name: 'stalwart.service'
+    state: 'started'
+    enabled: true
+    daemon_reload: true
+
+- name: 'Manage Stalwart nginx config'
+  ansible.builtin.include_tasks: 'nginx_config.yaml'
+  vars:
+    podman_nginx_config_name: 'stalwart'
+    podman_nginx_config_templates:
+      - src: 'stalwart/stalwart.conf.j2'
+        dest: 'stalwart.conf'

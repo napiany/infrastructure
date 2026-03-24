@@ -11,6 +11,9 @@
     line: 'UriSchemes=file;https'
     insertafter: 'EOF'
     create: true
+    owner: 'root'
+    group: 'root'
+    mode: '0644'
   notify:
     - 'Reboot'
 

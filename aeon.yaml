@@ -11,11 +11,17 @@
       ansible.builtin.copy:
         dest: '/var/lib/zypp/AnonymousUniqueId'
         content: ''
+        owner: 'root'
+        group: 'root'
+        mode: '0644'
 
     - name: 'Disable XWayland'
       ansible.builtin.copy:
         dest: '/etc/systemd/user/org.gnome.Shell@wayland.service.d/override.conf'
         content: "[Service]\nExecStart=\nExecStart=/usr/bin/gnome-shell --no-x11\n"
+        owner: 'root'
+        group: 'root'
+        mode: '0644'
 
     - name: 'Run hardening role'
       ansible.builtin.include_role:

@@ -1,0 +1,220 @@
+---
+- name: 'Enable and start crowdsec.service on the LAPI host'
+  ansible.builtin.systemd:
+    name: 'crowdsec.service'
+    state: 'started'
+    enabled: true
+    daemon_reload: true
+  when: 'crowdsec_is_lapi_server | bool'
+
+- name: 'Wait for the CrowdSec LAPI host CLI to become ready'
+  ansible.builtin.command:
+    argv:
+      - 'podman'
+      - 'exec'
+      - 'crowdsec'
+      - 'cscli'
+      - 'machines'
+      - 'list'
+  register: 'crowdsec_lapi_cli_ready'
+  changed_when: false
+  retries: 10
+  delay: 3
+  until: 'crowdsec_lapi_cli_ready.rc == 0'
+  when: 'crowdsec_is_lapi_server | bool'
+
+- name: 'Ensure CrowdSec remote agent passwords exist on the LAPI host'
+  vars:
+    crowdsec_remote_agent_hosts: "{%- set ns = namespace(hosts=[]) -%}
+      {%- for item in groups['servers'] | default([]) -%}
+      {%- if
+        'nginx' in (hostvars[item].podman_containers | default([])) and
+        item != inventory_hostname
+      -%}
+      {%- set ns.hosts = ns.hosts + [item] -%}
+      {%- endif -%}
+      {%- endfor -%}
+      {{ ns.hosts }}"
+  ansible.builtin.assert:
+    that:
+      - "(vault_crowdsec_agent_passwords | default({})).get(item, '') |
+        length > 0"
+    fail_msg: 'Missing vault_crowdsec_agent_passwords[{{ item }}] for
+      remote CrowdSec agent registration.'
+  loop: '{{ crowdsec_remote_agent_hosts }}'
+  when: 'crowdsec_is_lapi_server | bool'
+  no_log: true
+
+- name: 'Inspect the shared nginx remediation bouncer'
+  ansible.builtin.command:
+    argv:
+      - 'podman'
+      - 'exec'
+      - 'crowdsec'
+      - 'cscli'
+      - 'bouncers'
+      - 'inspect'
+      - 'nginx-remediation'
+  register: 'crowdsec_nginx_bouncer_inspect'
+  changed_when: false
+  failed_when: false
+  when: 'crowdsec_is_lapi_server | bool'
+
+- name: 'Ensure the shared nginx remediation bouncer is registered'
+  ansible.builtin.command:
+    argv:
+      - 'podman'
+      - 'exec'
+      - 'crowdsec'
+      - 'cscli'
+      - 'bouncers'
+      - 'add'
+      - 'nginx-remediation'
+      - '--key'
+      - '{{ lookup(
+        ''vars'', ''vault_crowdsec_nginx_bouncer_key'') }}'
+  register: 'crowdsec_nginx_bouncer_add'
+  changed_when: 'crowdsec_nginx_bouncer_add.rc == 0'
+  failed_when:
+    - 'crowdsec_nginx_bouncer_add.rc != 0'
+    - "'already exists' not in ((crowdsec_nginx_bouncer_add.stderr |
+      default('')) | lower)"
+  when:
+    - 'crowdsec_is_lapi_server | bool'
+    - "lookup('vars', 'vault_crowdsec_nginx_bouncer_key',
+      default='') | length > 0"
+  no_log: true
+
+- name: 'Ensure the CrowdSec SPOA bouncer key is defined'
+  ansible.builtin.assert:
+    that:
+      - "lookup('vars', 'vault_crowdsec_spoa_bouncer_key',
+        default='') | length > 0"
+    fail_msg: 'Missing vault_crowdsec_spoa_bouncer_key for the CrowdSec
+      SPOA bouncer.'
+  when:
+    - 'crowdsec_is_lapi_server | bool'
+    - 'crowdsec_edge_bouncer_enabled | bool'
+  no_log: true
+
+- name: 'Set the CrowdSec SPOA bouncer key fact from vault'
+  ansible.builtin.set_fact:
+    crowdsec_spoa_bouncer_key: '{{ lookup(
+      ''vars'', ''vault_crowdsec_spoa_bouncer_key'') | trim }}'
+    crowdsec_spoa_bouncer_checksum: '{{ (lookup(
+      ''vars'', ''vault_crowdsec_spoa_bouncer_key'') | trim) |
+      hash(''sha256'') }}'
+  when:
+    - 'crowdsec_is_lapi_server | bool'
+    - 'crowdsec_edge_bouncer_enabled | bool'
+  no_log: true
+
+- name: 'Check for the CrowdSec SPOA bouncer checksum file'
+  ansible.builtin.stat:
+    path: '/etc/containers/systemd/crowdsec-spoa.api-key.sha256'
+  register: 'crowdsec_spoa_bouncer_checksum_stat'
+  when:
+    - 'crowdsec_is_lapi_server | bool'
+    - 'crowdsec_edge_bouncer_enabled | bool'
+
+- name: 'Read the saved CrowdSec SPOA bouncer checksum'
+  ansible.builtin.slurp:
+    src: '/etc/containers/systemd/crowdsec-spoa.api-key.sha256'
+  register: 'crowdsec_spoa_bouncer_checksum_raw'
+  when:
+    - 'crowdsec_is_lapi_server | bool'
+    - 'crowdsec_edge_bouncer_enabled | bool'
+    - 'crowdsec_spoa_bouncer_checksum_stat.stat.exists'
+
+- name: 'Set the current CrowdSec SPOA bouncer checksum'
+  ansible.builtin.set_fact:
+    crowdsec_spoa_bouncer_current_checksum: '{{
+      crowdsec_spoa_bouncer_checksum_raw.content | b64decode | trim }}'
+  when:
+    - 'crowdsec_is_lapi_server | bool'
+    - 'crowdsec_edge_bouncer_enabled | bool'
+    - 'crowdsec_spoa_bouncer_checksum_stat.stat.exists'
+
+- name: 'Set an empty CrowdSec SPOA bouncer checksum'
+  ansible.builtin.set_fact:
+    crowdsec_spoa_bouncer_current_checksum: ''
+  when:
+    - 'crowdsec_is_lapi_server | bool'
+    - 'crowdsec_edge_bouncer_enabled | bool'
+    - 'not crowdsec_spoa_bouncer_checksum_stat.stat.exists'
+
+- name: 'Inspect the gateway SPOA bouncer registration'
+  ansible.builtin.command:
+    argv:
+      - 'podman'
+      - 'exec'
+      - 'crowdsec'
+      - 'cscli'
+      - 'bouncers'
+      - 'inspect'
+      - 'gateway-spoa-bouncer'
+  register: 'crowdsec_spoa_bouncer_inspect'
+  changed_when: false
+  failed_when: false
+  when:
+    - 'crowdsec_is_lapi_server | bool'
+    - 'crowdsec_edge_bouncer_enabled | bool'
+
+- name: 'Remove a stale gateway SPOA bouncer registration'
+  ansible.builtin.command:
+    argv:
+      - 'podman'
+      - 'exec'
+      - 'crowdsec'
+      - 'cscli'
+      - 'bouncers'
+      - 'delete'
+      - 'gateway-spoa-bouncer'
+  register: 'crowdsec_spoa_bouncer_delete'
+  changed_when: 'crowdsec_spoa_bouncer_delete.rc == 0'
+  failed_when: 'crowdsec_spoa_bouncer_delete.rc != 0'
+  when:
+    - 'crowdsec_is_lapi_server | bool'
+    - 'crowdsec_edge_bouncer_enabled | bool'
+    - 'crowdsec_spoa_bouncer_inspect.rc == 0'
+    - 'crowdsec_spoa_bouncer_current_checksum != crowdsec_spoa_bouncer_checksum'
+  no_log: true
+
+- name: 'Register the gateway SPOA bouncer with the vault key'
+  ansible.builtin.command:
+    argv:
+      - 'podman'
+      - 'exec'
+      - 'crowdsec'
+      - 'cscli'
+      - 'bouncers'
+      - 'add'
+      - 'gateway-spoa-bouncer'
+      - '--key'
+      - '{{ crowdsec_spoa_bouncer_key }}'
+  register: 'crowdsec_spoa_bouncer_add'
+  changed_when: 'crowdsec_spoa_bouncer_add.rc == 0'
+  failed_when:
+    - 'crowdsec_spoa_bouncer_add.rc != 0'
+    - "'already exists' not in ((crowdsec_spoa_bouncer_add.stderr |
+      default('')) | lower)"
+  when:
+    - 'crowdsec_is_lapi_server | bool'
+    - 'crowdsec_edge_bouncer_enabled | bool'
+    - "crowdsec_spoa_bouncer_inspect.rc != 0 or
+      (crowdsec_spoa_bouncer_delete is defined and
+      crowdsec_spoa_bouncer_delete.changed)"
+  no_log: true
+
+- name: 'Persist the CrowdSec SPOA bouncer checksum locally'
+  ansible.builtin.copy:
+    dest: '/etc/containers/systemd/crowdsec-spoa.api-key.sha256'
+    content: '{{ crowdsec_spoa_bouncer_checksum }}\n'
+    owner: 'root'
+    group: 'root'
+    mode: '0600'
+  when:
+    - 'crowdsec_is_lapi_server | bool'
+    - 'crowdsec_edge_bouncer_enabled | bool'
+    - 'crowdsec_spoa_bouncer_current_checksum != crowdsec_spoa_bouncer_checksum'
+  no_log: true

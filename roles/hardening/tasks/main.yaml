@@ -1,19 +1,26 @@
 ---
-- ansible.builtin.include_tasks: 'chrony.yaml'
+- name: 'Include chrony hardening tasks'
+  ansible.builtin.include_tasks: 'chrony.yaml'
 
-- ansible.builtin.include_tasks: 'coredump.yaml'
+- name: 'Include coredump hardening tasks'
+  ansible.builtin.include_tasks: 'coredump.yaml'
 
-- ansible.builtin.include_tasks: 'flatpak.yaml'
+- name: 'Include Flatpak hardening tasks'
+  ansible.builtin.include_tasks: 'flatpak.yaml'
   when: "'desktops' in group_names"
 
-- ansible.builtin.include_tasks: 'fwupd.yaml'
+- name: 'Include fwupd hardening tasks'
+  ansible.builtin.include_tasks: 'fwupd.yaml'
   when: "ansible_facts['virtualization_role'] == 'host'"
 
-- ansible.builtin.include_tasks: 'kernel.yaml'
+- name: 'Include kernel hardening tasks'
+  ansible.builtin.include_tasks: 'kernel.yaml'
 
-- ansible.builtin.include_tasks: 'networkmanager.yaml'
+- name: 'Include NetworkManager hardening tasks'
+  ansible.builtin.include_tasks: 'networkmanager.yaml'
 
-- ansible.builtin.include_tasks: 'ssh.yaml'
+- name: 'Include SSH hardening tasks'
+  ansible.builtin.include_tasks: 'ssh.yaml'
   when: "'servers' in group_names"
 
 - name: 'Mask debug-shell.service'

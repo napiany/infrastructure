@@ -1,0 +1,11 @@
+version = "2"
+bindaddress = "0.0.0.0:8443"
+db_path = "/data/kanidm.db"
+tls_chain = "/etc/letsencrypt/consumers/kanidm/fullchain.pem"
+tls_key = "/etc/letsencrypt/consumers/kanidm/privkey.pem"
+domain = "{{ kanidm_domain }}"
+origin = "https://{{ kanidm_domain }}"
+
+[online_backup]
+path = "/data/kanidm/backups/"
+schedule = "00 22 * * *"

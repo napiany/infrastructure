@@ -1,0 +1,44 @@
+[Unit]
+Description=Grid Synapse PostgreSQL
+
+[Container]
+ContainerName=grid-postgres
+Image=docker.io/library/postgres:18-alpine
+AutoUpdate=registry
+
+Network=grid-postgres.network
+NetworkAlias=grid-postgres
+
+Volume=grid-postgres:/var/lib/postgresql/18/docker:Z
+ReadOnly=true
+Mount=type=tmpfs,tmpfs-size=50M,tmpfs-mode=0770,U,noexec,nosuid,nodev,destination=/var/run/postgresql
+
+Environment=POSTGRES_USER=synapse
+Environment=POSTGRES_DB=synapse
+Environment="POSTGRES_INITDB_ARGS=--encoding=UTF8 --locale=C"
+Secret=grid-postgres_password,type=env,target=POSTGRES_PASSWORD
+
+User=300014
+Group=300014
+
+GlobalArgs=--runtime /usr/local/bin/runsc
+SecurityLabelDisable=true
+NoNewPrivileges=true
+DropCapability=ALL
+
+HealthCmd=pg_isready -U synapse -d synapse
+HealthInterval=15s
+HealthTimeout=5s
+Notify=healthy
+
+[Service]
+LockPersonality=true
+ProtectClock=true
+RestrictRealtime=true
+RuntimeDirectoryMode=700
+SystemCallArchitectures=native
+SystemCallFilter=~@obsolete
+Restart=always
+
+[Install]
+WantedBy=default.target

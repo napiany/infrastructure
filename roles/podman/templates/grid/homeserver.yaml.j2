@@ -1,0 +1,65 @@
+---
+server_name: "grid.napiany.com"
+public_baseurl: "https://grid.napiany.com/"
+pid_file: "/data/homeserver.pid"
+log_config: "/data/grid.napiany.com.log.config"
+report_stats: false
+
+allow_federation: false
+suppress_key_server_warning: true
+trusted_key_servers: []
+
+enable_registration: false
+registration_shared_secret: "{{ lookup('vars', 'vault_podman_secret_grid_registration_shared_secret') }}"
+macaroon_secret_key: "{{ lookup('vars', 'vault_podman_secret_grid_macaroon_secret_key') }}"
+form_secret: "{{ lookup('vars', 'vault_podman_secret_grid_form_secret') }}"
+signing_key_path: "/data/grid.napiany.com.signing.key"
+
+media_store_path: "/data/media_store"
+url_preview_enabled: false
+
+allow_public_rooms_without_auth: false
+allow_public_rooms_over_federation: false
+allow_device_name_lookup_over_federation: false
+enable_admin_http_api: true
+
+room_directory:
+  visibility: "private"
+
+user_directory:
+  enabled: false
+
+rc_message:
+  per_second: 75
+  burst_count: 75
+
+rc_login:
+  address:
+    per_second: 3
+    burst_count: 3
+  account:
+    per_second: 3
+    burst_count: 3
+  failed_attempts:
+    per_second: 3
+    burst_count: 3
+
+database:
+  name: "psycopg2"
+  args:
+    user: "synapse"
+    password: "{{ lookup('vars', 'vault_podman_secret_grid_postgres_password') }}"
+    database: "synapse"
+    host: "grid-postgres"
+    cp_min: 5
+    cp_max: 10
+
+listeners:
+  - port: 8008
+    type: "http"
+    tls: false
+    x_forwarded: true
+    resources:
+      - names:
+          - "client"
+        compress: false

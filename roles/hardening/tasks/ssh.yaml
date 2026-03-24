@@ -1,6 +1,9 @@
 ---
 - name: 'Copy sshd configuration file'
   ansible.builtin.copy:
+    owner: 'root'
+    group: 'root'
+    mode: '0644'
     src: 'sshd_config'
     dest: '/etc/ssh/sshd_config.d/10-custom.conf'
   notify:
@@ -12,9 +15,15 @@
       ansible.builtin.file:
         path: '/etc/systemd/system/sshd.service.d/'
         state: 'directory'
+        owner: 'root'
+        group: 'root'
+        mode: '0755'
 
     - name: 'Copy configuration file for sshd override'
       ansible.builtin.get_url:
+        owner: 'root'
+        group: 'root'
+        mode: '0644'
         url: 'https://github.com/GrapheneOS/infrastructure/raw/refs/heads/main/etc/systemd/system/sshd.service.d/override.conf'
         dest: '/etc/systemd/system/sshd.service.d/override.conf'
         checksum: 'sha256:53fe45ce0909078f30a9c742eda4bab8c512e82a15dbe788c5cff2a6116aa3c8'

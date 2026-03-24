@@ -3,8 +3,34 @@ all:
   children:
     servers:
       hosts:
+        gateway:
+          ansible_host: 'gateway.napiany.com'
+          crowdsec_lapi_server: true
+          podman_containers:
+            - 'haproxy'
         miniserver:
-          ansible_host: 'miniserver.internal'
+          ansible_host: 'miniserver.napiany.com'
+          podman_wireguard_ip: '10.66.66.2'
+          podman_containers:
+            - 'nginx'
+            - 'kanidm'
+            - 'grid'
+            - 'vaultwarden'
+            - 'stalwart'
+            - 'mollysocket'
+            - 'autopush'
+          podman_services:
+            kanidm:
+              domain: 'idm.napiany.com'
+            stalwart:
+              certificate_blocks:
+                - domains:
+                    - 'mail.napiany.com'
+                    - 'mta-sts.napiany.com'
+                    - 'autoconfig.napiany.com'
+                    - 'autodiscover.napiany.com'
+              mail_domains:
+                - 'napiany.com'
     desktops:
       hosts:
         localhost:

@@ -1,0 +1,15 @@
+---
+- name: 'Include CrowdSec fact tasks'
+  ansible.builtin.include_tasks: 'crowdsec/facts.yaml'
+
+- name: 'Include CrowdSec unit and config tasks'
+  ansible.builtin.include_tasks: 'crowdsec/units_and_config.yaml'
+
+- name: 'Include CrowdSec agent bootstrap tasks'
+  ansible.builtin.include_tasks: 'crowdsec/agent_bootstrap.yaml'
+
+- name: 'Include CrowdSec LAPI tasks'
+  ansible.builtin.include_tasks: 'crowdsec/lapi.yaml'
+
+- name: 'Include CrowdSec agent tasks'
+  ansible.builtin.include_tasks: 'crowdsec/agent.yaml'

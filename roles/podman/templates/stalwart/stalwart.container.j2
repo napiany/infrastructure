@@ -1,0 +1,57 @@
+{% set has_ipv6 = ansible_facts["default_ipv6"]["address"] | default("") | length > 0 %}
+{% set local_ports = [465, 587, 993] %}
+{% set wireguard_ports = [25, 465, 587, 993] %}
+[Unit]
+Description=Stalwart
+After=stalwart-postgres.service
+Wants=stalwart-postgres.service
+
+[Container]
+ContainerName=stalwart
+Image=ghcr.io/stalwartlabs/stalwart:v0.15.5
+AutoUpdate=registry
+{% for port in local_ports %}
+PublishPort={{ ansible_facts["default_ipv4"]["address"] }}:{{ port }}:{{ port }}/tcp
+{% endfor %}
+{% if has_ipv6 %}
+{% for port in local_ports %}
+PublishPort=[{{ ansible_facts["default_ipv6"]["address"] }}]:{{ port }}:{{ port }}/tcp
+{% endfor %}
+{% endif %}
+{% if podman_wireguard_ip | default("") | length > 0 %}
+{% for port in wireguard_ports %}
+PublishPort={{ podman_wireguard_ip }}:{{ port }}:{{ port }}/tcp
+{% endfor %}
+{% endif %}
+
+Network=nginx-stalwart.network
+Network=stalwart-postgres.network
+NetworkAlias=stalwart
+
+Volume=stalwart:/opt/stalwart:Z
+Volume=certbot:/etc/letsencrypt:ro,z
+
+Secret=stalwart_adminsecret,type=env,target=ADMIN_SECRET
+Secret=stalwart-postgres_password,type=env,target=STALWART_POSTGRES_PASSWORD
+
+User=300006
+Group=300006
+
+GlobalArgs=--runtime /usr/local/bin/runsc
+SecurityLabelDisable=true
+NoNewPrivileges=true
+DropCapability=ALL
+AddCapability=NET_BIND_SERVICE
+
+[Service]
+LockPersonality=true
+ProtectClock=true
+RestrictRealtime=true
+RuntimeDirectoryMode=700
+SystemCallArchitectures=native
+SystemCallFilter=~@obsolete
+Restart=on-failure
+RestartSec=10s
+
+[Install]
+WantedBy=default.target

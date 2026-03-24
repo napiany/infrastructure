@@ -1,0 +1,32 @@
+[Unit]
+Description=CrowdSec HAProxy SPOA bouncer
+Requires=crowdsec.service
+After=crowdsec.service
+
+[Container]
+ContainerName=crowdsec-spoa
+Image=docker.io/crowdsecurity/spoa-bouncer:v0.3.0
+AutoUpdate=registry
+
+Network=haproxy-crowdsec.network
+NetworkAlias=crowdsec-spoa
+IP=10.89.106.2
+Volume=crowdsec-spoa-config:/etc/crowdsec/bouncers:ro,z
+Secret=crowdsec_spoa_bouncer_key,type=env,target=API_KEY
+Exec=-c /etc/crowdsec/bouncers/crowdsec-spoa-bouncer.yaml
+
+NoNewPrivileges=true
+DropCapability=ALL
+
+[Service]
+LockPersonality=true
+ProtectClock=true
+RestrictRealtime=true
+RuntimeDirectoryMode=700
+SystemCallArchitectures=native
+SystemCallFilter=~@obsolete
+Restart=on-failure
+RestartSec=10s
+
+[Install]
+WantedBy=default.target

@@ -1,0 +1,36 @@
+[Unit]
+Description=CrowdSec security engine
+
+[Container]
+ContainerName=crowdsec
+Image=docker.io/crowdsecurity/crowdsec:v1.7.6
+AutoUpdate=registry
+Network=nginx-crowdsec.network
+NetworkAlias=crowdsec
+
+Volume=crowdsec-config:/etc/crowdsec:z
+Volume=crowdsec-data:/var/lib/crowdsec/data:z
+Volume=nginx-logs:/var/log/nginx:ro,z
+
+Environment=TZ=UTC
+Environment="COLLECTIONS={{ crowdsec_agent_collections_effective | join(' ') }}"
+Environment=DISABLE_LOCAL_API=true
+Environment=LOCAL_API_URL={{ crowdsec_lapi_url }}
+Environment=AGENT_USERNAME={{ inventory_hostname }}
+Secret=crowdsec_agent_password,type=env,target=AGENT_PASSWORD
+
+NoNewPrivileges=true
+DropCapability=ALL
+
+[Service]
+LockPersonality=true
+ProtectClock=true
+RestrictRealtime=true
+RuntimeDirectoryMode=700
+SystemCallArchitectures=native
+SystemCallFilter=~@obsolete
+Restart=on-failure
+RestartSec=10s
+
+[Install]
+WantedBy=default.target

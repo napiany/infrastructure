@@ -1,0 +1,67 @@
+---
+- name: 'Set Kanidm domain facts'
+  vars:
+    kanidm_settings_candidate: '{{ (podman_services | default({})).get(
+      "kanidm", {}) }}'
+  ansible.builtin.set_fact:
+    kanidm_domain: '{{ kanidm_settings_candidate.domain | default("") }}'
+
+- name: 'Copy Kanidm Quadlet files'
+  ansible.builtin.include_tasks: 'copy_quadlet.yaml'
+  vars:
+    podman_quadlet_files_label: 'Kanidm Quadlet'
+    podman_quadlet_files:
+      - src: 'kanidm/nginx-kanidm.network'
+        dest: 'nginx-kanidm.network'
+        notify:
+          - 'Daemon reload'
+          - 'Restart nginx'
+          - 'Restart kanidm'
+      - src: 'kanidm/kanidm.container'
+        dest: 'kanidm.container'
+        notify:
+          - 'Daemon reload'
+          - 'Restart kanidm'
+
+- name: 'Prepare Kanidm volume'
+  ansible.builtin.include_tasks: 'manage_volume.yaml'
+  vars:
+    manage_volume_name: 'kanidm'
+    manage_volume_uid: '300002'
+    manage_volume_gid: '300002'
+
+- name: 'Template Kanidm config into the Kanidm volume'
+  ansible.builtin.template:
+    src: 'kanidm/server.toml.j2'
+    dest: '{{ manage_volume_mountpoint.stdout }}/server.toml'
+    owner: '300002'
+    group: '300002'
+    mode: '0600'
+  when: 'manage_volume_mountpoint.stdout | default("") | trim | length > 0'
+  notify:
+    - 'Restart kanidm'
+
+- name: 'Ensure Kanidm certificate is issued'
+  ansible.builtin.include_tasks: 'issue_certificate.yaml'
+  vars:
+    certbot_certificate:
+      domains:
+        - '{{ kanidm_domain }}'
+  when:
+    - 'not ansible_check_mode or
+      certbot_mountpoint | default("") | trim | length > 0'
+
+- name: 'Enable and start kanidm.service'
+  ansible.builtin.systemd:
+    name: 'kanidm.service'
+    state: 'started'
+    enabled: true
+    daemon_reload: true
+
+- name: 'Manage Kanidm nginx config'
+  ansible.builtin.include_tasks: 'nginx_config.yaml'
+  vars:
+    podman_nginx_config_name: 'kanidm'
+    podman_nginx_config_templates:
+      - src: 'kanidm/kanidm.conf.j2'
+        dest: 'kanidm.conf'

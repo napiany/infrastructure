@@ -32,3 +32,5 @@ rules:
 
   line-length:
     max: 500
+
+ignore: '**/group_vars/servers/vault.yaml'

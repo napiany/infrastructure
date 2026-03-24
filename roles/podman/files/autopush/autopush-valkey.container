@@ -1,0 +1,41 @@
+[Unit]
+Description=Autopush Valkey
+
+[Container]
+ContainerName=autopush-valkey
+Image=docker.io/valkey/valkey:8-alpine
+AutoUpdate=registry
+
+Network=autopush-valkey.network
+NetworkAlias=autopush-valkey
+
+Volume=autopush-valkey:/data:U,Z
+ReadOnly=true
+Mount=type=tmpfs,tmpfs-size=16M,tmpfs-mode=1777,nosuid,nodev,destination=/tmp
+
+Exec=valkey-server --save 60 1000 --appendonly yes --dir /data
+
+User=300012
+Group=300012
+
+GlobalArgs=--runtime /usr/local/bin/runsc
+SecurityLabelDisable=true
+NoNewPrivileges=true
+DropCapability=ALL
+
+HealthCmd=valkey-cli ping
+HealthInterval=15s
+HealthTimeout=5s
+Notify=healthy
+
+[Service]
+LockPersonality=true
+ProtectClock=true
+RestrictRealtime=true
+RuntimeDirectoryMode=700
+SystemCallArchitectures=native
+SystemCallFilter=~@obsolete
+Restart=always
+
+[Install]
+WantedBy=default.target

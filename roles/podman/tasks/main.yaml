@@ -1,0 +1,62 @@
+---
+- name: 'Refresh zypper metadata for podman prerequisites'
+  ansible.builtin.command:
+    argv:
+      - 'zypper'
+      - '--non-interactive'
+      - 'refresh'
+  changed_when: false
+
+- name: 'Ensure podman is installed'
+  community.general.zypper:
+    name:
+      - 'podman'
+    state: 'present'
+  notify:
+    - 'Reboot'
+
+- name: 'Enable and start podman-auto-update.timer'
+  ansible.builtin.systemd:
+    name: 'podman-auto-update.timer'
+    state: 'started'
+    enabled: true
+
+- name: 'Set effective podman container list'
+  ansible.builtin.set_fact:
+    podman_containers_selected: '{{
+      podman_containers | default(podman_available_containers) }}'
+
+- name: 'Ensure WireGuard tools are installed for edge proxy hosts'
+  community.general.zypper:
+    name:
+      - 'wireguard-tools'
+    state: 'present'
+  when:
+    - "podman_containers_selected | intersect(podman_edge_proxy_containers) |
+      length > 0"
+  notify:
+    - 'Reboot'
+
+- name: 'Include gVisor tasks'
+  ansible.builtin.include_tasks: 'gvisor.yaml'
+
+- name: 'Include CrowdSec tasks'
+  ansible.builtin.include_tasks: 'crowdsec.yaml'
+  when:
+    - "'nginx' in podman_containers_selected or
+      (crowdsec_lapi_server | default(false))"
+
+- name: 'Include selected podman service tasks'
+  ansible.builtin.include_tasks: '{{ podman_service_name }}.yaml'
+  loop: '{{ podman_available_containers }}'
+  loop_control:
+    loop_var: 'podman_service_name'
+  when: 'podman_service_name in podman_containers_selected'
+
+- name: 'Ensure nginx.service is running after reverse-proxy tasks'
+  ansible.builtin.systemd:
+    name: 'nginx.service'
+    state: 'started'
+    enabled: true
+    daemon_reload: true
+  when: "'nginx' in podman_containers_selected"

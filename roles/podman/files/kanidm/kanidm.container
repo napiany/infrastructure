@@ -1,0 +1,34 @@
+[Unit]
+Description=kanidm identity management
+
+[Container]
+ContainerName=kanidm
+Image=docker.io/kanidm/server:1.9.2
+AutoUpdate=registry
+
+Network=nginx-kanidm.network
+NetworkAlias=kanidm
+
+Volume=kanidm:/data:Z
+Volume=certbot:/etc/letsencrypt:ro,z
+
+User=300002
+Group=300002
+
+GlobalArgs=--runtime /usr/local/bin/runsc
+SecurityLabelDisable=true
+DropCapability=ALL
+NoNewPrivileges=true
+
+[Service]
+LockPersonality=true
+ProtectClock=true
+RestrictRealtime=true
+RuntimeDirectoryMode=700
+SystemCallArchitectures=native
+SystemCallFilter=~@obsolete
+Restart=on-failure
+RestartSec=10s
+
+[Install]
+WantedBy=default.target
