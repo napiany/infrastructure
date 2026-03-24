@@ -56,6 +56,7 @@
         bootloader_type: "{{ 'systemd-boot' if bootctl_result.rc == 0 else 'grub' if grub_config.stat.exists else 'unknown' }}"
 
 - name: 'Set kernel arguments in /etc/kernel/cmdline'
+  when: "bootloader_type == 'systemd-boot'"
   block:
     - name: 'Read current /etc/kernel/cmdline'
       ansible.builtin.slurp:
@@ -79,9 +80,9 @@
         group: 'root'
       when: 'current_cmdline != new_cmdline'
       notify: 'Update sdbootutil entries'
-  when: "bootloader_type == 'systemd-boot'"
 
 - name: 'Set kernel arguments in /etc/default/grub'
+  when: "bootloader_type == 'grub'"
   block:
     - name: 'Read current /etc/default/grub'
       ansible.builtin.slurp:
@@ -104,4 +105,3 @@
         backup: true
       when: 'current_cmdline != new_cmdline'
       notify: 'Update GRUB configuration'
-  when: "bootloader_type == 'grub'"

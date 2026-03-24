@@ -101,36 +101,12 @@
   loop: '{{ podman_edge_backends }}'
   no_log: true
 
-- name: 'Ensure the CrowdSec SPOA bouncer key is defined'
-  ansible.builtin.assert:
-    that:
-      - "lookup('vars', 'vault_crowdsec_spoa_bouncer_key', default='') | length > 0"
-    fail_msg: 'Missing vault_crowdsec_spoa_bouncer_key for the CrowdSec SPOA bouncer.'
-  no_log: true
-
 - name: 'Manage the CrowdSec SPOA podman secret'
   ansible.builtin.include_tasks: 'manage_secret.yaml'
   vars:
     podman_secret:
       name: 'crowdsec_spoa_bouncer_key'
       value_var: 'vault_crowdsec_spoa_bouncer_key'
-
-- name: 'Install WireGuard sysctl drop-in'
-  ansible.builtin.copy:
-    dest: '/etc/sysctl.d/90-podman-wireguard.conf'
-    content: |
-      net.ipv4.conf.all.src_valid_mark = 1
-    owner: 'root'
-    group: 'root'
-    mode: '0644'
-
-- name: 'Apply WireGuard sysctl drop-in'
-  ansible.builtin.command:
-    argv:
-      - 'sysctl'
-      - '--load'
-      - '/etc/sysctl.d/90-podman-wireguard.conf'
-  changed_when: false
 
 - name: 'Ensure /etc/wireguard exists for the edge proxy host'
   ansible.builtin.file:
@@ -296,17 +272,6 @@
     daemon_reload: true
   when: "haproxy_daemon_reload_triggers | map('bool') | select('equalto', true) | list | length > 0"
 
-- name: 'Inspect haproxy image'
-  ansible.builtin.command:
-    argv:
-      - 'podman'
-      - 'image'
-      - 'inspect'
-      - 'localhost/haproxy:latest'
-  register: 'haproxy_image_inspect'
-  changed_when: false
-  failed_when: false
-
 - name: 'Build haproxy image'
   ansible.builtin.command:
     argv:
@@ -315,8 +280,6 @@
       - '--wait'
       - 'haproxy-build.service'
   register: 'haproxy_build_start'
-  when:
-    - "haproxy_image_inspect.rc != 0 or haproxy_build_unit.changed or haproxy_containerfile_file.changed"
   changed_when: 'haproxy_build_start.rc == 0'
   failed_when: 'haproxy_build_start.rc != 0'
 

@@ -1,10 +1,8 @@
 ---
-skip_list:
-  - 'var-naming'
-  - 'key-order'
-  - 'risky-file-permissions'
-  - 'name[missing]'
+rulesdir:
+  - './tools/ansible-lint-rules'
 
 exclude_paths:
   - '.gitlab-ci.yml'
+  - '.yamllint'
   - 'group_vars/servers/vault.yaml'

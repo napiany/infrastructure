@@ -5,7 +5,7 @@
       - 'certbot_certificate.domains | length > 0'
       - '(certbot_certificate.domains | first | default("")) | length > 0'
 
-- name: 'Set effective certbot certificate name'
+- name: 'Set certbot certificate name'
   ansible.builtin.set_fact:
     certbot_certificate_name: '{{ certbot_certificate.domains | first }}'
 
@@ -104,57 +104,6 @@
       - 'shortlived'
       - '--cert-name'
       - '{{ certbot_certificate_name }}'
-
-- name: 'Check certbot image runtime for {{ certbot_certificate_name }}'
-  ansible.builtin.command:
-    argv:
-      - 'podman'
-      - 'run'
-      - '--rm'
-      - '--entrypoint'
-      - '/usr/local/bin/certbot'
-      - 'localhost/certbot:latest'
-      - '--version'
-  register: 'certbot_issue_runtime_check'
-  changed_when: false
-  failed_when: false
-  when: 'not ansible_check_mode'
-
-- name: 'Rebuild certbot image when runtime is invalid for {{ certbot_certificate_name }}'
-  ansible.builtin.command:
-    argv:
-      - 'systemctl'
-      - 'restart'
-      - '--wait'
-      - 'certbot-build.service'
-  register: 'certbot_issue_build_restart'
-  changed_when: 'certbot_issue_build_restart.rc == 0'
-  failed_when: 'certbot_issue_build_restart.rc != 0'
-  when:
-    - 'not ansible_check_mode'
-    - 'certbot_issue_runtime_check.rc != 0'
-
-- name: 'Recheck certbot image runtime for {{ certbot_certificate_name }}'
-  ansible.builtin.command:
-    argv:
-      - 'podman'
-      - 'run'
-      - '--rm'
-      - '--entrypoint'
-      - '/usr/local/bin/certbot'
-      - 'localhost/certbot:latest'
-      - '--version'
-  register: 'certbot_issue_runtime_check_after_rebuild'
-  changed_when: false
-  failed_when: false
-  when: 'not ansible_check_mode'
-
-- name: 'Ensure certbot image runtime is valid for {{ certbot_certificate_name }}'
-  ansible.builtin.assert:
-    that:
-      - 'certbot_issue_runtime_check_after_rebuild.rc == 0'
-    fail_msg: 'The local certbot image is still invalid after rebuilding certbot-build.service.'
-  when: 'not ansible_check_mode'
 
 - name: 'Issue certificate for {{ certbot_certificate_name }}'
   ansible.builtin.command:

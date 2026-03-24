@@ -33,13 +33,20 @@
         group: 'root'
         mode: '0440'
 
+    - name: 'Refresh zypper metadata'
+      ansible.builtin.command:
+        argv:
+          - 'zypper'
+          - '--non-interactive'
+          - 'refresh'
+      changed_when: false
+
     - name: 'Install required packages'
       community.general.zypper:
         name:
           - 'system-group-wheel'
           - 'bash-completion'
           - 'python3'
-        update_cache: true
         state: 'present'
       notify:
         - 'Reboot'

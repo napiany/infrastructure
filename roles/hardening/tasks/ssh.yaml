@@ -15,6 +15,9 @@
       ansible.builtin.file:
         path: '/etc/systemd/system/sshd.service.d/'
         state: 'directory'
+        owner: 'root'
+        group: 'root'
+        mode: '0755'
 
     - name: 'Copy configuration file for sshd override'
       ansible.builtin.get_url:

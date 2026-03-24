@@ -26,6 +26,9 @@
       ansible.builtin.file:
         path: '/etc/systemd/system/chronyd.service.d/'
         state: 'directory'
+        owner: 'root'
+        group: 'root'
+        mode: '0755'
 
     - name: 'Download configuration file for chronyd override'
       ansible.builtin.get_url:

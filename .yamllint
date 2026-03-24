@@ -33,6 +33,4 @@ rules:
   line-length:
     max: 500
 
-ignore: |
-  group_vars/servers/vault.yaml
-  /home/robin/git/infrastructure/group_vars/servers/vault.yaml
+ignore: '**/group_vars/servers/vault.yaml'

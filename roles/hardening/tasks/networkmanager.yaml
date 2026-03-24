@@ -5,6 +5,9 @@
       ansible.builtin.file:
         path: '/etc/systemd/system/NetworkManager.service.d'
         state: 'directory'
+        owner: 'root'
+        group: 'root'
+        mode: '0755'
 
     - name: 'Download override for NetworkManager'
       ansible.builtin.get_url:
@@ -17,6 +20,7 @@
       notify: 'Restart NetworkManager'
 
 - name: 'Configure NetworkManager privacy enhancements'
+  when: "'desktops' in group_names"
   block:
     - name: 'Download macrandomize config for NetworkManager'
       ansible.builtin.get_url:
@@ -37,4 +41,3 @@
         dest: '/etc/NetworkManager/conf.d/01-transient-hostname.conf'
         checksum: 'sha256:bb19f7aa0d4f5a6fef37fad0d589302b49a1c0bdeb4cbbbd8aad0c7f2ad38f2c'
       notify: 'Restart NetworkManager'
-  when: "'desktops' in group_names"

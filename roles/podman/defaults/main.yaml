@@ -1,0 +1,24 @@
+---
+podman_available_containers:
+  - 'nginx'
+  - 'haproxy'
+  - 'kanidm'
+  - 'grid'
+  - 'vaultwarden'
+  - 'containercve'
+  - 'stalwart'
+  - 'autopush'
+  - 'mollysocket'
+
+podman_reverse_proxy_containers:
+  - 'kanidm'
+  - 'grid'
+  - 'vaultwarden'
+  - 'containercve'
+  - 'stalwart'
+  - 'autopush'
+  - 'mollysocket'
+
+podman_edge_proxy_containers:
+  - 'nginx'
+  - 'haproxy'

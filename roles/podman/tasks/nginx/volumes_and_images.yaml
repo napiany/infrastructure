@@ -1,0 +1,238 @@
+---
+- name: 'Create nginx and certbot volumes'
+  ansible.builtin.command:
+    cmd: 'podman volume create {{ item }}'
+  loop:
+    - 'nginx-conf'
+    - 'nginx-snippets'
+    - 'nginx-webroot'
+    - 'nginx-logs'
+    - 'nginx-session-keys'
+    - 'certbot'
+  register: 'volume_create'
+  changed_when: 'volume_create.rc == 0'
+  failed_when:
+    - 'volume_create.rc != 0'
+    - "'already exists' not in volume_create.stderr"
+
+- name: 'Get nginx-logs volume mount point'
+  ansible.builtin.command:
+    argv:
+      - 'podman'
+      - 'volume'
+      - 'inspect'
+      - 'nginx-logs'
+      - '--format'
+      - '{{ "{{.Mountpoint}}" }}'
+  register: 'nginx_logs_mountpoint'
+  changed_when: false
+  failed_when: 'not ansible_check_mode and nginx_logs_mountpoint.rc != 0'
+  check_mode: false
+
+- name: 'Seed real nginx log files in the nginx-logs volume'
+  ansible.builtin.command:
+    argv:
+      - 'install'
+      - '-o'
+      - '300001'
+      - '-g'
+      - '300001'
+      - '-m'
+      - '0644'
+      - '/dev/null'
+      - '{{ nginx_logs_mountpoint.stdout }}/{{ item }}'
+    creates: '{{ nginx_logs_mountpoint.stdout }}/{{ item }}'
+  loop:
+    - 'access.log'
+    - 'error.log'
+  when: 'nginx_logs_mountpoint.stdout | default("") | trim | length > 0'
+  notify:
+    - 'Restart nginx'
+
+- name: 'Ensure nginx log file ownership and mode in the nginx-logs volume'
+  ansible.builtin.file:
+    path: '{{ nginx_logs_mountpoint.stdout }}/{{ item }}'
+    state: 'file'
+    owner: '300001'
+    group: '300001'
+    mode: '0644'
+  loop:
+    - 'access.log'
+    - 'error.log'
+  when: 'nginx_logs_mountpoint.stdout | default("") | trim | length > 0'
+
+- name: 'Get certbot volume mount point'
+  ansible.builtin.command:
+    argv:
+      - 'podman'
+      - 'volume'
+      - 'inspect'
+      - 'certbot'
+      - '--format'
+      - '{{ "{{.Mountpoint}}" }}'
+  register: 'certbot_mountpoint_result'
+  changed_when: false
+  failed_when: 'not ansible_check_mode and certbot_mountpoint_result.rc != 0'
+  check_mode: false
+
+- name: 'Set certbot mount point'
+  ansible.builtin.set_fact:
+    certbot_mountpoint: '{{ certbot_mountpoint_result.stdout }}'
+
+- name: 'Ensure certbot metadata directories exist'
+  ansible.builtin.file:
+    path: '{{ certbot_mountpoint }}/{{ item }}'
+    state: 'directory'
+    owner: 'root'
+    group: 'root'
+    mode: '0700'
+  loop:
+    - 'ansible'
+    - 'secrets'
+  when: 'certbot_mountpoint | default("") | trim | length > 0'
+
+- name: 'Copy deSEC credentials into certbot volume'
+  ansible.builtin.copy:
+    dest: '{{ certbot_mountpoint }}/secrets/DESEC.ini'
+    content: '{{ lookup(''vars'', ''vault_certbot_dns_desec_ini'') }}'
+    owner: 'root'
+    group: 'root'
+    mode: '0600'
+  no_log: true
+  when: 'certbot_mountpoint | default("") | trim | length > 0'
+
+- name: 'Build certbot image'
+  ansible.builtin.command:
+    argv:
+      - 'systemctl'
+      - 'restart'
+      - '--wait'
+      - 'certbot-build.service'
+  register: 'certbot_build_start'
+  changed_when: 'certbot_build_start.rc == 0'
+  failed_when: 'certbot_build_start.rc != 0'
+
+- name: 'Build nginx image'
+  ansible.builtin.command:
+    argv:
+      - 'systemctl'
+      - 'restart'
+      - '--wait'
+      - 'nginx-build.service'
+  register: 'nginx_build_start'
+  changed_when: 'nginx_build_start.rc == 0'
+  failed_when: 'nginx_build_start.rc != 0'
+
+- name: 'Copy snippets to nginx-snippets volume'
+  block:
+    - name: 'Get nginx-snippets volume mount point'
+      ansible.builtin.command:
+        argv:
+          - 'podman'
+          - 'volume'
+          - 'inspect'
+          - 'nginx-snippets'
+          - '--format'
+          - '{{ "{{.Mountpoint}}" }}'
+      register: 'nginx_snippets_mountpoint'
+      changed_when: false
+      failed_when: 'not ansible_check_mode and nginx_snippets_mountpoint.rc != 0'
+      check_mode: false
+
+    - name: 'Copy snippet configs'
+      ansible.builtin.copy:
+        src: '{{ item.src }}'
+        dest: '{{ nginx_snippets_mountpoint.stdout }}/{{ item.dest }}'
+        owner: 'root'
+        group: 'root'
+        mode: '0644'
+      when: 'nginx_snippets_mountpoint.stdout | default("") | trim | length > 0'
+      notify:
+        - 'Restart nginx'
+      loop:
+        - src: 'nginx/snippets/cross-origin-security.conf'
+          dest: 'cross-origin-security.conf'
+        - src: 'nginx/snippets/crowdsec.conf'
+          dest: 'crowdsec.conf'
+        - src: 'nginx/snippets/local-ip-only.conf'
+          dest: 'local-ip-only.conf'
+        - src: 'nginx/snippets/permissions.conf'
+          dest: 'permissions.conf'
+        - src: 'nginx/snippets/proxy.conf'
+          dest: 'proxy.conf'
+        - src: 'nginx/snippets/quic.conf'
+          dest: 'quic.conf'
+        - src: 'nginx/snippets/robots.conf'
+          dest: 'robots.conf'
+        - src: 'nginx/snippets/security.conf'
+          dest: 'security.conf'
+        - src: 'nginx/snippets/universal_paths.conf'
+          dest: 'universal_paths.conf'
+
+    - name: 'Template nginx CrowdSec bouncer config into nginx-snippets volume'
+      ansible.builtin.template:
+        src: 'crowdsec/crowdsec-nginx-bouncer.conf.j2'
+        dest: '{{ nginx_snippets_mountpoint.stdout }}/crowdsec-nginx-bouncer.conf'
+        owner: '300001'
+        group: '300001'
+        mode: '0400'
+      register: 'crowdsec_nginx_bouncer_config'
+      when: 'nginx_snippets_mountpoint.stdout | default("") | trim | length > 0'
+      notify:
+        - 'Restart nginx'
+      no_log: true
+
+- name: 'Copy configs to nginx-conf volume'
+  block:
+    - name: 'Get nginx-conf volume mount point'
+      ansible.builtin.command:
+        cmd: 'podman volume inspect nginx-conf --format {{ "{{.Mountpoint}}" }}'
+      register: 'nginx_conf_mountpoint'
+      changed_when: false
+      failed_when: 'not ansible_check_mode and nginx_conf_mountpoint.rc != 0'
+      check_mode: false
+
+    - name: 'Copy default and http configs'
+      ansible.builtin.copy:
+        src: '{{ item.src }}'
+        dest: '{{ nginx_conf_mountpoint.stdout }}/{{ item.dest }}'
+        owner: 'root'
+        group: 'root'
+        mode: '0644'
+      when: 'nginx_conf_mountpoint.stdout | default("") | trim | length > 0'
+      notify:
+        - 'Restart nginx'
+      loop:
+        - src: 'nginx/conf.d/default.conf'
+          dest: 'default.conf'
+        - src: 'nginx/conf.d/http.conf'
+          dest: 'http.conf'
+
+- name: 'Check whether the WireGuard client address is currently available'
+  ansible.builtin.command:
+    argv:
+      - 'ip'
+      - '-4'
+      - 'addr'
+      - 'show'
+  register: 'wireguard_client_address_check'
+  changed_when: false
+  failed_when: false
+  when: 'nginx_edge_proxy_enabled | bool'
+
+- name: 'Set nginx WireGuard address availability fact'
+  ansible.builtin.set_fact:
+    nginx_wireguard_address_available: '{{ (''inet '' ~ podman_wireguard_ip ~ ''/'') in (wireguard_client_address_check.stdout | default('''')) }}'
+  when: 'nginx_edge_proxy_enabled | bool'
+
+- name: 'Template nginx.container'
+  ansible.builtin.template:
+    src: 'nginx/nginx.container.j2'
+    dest: '/etc/containers/systemd/nginx.container'
+    owner: 'root'
+    group: 'root'
+    mode: '0644'
+  register: 'nginx_container_unit'
+  notify:
+    - 'Daemon reload'
+    - 'Restart nginx'

@@ -1,0 +1,13 @@
+---
+- name: 'Copy {{ podman_quadlet_files_label | default("Quadlet") }} files'
+  ansible.builtin.copy:
+    src: '{{ podman_quadlet_file.src }}'
+    dest: '/etc/containers/systemd/{{ podman_quadlet_file.dest }}'
+    owner: 'root'
+    group: 'root'
+    mode: '0644'
+  loop: '{{ podman_quadlet_files }}'
+  loop_control:
+    loop_var: 'podman_quadlet_file'
+    label: '{{ podman_quadlet_file.dest }}'
+  notify: '{{ podman_quadlet_file.notify | default([]) }}'

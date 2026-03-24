@@ -5,6 +5,9 @@
       ansible.builtin.file:
         dest: '/etc/security/limits.d'
         state: 'directory'
+        owner: 'root'
+        group: 'root'
+        mode: '0755'
 
     - name: 'Disable coredumps in /etc/security'
       ansible.builtin.copy:
@@ -20,6 +23,9 @@
       ansible.builtin.file:
         dest: '/etc/systemd/coredump.conf.d'
         state: 'directory'
+        owner: 'root'
+        group: 'root'
+        mode: '0755'
 
     - name: 'Download coredump override config file'
       ansible.builtin.get_url:

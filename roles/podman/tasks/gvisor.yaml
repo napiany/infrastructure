@@ -1,15 +1,13 @@
 ---
-- name: 'Download gvisor-auto-update.service'
-  ansible.builtin.get_url:
-    url: 'https://raw.githubusercontent.com/Metropolis-nexus/Common-Files/main/etc/systemd/system/gvisor-auto-update.service'
+- name: 'Copy gvisor-auto-update.service'
+  ansible.builtin.copy:
+    src: 'gvisor/auto-update.service'
     dest: '/etc/systemd/system/gvisor-auto-update.service'
-    checksum: 'sha256:4b3878ba8fab366ba1da162ad1e5a03c7fd2822b5028ff8c003d430dcfc7b4ba'
     owner: 'root'
     group: 'root'
     mode: '0644'
   notify:
     - 'Daemon reload'
-    - 'Restart gvisor-auto-update timer'
 
 - name: 'Copy gvisor-auto-update.timer'
   ansible.builtin.copy:
@@ -20,11 +18,11 @@
     mode: '0644'
   notify:
     - 'Daemon reload'
-    - 'Restart gvisor-auto-update timer'
 
 - name: 'Reload systemd after gVisor unit changes'
   ansible.builtin.systemd:
     daemon_reload: true
+  when: 'not ansible_check_mode'
 
 - name: 'Check whether runsc is already installed'
   ansible.builtin.stat:
@@ -35,17 +33,22 @@
   ansible.builtin.systemd:
     name: 'gvisor-auto-update.service'
     state: 'started'
-  when: 'not (gvisor_runsc_binary.stat.exists | default(false))'
+  when:
+    - 'not ansible_check_mode'
+    - 'not (gvisor_runsc_binary.stat.exists | default(false))'
 
 - name: 'Wait for runsc to become available'
   ansible.builtin.wait_for:
     path: '/usr/local/bin/runsc'
     state: 'present'
     timeout: 300
-  when: 'not (gvisor_runsc_binary.stat.exists | default(false))'
+  when:
+    - 'not ansible_check_mode'
+    - 'not (gvisor_runsc_binary.stat.exists | default(false))'
 
 - name: 'Enable and start gvisor-auto-update.timer'
   ansible.builtin.systemd:
     name: 'gvisor-auto-update.timer'
     state: 'started'
     enabled: true
+  when: 'not ansible_check_mode'
