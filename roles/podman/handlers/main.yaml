@@ -66,6 +66,30 @@
     state: 'restarted'
     enabled: true
 
+- name: 'Restart ente-postgres'
+  ansible.builtin.systemd:
+    name: 'ente-postgres.service'
+    state: 'restarted'
+    enabled: true
+
+- name: 'Restart ente-garage'
+  ansible.builtin.systemd:
+    name: 'ente-garage.service'
+    state: 'restarted'
+    enabled: true
+
+- name: 'Restart ente-museum'
+  ansible.builtin.systemd:
+    name: 'ente-museum.service'
+    state: 'restarted'
+    enabled: true
+
+- name: 'Restart ente-web'
+  ansible.builtin.systemd:
+    name: 'ente-web.service'
+    state: 'restarted'
+    enabled: true
+
 - name: 'Restart containercve'
   ansible.builtin.systemd:
     name: 'containercve.service'
@@ -166,6 +190,8 @@
         enabled: "{{ 'grid' in podman_selected_containers }}"
       - service: 'grid.service'
         enabled: "{{ 'grid' in podman_selected_containers }}"
+      - service: 'ente-postgres.service'
+        enabled: "{{ 'ente' in podman_selected_containers }}"
       - service: 'stalwart-postgres.service'
         enabled: "{{ 'stalwart' in podman_selected_containers }}"
       - service: 'stalwart.service'

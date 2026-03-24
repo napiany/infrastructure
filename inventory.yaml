@@ -15,6 +15,7 @@ all:
             - 'nginx'
             - 'kanidm'
             - 'grid'
+            - 'ente'
             - 'vaultwarden'
             - 'stalwart'
             - 'mollysocket'

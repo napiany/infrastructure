@@ -1,0 +1,36 @@
+[Unit]
+Description=Ente Garage S3 storage
+
+[Container]
+ContainerName=ente-garage
+Image=docker.io/dxflrs/garage:v2.1.0
+
+Network=nginx-ente.network
+NetworkAlias=ente-garage
+
+Volume=ente-garage-config:/config:ro,Z
+Volume=/srv/data/garage/meta:/var/lib/garage/meta:Z
+Volume=/srv/data/garage/data:/var/lib/garage/data:Z
+
+Exec=/garage -c /config/garage.toml server
+
+User=300017
+Group=300017
+
+GlobalArgs=--runtime /usr/local/bin/runsc
+SecurityLabelDisable=true
+NoNewPrivileges=true
+DropCapability=ALL
+
+[Service]
+LockPersonality=true
+ProtectClock=true
+RestrictRealtime=true
+RuntimeDirectoryMode=700
+SystemCallArchitectures=native
+SystemCallFilter=~@obsolete
+Restart=on-failure
+RestartSec=10s
+
+[Install]
+WantedBy=default.target

@@ -18,6 +18,9 @@
       {%- if 'grid' in selected -%}
       {%- set state.domains = state.domains + ['grid.napiany.com'] -%}
       {%- endif -%}
+      {%- if 'ente' in selected -%}
+      {%- set state.domains = state.domains + ['api.ente.napiany.com', 'ente.napiany.com', 'albums.ente.napiany.com', 'accounts.ente.napiany.com', 'auth.ente.napiany.com', 'cast.ente.napiany.com', 'share.ente.napiany.com', 'embed.ente.napiany.com'] -%}
+      {%- endif -%}
       {%- if 'stalwart' in selected -%}
       {%- for block in stalwart_certificate_blocks -%}
       {%- set state.domains = state.domains + (block.domains | default([])) -%}

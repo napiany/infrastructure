@@ -16,6 +16,9 @@ Network=nginx-vaultwarden.network
 {% if 'grid' in (podman_containers_selected | default([])) %}
 Network=nginx-grid.network
 {% endif %}
+{% if 'ente' in (podman_containers_selected | default([])) %}
+Network=nginx-ente.network
+{% endif %}
 {% if 'containercve' in (podman_containers_selected | default([])) %}
 Network=nginx-containercve.network
 {% endif %}

@@ -1,0 +1,44 @@
+[Unit]
+Description=Ente PostgreSQL
+
+[Container]
+ContainerName=ente-postgres
+Image=docker.io/library/postgres:18-alpine
+AutoUpdate=registry
+
+Network=ente-backend.network
+NetworkAlias=ente-postgres
+
+Volume=ente-postgres:/var/lib/postgresql/18/docker:Z
+ReadOnly=true
+Mount=type=tmpfs,tmpfs-size=50M,tmpfs-mode=0770,U,noexec,nosuid,nodev,destination=/var/run/postgresql
+
+Environment=POSTGRES_USER=ente
+Environment=POSTGRES_DB=ente_db
+Environment="POSTGRES_INITDB_ARGS=--encoding=UTF8 --locale=C"
+Secret=ente-postgres_password,type=env,target=POSTGRES_PASSWORD
+
+User=300016
+Group=300016
+
+GlobalArgs=--runtime /usr/local/bin/runsc
+SecurityLabelDisable=true
+NoNewPrivileges=true
+DropCapability=ALL
+
+HealthCmd=pg_isready -U ente -d ente_db
+HealthInterval=15s
+HealthTimeout=5s
+Notify=healthy
+
+[Service]
+LockPersonality=true
+ProtectClock=true
+RestrictRealtime=true
+RuntimeDirectoryMode=700
+SystemCallArchitectures=native
+SystemCallFilter=~@obsolete
+Restart=always
+
+[Install]
+WantedBy=default.target

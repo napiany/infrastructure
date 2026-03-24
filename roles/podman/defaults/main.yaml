@@ -4,6 +4,7 @@ podman_available_containers:
   - 'haproxy'
   - 'kanidm'
   - 'grid'
+  - 'ente'
   - 'vaultwarden'
   - 'containercve'
   - 'stalwart'
@@ -13,6 +14,7 @@ podman_available_containers:
 podman_reverse_proxy_containers:
   - 'kanidm'
   - 'grid'
+  - 'ente'
   - 'vaultwarden'
   - 'containercve'
   - 'stalwart'
