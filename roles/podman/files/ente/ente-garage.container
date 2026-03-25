@@ -9,8 +9,8 @@ Network=nginx-ente.network
 NetworkAlias=ente-garage
 
 Volume=ente-garage-config:/config:ro,Z
-Volume=/srv/data/garage/meta:/var/lib/garage/meta:Z
-Volume=/srv/data/garage/data:/var/lib/garage/data:Z
+Volume=ente-garage-meta:/var/lib/garage/meta:Z
+Volume=/srv/data/garage:/var/lib/garage/data:Z
 
 Exec=/garage -c /config/garage.toml server
 

@@ -78,17 +78,20 @@
     ente_garage_config_mountpoint: '{{
       manage_volume_mountpoint.stdout | default("") | trim }}'
 
+- name: 'Prepare Ente Garage metadata volume'
+  ansible.builtin.include_tasks: 'manage_volume.yaml'
+  vars:
+    manage_volume_name: 'ente-garage-meta'
+    manage_volume_uid: '300017'
+    manage_volume_gid: '300017'
+
 - name: 'Ensure Ente Garage data directories exist'
   ansible.builtin.file:
-    path: '{{ item }}'
+    path: '/srv/data/garage'
     state: 'directory'
     owner: '300017'
     group: '300017'
     mode: '0700'
-  loop:
-    - '/srv/data/garage'
-    - '/srv/data/garage/meta'
-    - '/srv/data/garage/data'
 
 - name: 'Check whether Ente Garage config exists'
   ansible.builtin.stat:
