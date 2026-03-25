@@ -4,6 +4,8 @@
   loop:
     - name: 'mollysocket_vapid_privkey'
       value_var: 'vault_podman_secret_mollysocket_vapid_privkey'
+    - name: 'mollysocket_allowed_uuids'
+      value_var: 'vault_podman_secret_mollysocket_allowed_uuids'
   loop_control:
     loop_var: 'podman_secret'
 

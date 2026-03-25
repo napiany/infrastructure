@@ -3,7 +3,7 @@ Description=MollySocket
 
 [Container]
 ContainerName=mollysocket
-Image=ghcr.io/mollyim/mollysocket:1.7.0
+Image=ghcr.io/mollyim/mollysocket:1.7.1-alpine
 AutoUpdate=registry
 
 Network=nginx-mollysocket.network
@@ -14,6 +14,7 @@ ReadOnly=true
 Mount=type=tmpfs,tmpfs-size=16M,tmpfs-mode=1777,nosuid,nodev,destination=/tmp
 
 Secret=mollysocket_vapid_privkey,type=env,target=MOLLY_VAPID_PRIVKEY
+Secret=mollysocket_allowed_uuids,type=env,target=MOLLY_ALLOWED_UUIDS
 
 Environment=MOLLY_CONF=/data/config.toml
 Environment=RUST_LOG=info
