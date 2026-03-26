@@ -7,7 +7,7 @@ Wants=ente-garage.service
 
 [Container]
 ContainerName=ente-museum
-Image=ghcr.io/ente-io/server:latest
+Image=ghcr.io/ente-io/server:6f260f1f7de6f0134b107677a7a40c4720ed05b3@sha256:e1b615b261391b79a9d27f00783f70b909a18c67960cc038846a9e928fe79903
 AutoUpdate=registry
 
 Network=nginx-ente.network

@@ -3,7 +3,7 @@ Description=Ente Web
 
 [Container]
 ContainerName=ente-web
-Image=ghcr.io/ente-io/web:latest
+Image=ghcr.io/ente-io/web:697792888239c4dc5e6cb12956fddfc990222c15@sha256:8e2613273bbe28716d38e1a1f23cac18c1e3be5eecf3c9319370d1de2da30ea8
 AutoUpdate=registry
 
 Network=nginx-ente.network
