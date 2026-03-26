@@ -5,7 +5,7 @@ Wants=vaultwarden-postgres.service
 
 [Container]
 ContainerName=vaultwarden
-Image=ghcr.io/dani-garcia/vaultwarden:alpine
+Image=ghcr.io/dani-garcia/vaultwarden:1.35.2-alpine
 AutoUpdate=registry
 
 Network=nginx-vaultwarden.network
