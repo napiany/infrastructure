@@ -23,8 +23,7 @@ server {
         set $upstream_stalwart https://stalwart:443;
         proxy_ssl_name {{ block.domains | first }};
         proxy_ssl_server_name on;
-        # Stalwart bootstraps with a local cert before its mail TLS cert is configured.
-        proxy_ssl_verify off;
+        proxy_ssl_verify on;
         proxy_pass $upstream_stalwart;
     }
 }
