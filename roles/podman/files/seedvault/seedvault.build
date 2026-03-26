@@ -1,0 +1,7 @@
+[Service]
+Environment=BUILDAH_ISOLATION=chroot
+
+[Build]
+ImageTag=localhost/seedvault:latest
+File=/etc/containers/systemd/seedvault.containerfile
+SetWorkingDirectory=file

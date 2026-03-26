@@ -54,6 +54,12 @@
     state: 'restarted'
     enabled: true
 
+- name: 'Restart seedvault'
+  ansible.builtin.systemd:
+    name: 'seedvault.service'
+    state: 'restarted'
+    enabled: true
+
 - name: 'Restart grid-postgres'
   ansible.builtin.systemd:
     name: 'grid-postgres.service'

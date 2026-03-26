@@ -17,6 +17,7 @@ all:
             - 'grid'
             - 'ente'
             - 'vaultwarden'
+            - 'seedvault'
             - 'stalwart'
             - 'mollysocket'
             - 'autopush'

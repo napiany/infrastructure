@@ -15,6 +15,9 @@
       {%- if 'vaultwarden' in selected -%}
       {%- set state.domains = state.domains + ['vault.napiany.com'] -%}
       {%- endif -%}
+      {%- if 'seedvault' in selected -%}
+      {%- set state.domains = state.domains + ['seedvault.napiany.com'] -%}
+      {%- endif -%}
       {%- if 'grid' in selected -%}
       {%- set state.domains = state.domains + ['grid.napiany.com'] -%}
       {%- endif -%}

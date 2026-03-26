@@ -1,0 +1,143 @@
+---
+- name: 'Copy SeedVault Quadlet files'
+  ansible.builtin.include_tasks: 'copy_quadlet.yaml'
+  vars:
+    podman_quadlet_files_label: 'SeedVault Quadlet'
+    podman_quadlet_files:
+      - src: 'seedvault/nginx-seedvault.network'
+        dest: 'nginx-seedvault.network'
+        notify:
+          - 'Daemon reload'
+          - 'Restart nginx'
+          - 'Restart seedvault'
+      - src: 'seedvault/seedvault.build'
+        dest: 'seedvault.build'
+        notify:
+          - 'Daemon reload'
+          - 'Restart seedvault'
+      - src: 'seedvault/seedvault.containerfile'
+        dest: 'seedvault.containerfile'
+        notify:
+          - 'Daemon reload'
+          - 'Restart seedvault'
+      - src: 'seedvault/seedvault-extra.conf'
+        dest: 'seedvault-extra.conf'
+        notify:
+          - 'Restart seedvault'
+      - src: 'seedvault/seedvault.container'
+        dest: 'seedvault.container'
+        notify:
+          - 'Daemon reload'
+          - 'Restart seedvault'
+
+- name: 'Prepare SeedVault config volume'
+  ansible.builtin.include_tasks: 'manage_volume.yaml'
+  vars:
+    manage_volume_name: 'seedvault-config'
+    manage_volume_uid: '300018'
+    manage_volume_gid: '300018'
+
+- name: 'Set SeedVault config volume mount point'
+  ansible.builtin.set_fact:
+    seedvault_config_mountpoint: '{{
+      manage_volume_mountpoint.stdout | default("") | trim }}'
+
+- name: 'Prepare SeedVault data volume'
+  ansible.builtin.include_tasks: 'manage_volume.yaml'
+  vars:
+    manage_volume_name: 'seedvault-data'
+    manage_volume_uid: '300018'
+    manage_volume_gid: '300018'
+    manage_volume_directories:
+      - path: 'user1'
+        owner: '300018'
+        group: '300018'
+        mode: '0700'
+      - path: 'user2'
+        owner: '300018'
+        group: '300018'
+        mode: '0700'
+
+- name: 'Set SeedVault htpasswd content'
+  ansible.builtin.set_fact:
+    seedvault_htpasswd_content: '{{ lookup(
+      "vars", "vault_podman_secret_seedvault_htpasswd", default="") }}'
+  no_log: true
+
+- name: 'Ensure SeedVault htpasswd content is defined'
+  ansible.builtin.assert:
+    that:
+      - 'seedvault_htpasswd_content | length > 0'
+    fail_msg: 'Missing vault_podman_secret_seedvault_htpasswd for SeedVault WebDAV'
+  no_log: true
+
+- name: 'Check whether SeedVault htpasswd exists'
+  ansible.builtin.stat:
+    path: '{{ seedvault_config_mountpoint }}/htpasswd'
+  register: 'seedvault_htpasswd_file'
+  when: 'seedvault_config_mountpoint | length > 0'
+
+- name: 'Read current SeedVault htpasswd'
+  ansible.builtin.slurp:
+    src: '{{ seedvault_config_mountpoint }}/htpasswd'
+  register: 'seedvault_htpasswd_file_raw'
+  when:
+    - 'seedvault_config_mountpoint | length > 0'
+    - 'seedvault_htpasswd_file.stat.exists | default(false)'
+  no_log: true
+
+- name: 'Write SeedVault htpasswd when content changed'
+  ansible.builtin.copy:
+    content: '{{ seedvault_htpasswd_content }}'
+    dest: '{{ seedvault_config_mountpoint }}/htpasswd'
+    owner: '300018'
+    group: '300018'
+    mode: '0600'
+    unsafe_writes: true
+  when:
+    - 'seedvault_config_mountpoint | length > 0'
+    - 'not (seedvault_htpasswd_file.stat.exists | default(false)) or
+      (seedvault_htpasswd_file_raw.content | b64decode) !=
+      seedvault_htpasswd_content'
+  notify:
+    - 'Restart seedvault'
+  no_log: true
+
+- name: 'Ensure SeedVault htpasswd ownership and mode'
+  ansible.builtin.file:
+    path: '{{ seedvault_config_mountpoint }}/htpasswd'
+    owner: '300018'
+    group: '300018'
+    mode: '0600'
+    state: 'file'
+  when:
+    - 'seedvault_config_mountpoint | length > 0'
+    - 'not ansible_check_mode or
+      (seedvault_htpasswd_file.stat.exists | default(false))'
+  changed_when: false
+  no_log: true
+
+- name: 'Enable and start seedvault.service'
+  ansible.builtin.systemd:
+    name: 'seedvault.service'
+    state: 'started'
+    enabled: true
+    daemon_reload: true
+
+- name: 'Ensure SeedVault certificate is issued'
+  ansible.builtin.include_tasks: 'issue_certificate.yaml'
+  vars:
+    certbot_certificate:
+      domains:
+        - 'seedvault.napiany.com'
+  when:
+    - 'not ansible_check_mode or
+      certbot_mountpoint | default("") | trim | length > 0'
+
+- name: 'Manage SeedVault nginx config'
+  ansible.builtin.include_tasks: 'nginx_config.yaml'
+  vars:
+    podman_nginx_config_name: 'seedvault'
+    podman_nginx_config_copies:
+      - src: 'seedvault/seedvault.conf'
+        dest: 'seedvault.conf'
