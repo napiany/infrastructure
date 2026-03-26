@@ -5,7 +5,7 @@ Wants=grid-postgres.service
 
 [Container]
 ContainerName=grid
-Image=ghcr.io/polarix-containers/synapse:latest
+Image=ghcr.io/element-hq/synapse:v1.149.1@sha256:dcab93b1183b296b3bc50767813e4a2337a7cb4a9b89a5e6af5fe9b69a43618c
 AutoUpdate=registry
 
 Network=nginx-grid.network
