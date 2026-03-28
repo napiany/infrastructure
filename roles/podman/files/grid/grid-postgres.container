@@ -18,6 +18,9 @@ Environment=POSTGRES_DB=synapse
 Environment="POSTGRES_INITDB_ARGS=--encoding=UTF8 --locale=C"
 Secret=grid-postgres_password,type=env,target=POSTGRES_PASSWORD
 
+Memory=1g
+PidsLimit=256
+PodmanArgs=--cpus=2
 User=300014
 Group=300014
 

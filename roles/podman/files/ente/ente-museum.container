@@ -20,6 +20,9 @@ Mount=type=tmpfs,tmpfs-size=256M,tmpfs-mode=1777,U,noexec,nosuid,nodev,destinati
 
 Environment=ENTE_CREDENTIALS_FILE=/config/credentials.yaml
 
+Memory=1g
+PidsLimit=256
+PodmanArgs=--cpus=2
 User=300015
 Group=300015
 

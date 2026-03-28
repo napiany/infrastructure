@@ -11,6 +11,9 @@ Volume=certbot-config:/hooks:ro,z
 
 Exec=renew --non-interactive --deploy-hook /hooks/certbot-deploy-hook.sh
 
+Memory=256m
+PidsLimit=128
+PodmanArgs=--cpus=1
 DropCapability=ALL
 NoNewPrivileges=true
 

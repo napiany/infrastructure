@@ -75,6 +75,9 @@ Environment=_ENABLE_YUBICO=false
 Environment=_ENABLE_DUO=false
 Environment=_ENABLE_EMAIL_2FA=false
 
+Memory=512m
+PidsLimit=256
+PodmanArgs=--cpus=1
 User=300003
 Group=300003
 

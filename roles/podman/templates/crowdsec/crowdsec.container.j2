@@ -19,6 +19,9 @@ Environment=LOCAL_API_URL={{ crowdsec_lapi_url }}
 Environment=AGENT_USERNAME={{ inventory_hostname }}
 Secret=crowdsec_agent_password,type=env,target=AGENT_PASSWORD
 
+Memory=512m
+PidsLimit=256
+PodmanArgs=--cpus=1
 NoNewPrivileges=true
 DropCapability=ALL
 

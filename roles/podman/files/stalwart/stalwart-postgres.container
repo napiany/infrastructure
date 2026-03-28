@@ -16,6 +16,9 @@ Mount=type=tmpfs,tmpfs-size=50M,tmpfs-mode=0770,U,noexec,nosuid,nodev,destinatio
 Environment=POSTGRES_USER=stalwart
 Secret=stalwart-postgres_password,type=env,target=POSTGRES_PASSWORD
 
+Memory=1g
+PidsLimit=256
+PodmanArgs=--cpus=2
 User=300007
 Group=300007
 

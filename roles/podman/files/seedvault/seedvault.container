@@ -13,6 +13,9 @@ Volume=seedvault-data:/data:Z
 ReadOnly=true
 Mount=type=tmpfs,tmpfs-size=32M,tmpfs-mode=1777,U,noexec,nosuid,nodev,destination=/tmp
 
+Memory=256m
+PidsLimit=128
+PodmanArgs=--cpus=1
 User=300018
 Group=300018
 

@@ -26,6 +26,9 @@ Environment=AUTOCONNECT__DB_DSN=redis://autopush-valkey:6379/0
 Environment=AUTOCONNECT__HUMAN_LOGS=true
 Environment=RUST_LOG=info
 
+Memory=256m
+PidsLimit=256
+PodmanArgs=--cpus=1
 User=300010
 Group=300010
 

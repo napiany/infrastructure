@@ -34,6 +34,9 @@ Volume=certbot:/etc/letsencrypt:ro,z
 Secret=stalwart_adminsecret,type=env,target=ADMIN_SECRET
 Secret=stalwart-postgres_password,type=env,target=STALWART_POSTGRES_PASSWORD
 
+Memory=1g
+PidsLimit=512
+PodmanArgs=--cpus=2
 User=300006
 Group=300006
 

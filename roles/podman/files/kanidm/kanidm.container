@@ -12,6 +12,9 @@ NetworkAlias=kanidm
 Volume=kanidm:/data:Z
 Volume=certbot:/etc/letsencrypt:ro,z
 
+Memory=512m
+PidsLimit=256
+PodmanArgs=--cpus=1
 User=300002
 Group=300002
 

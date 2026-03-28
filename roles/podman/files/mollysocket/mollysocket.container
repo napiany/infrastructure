@@ -21,6 +21,9 @@ Environment=RUST_LOG=info
 
 Exec=server
 
+Memory=128m
+PidsLimit=128
+PodmanArgs=--cpus=1
 User=300009
 Group=300009
 

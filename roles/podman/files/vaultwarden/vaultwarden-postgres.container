@@ -17,6 +17,9 @@ Mount=type=tmpfs,tmpfs-size=50M,tmpfs-mode=0770,U,noexec,nosuid,nodev,destinatio
 Environment=POSTGRES_USER=vaultwarden
 Secret=vaultwarden-postgres_password,type=env,target=POSTGRES_PASSWORD
 
+Memory=1g
+PidsLimit=256
+PodmanArgs=--cpus=1
 User=300004
 Group=300004
 

@@ -15,6 +15,9 @@ Mount=type=tmpfs,tmpfs-size=16M,tmpfs-mode=1777,nosuid,nodev,destination=/tmp
 
 Exec=valkey-server --save 60 1000 --appendonly yes --dir /data
 
+Memory=512m
+PidsLimit=256
+PodmanArgs=--cpus=1
 User=300012
 Group=300012
 

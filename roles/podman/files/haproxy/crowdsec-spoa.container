@@ -15,6 +15,9 @@ Volume=crowdsec-spoa-config:/etc/crowdsec/bouncers:ro,z
 Secret=crowdsec_spoa_bouncer_key,type=env,target=API_KEY
 Exec=-c /etc/crowdsec/bouncers/crowdsec-spoa-bouncer.yaml
 
+Memory=128m
+PidsLimit=128
+PodmanArgs=--cpus=1
 NoNewPrivileges=true
 DropCapability=ALL
 

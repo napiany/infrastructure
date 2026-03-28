@@ -14,6 +14,9 @@ Volume=/srv/data/garage:/var/lib/garage/data:Z
 
 Exec=/garage -c /config/garage.toml server
 
+Memory=1g
+PidsLimit=256
+PodmanArgs=--cpus=2
 User=300017
 Group=300017
 
