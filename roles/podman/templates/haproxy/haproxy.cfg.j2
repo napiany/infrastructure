@@ -37,6 +37,7 @@ frontend public_http
     http-request lua.crowdsec_handle if { var(txn.crowdsec.remediation) -m str ban }
     http-after-response set-header Set-Cookie %[var(txn.crowdsec.captcha_cookie)] if { var(txn.crowdsec.captcha_status) -m found } { var(txn.crowdsec.captcha_cookie) -m found }
     http-after-response set-header Set-Cookie %[var(txn.crowdsec.captcha_cookie)] if { var(txn.crowdsec.captcha_cookie) -m found } !{ var(txn.crowdsec.captcha_status) -m found }
+    acl acme_challenge path_beg /.well-known/acme-challenge/
 {% for backend in podman_edge_backends %}
 {% for domain in backend.domains %}
     acl host_{{ backend.id }}_{{ loop.index }} hdr(host) -i {{ domain }}
@@ -48,11 +49,11 @@ frontend public_http
 {% for domain in backend.domains %}
 {% set http_rule_conditions.items = http_rule_conditions.items + ['host_' ~ backend.id ~ '_' ~ (loop.index | string)] %}
 {% endfor %}
-{% set http_use_backend_rules.items = http_use_backend_rules.items + ['    use_backend ' ~ backend.id ~ '_http if ' ~ (http_rule_conditions.items | join(' || '))] %}
+{% set http_use_backend_rules.items = http_use_backend_rules.items + ['    use_backend ' ~ backend.id ~ '_acme if acme_challenge ' ~ (http_rule_conditions.items | join(' || '))] %}
 {% endfor %}
 {{ http_use_backend_rules.items | join('
 ') }}
-    default_backend {{ podman_edge_default_backend.id }}_http
+    http-request redirect scheme https code 308 unless acme_challenge
 
 frontend public_https
     mode tcp
@@ -121,9 +122,9 @@ listen public_imaptls
 {% endif %}
 
 {% for backend in podman_edge_backends %}
-backend {{ backend.id }}_http
+backend {{ backend.id }}_acme
     mode http
-    server {{ backend.id }} {{ backend.wireguard_ip }}:80 send-proxy-v2
+    server {{ backend.id }} {{ backend.wireguard_ip }}:443 ssl verify none alpn h2 send-proxy-v2
 
 backend {{ backend.id }}_https
     mode tcp

@@ -49,7 +49,6 @@ PublishPort=[::]:80:80/tcp
 PublishPort=[::]:443:443/tcp
 {% endif %}
 {% if publish_wireguard_ports %}
-PublishPort={{ podman_wireguard_ip }}:80:8080/tcp
 PublishPort={{ podman_wireguard_ip }}:443:8443/tcp
 {% endif %}
 ReadOnly=true
