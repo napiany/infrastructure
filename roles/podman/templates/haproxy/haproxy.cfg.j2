@@ -124,11 +124,11 @@ listen public_imaptls
 {% for backend in podman_edge_backends %}
 backend {{ backend.id }}_acme
     mode http
-    server {{ backend.id }} {{ backend.wireguard_ip }}:443 ssl verify none alpn h2 send-proxy-v2
+    server {{ backend.id }} {{ backend.wireguard_ip }}:8443 ssl verify none alpn h2 send-proxy-v2
 
 backend {{ backend.id }}_https
     mode tcp
-    server {{ backend.id }} {{ backend.wireguard_ip }}:443 send-proxy-v2
+    server {{ backend.id }} {{ backend.wireguard_ip }}:8443 send-proxy-v2
 
 {% endfor %}
 backend crowdsec-spoa

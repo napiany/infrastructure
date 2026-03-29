@@ -2,3 +2,5 @@
 Subnet=10.89.102.0/24
 Gateway=10.89.102.1
 IPv6=true
+Options=no_default_route=1
+NetworkDeleteOnStop=true

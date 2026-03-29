@@ -6,10 +6,11 @@ ContainerName=seedvault
 Image=seedvault.build
 
 Network=nginx-seedvault.network
+IP=10.89.110.2
 NetworkAlias=seedvault
 
-Volume=seedvault-config:/config:ro,Z
-Volume=seedvault-data:/data:Z
+Volume=seedvault-config:/config:ro,Z,noexec
+Volume=seedvault-data:/data:Z,noexec
 ReadOnly=true
 Mount=type=tmpfs,tmpfs-size=32M,tmpfs-mode=1777,U,noexec,nosuid,nodev,destination=/tmp
 

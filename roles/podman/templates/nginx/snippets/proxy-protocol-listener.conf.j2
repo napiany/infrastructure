@@ -1,0 +1,3 @@
+{% if nginx_edge_proxy_enabled | bool %}
+listen {{ podman_wireguard_ip }}:8443 ssl proxy_protocol;
+{% endif %}

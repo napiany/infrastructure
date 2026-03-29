@@ -11,31 +11,25 @@ if [ -z "${RENEWED_LINEAGE:-}" ]; then
 fi
 
 domain="$(basename "${RENEWED_LINEAGE}")"
-archive_dir="/etc/letsencrypt/archive/${domain}"
 live_dir="/etc/letsencrypt/live/${domain}"
 
-if [ ! -d "${archive_dir}" ] || [ ! -d "${live_dir}" ]; then
-    echo "Missing certbot lineage directories for ${domain}" >&2
+if [ ! -d "${live_dir}" ]; then
+    echo "Missing certbot lineage directory for ${domain}" >&2
     exit 1
 fi
 
-chmod 0711 /etc/letsencrypt /etc/letsencrypt/live /etc/letsencrypt/archive
-chmod 0710 "${archive_dir}" "${live_dir}"
+install -d -o root -g root -m 0755 /etc/letsencrypt/consumers
 
-setfacl -m "u:${NGINX_UID}:x" /etc/letsencrypt /etc/letsencrypt/live /etc/letsencrypt/archive
-setfacl -m "u:${STALWART_UID}:x" /etc/letsencrypt /etc/letsencrypt/live /etc/letsencrypt/archive
+install -d -o "${NGINX_UID}" -g "${NGINX_UID}" -m 0700     "/etc/letsencrypt/consumers/nginx/${domain}"
+install -o "${NGINX_UID}" -g "${NGINX_UID}" -m 0444     "${live_dir}/fullchain.pem"     "/etc/letsencrypt/consumers/nginx/${domain}/fullchain.pem"
+install -o "${NGINX_UID}" -g "${NGINX_UID}" -m 0400     "${live_dir}/privkey.pem"     "/etc/letsencrypt/consumers/nginx/${domain}/privkey.pem"
+install -o "${NGINX_UID}" -g "${NGINX_UID}" -m 0444     "${live_dir}/chain.pem"     "/etc/letsencrypt/consumers/nginx/${domain}/chain.pem"
 
-find "${archive_dir}" -maxdepth 1 -type f -name 'privkey*.pem' -exec chmod 0400 '{}' +
-find "${archive_dir}" -maxdepth 1 -type f ! -name 'privkey*.pem' -exec chmod 0440 '{}' +
-
-setfacl -m "u:${NGINX_UID}:x" "${archive_dir}" "${live_dir}"
-find "${archive_dir}" -maxdepth 1 -type f -exec setfacl -m "u:${NGINX_UID}:r" '{}' +
 {% set certbot_kanidm_domain = ((podman_services | default({})).get('kanidm', {})).get('domain', '') %}
 {% set certbot_stalwart_settings = (podman_services | default({})).get('stalwart', {}) %}
 {% set certbot_stalwart_certificate_blocks = certbot_stalwart_settings.get('certificate_blocks', [{'domains': certbot_stalwart_settings.get('domains', [])}] if certbot_stalwart_settings.get('domains', []) else []) %}
 {% if certbot_kanidm_domain | length > 0 %}
 if [ "${domain}" = '{{ certbot_kanidm_domain }}' ]; then
-    install -d -o root -g root -m 0755 /etc/letsencrypt/consumers
     install -d -o "${KANIDM_UID}" -g "${KANIDM_UID}" -m 0700 /etc/letsencrypt/consumers/kanidm
     install -o "${KANIDM_UID}" -g "${KANIDM_UID}" -m 0444 "${live_dir}/fullchain.pem" /etc/letsencrypt/consumers/kanidm/fullchain.pem
     install -o "${KANIDM_UID}" -g "${KANIDM_UID}" -m 0400 "${live_dir}/privkey.pem" /etc/letsencrypt/consumers/kanidm/privkey.pem
@@ -44,8 +38,9 @@ fi
 {% for block in certbot_stalwart_certificate_blocks %}
 {% if (block.domains | default([]) | length) > 0 %}
 if [ "${domain}" = '{{ block.domains | first }}' ]; then
-    setfacl -m "u:${STALWART_UID}:x" "${archive_dir}" "${live_dir}"
-    find "${archive_dir}" -maxdepth 1 -type f -exec setfacl -m "u:${STALWART_UID}:r" '{}' +
+    install -d -o "${STALWART_UID}" -g "${STALWART_UID}" -m 0700         "/etc/letsencrypt/consumers/stalwart/${domain}"
+    install -o "${STALWART_UID}" -g "${STALWART_UID}" -m 0444         "${live_dir}/fullchain.pem"         "/etc/letsencrypt/consumers/stalwart/${domain}/fullchain.pem"
+    install -o "${STALWART_UID}" -g "${STALWART_UID}" -m 0400         "${live_dir}/privkey.pem"         "/etc/letsencrypt/consumers/stalwart/${domain}/privkey.pem"
 fi
 {% endif %}
 {% endfor %}

@@ -26,6 +26,21 @@
     podman_containers_selected: '{{
       podman_containers | default(podman_available_containers) }}'
 
+- name: 'Detect host OCI runtime binary'
+  ansible.builtin.command:
+    argv:
+      - 'sh'
+      - '-lc'
+      - 'command -v crun || command -v runc || true'
+  register: 'podman_host_oci_runtime_detect'
+  changed_when: false
+  failed_when: 'not ansible_check_mode and (podman_host_oci_runtime_detect.stdout | trim | length == 0)'
+
+- name: 'Set host OCI runtime facts'
+  ansible.builtin.set_fact:
+    podman_host_oci_runtime_binary: '{{ podman_host_oci_runtime_detect.stdout | trim }}'
+    podman_host_oci_runtime_name: '{{ (podman_host_oci_runtime_detect.stdout | trim) | basename }}'
+
 - name: 'Ensure WireGuard tools are installed for edge proxy hosts'
   community.general.zypper:
     name:
@@ -36,9 +51,6 @@
       length > 0"
   notify:
     - 'Reboot'
-
-- name: 'Include gVisor tasks'
-  ansible.builtin.include_tasks: 'gvisor.yaml'
 
 - name: 'Include CrowdSec tasks'
   ansible.builtin.include_tasks: 'crowdsec.yaml'
@@ -52,6 +64,10 @@
   loop_control:
     loop_var: 'podman_service_name'
   when: 'podman_service_name in podman_containers_selected'
+
+
+- name: 'Include gVisor tasks'
+  ansible.builtin.include_tasks: 'gvisor.yaml'
 
 - name: 'Ensure nginx.service is running after reverse-proxy tasks'
   ansible.builtin.systemd:

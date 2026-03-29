@@ -7,12 +7,12 @@ Wants=autopush-valkey.service autoconnect.service
 ContainerName=autoendpoint
 Image=autoendpoint.build
 
-Network=nginx-autopush.network
+Network=nginx-autopush.network:ip=10.89.104.3
 Network=autopush-valkey.network
 NetworkAlias=autoendpoint
 
 ReadOnly=true
-Mount=type=tmpfs,tmpfs-size=32M,tmpfs-mode=1777,nosuid,nodev,destination=/tmp
+Mount=type=tmpfs,tmpfs-size=32M,tmpfs-mode=1777,noexec,nosuid,nodev,destination=/tmp
 
 Secret=autopush_crypto_keys,type=env,target=AUTOEND__CRYPTO_KEYS
 Secret=autopush_auth_keys,type=env,target=AUTOEND__AUTH_KEYS
@@ -30,8 +30,6 @@ PodmanArgs=--cpus=1
 User=300011
 Group=300011
 
-GlobalArgs=--runtime /usr/local/bin/runsc
-SecurityLabelDisable=true
 NoNewPrivileges=true
 DropCapability=ALL
 

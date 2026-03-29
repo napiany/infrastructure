@@ -6,11 +6,14 @@ ContainerName=ente-garage
 Image=docker.io/dxflrs/garage:v2.1.0
 
 Network=nginx-ente.network
+IP=10.89.109.2
 NetworkAlias=ente-garage
 
-Volume=ente-garage-config:/config:ro,Z
-Volume=ente-garage-meta:/var/lib/garage/meta:Z
-Volume=/srv/data/garage:/var/lib/garage/data:Z
+Volume=ente-garage-config:/config:ro,Z,noexec
+Volume=ente-garage-meta:/var/lib/garage/meta:Z,noexec
+Volume=/srv/data/garage:/var/lib/garage/data:Z,noexec
+ReadOnly=true
+Mount=type=tmpfs,tmpfs-size=16M,tmpfs-mode=1777,U,noexec,nosuid,nodev,destination=/tmp
 
 Exec=/garage -c /config/garage.toml server
 
@@ -20,8 +23,6 @@ PodmanArgs=--cpus=2
 User=300017
 Group=300017
 
-GlobalArgs=--runtime /usr/local/bin/runsc
-SecurityLabelDisable=true
 NoNewPrivileges=true
 DropCapability=ALL
 

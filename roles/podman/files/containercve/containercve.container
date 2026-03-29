@@ -7,10 +7,12 @@ Image=registry.gitlab.com/napiany/containercve:latest
 AutoUpdate=registry
 
 Network=nginx-containercve.network
+IP=10.89.102.2
 NetworkAlias=containercve
 
-Volume=containercve:/data:Z
-Mount=type=tmpfs,tmpfs-size=4G,tmpfs-mode=1777,nosuid,nodev,destination=/tmp
+Volume=containercve:/data:Z,noexec
+ReadOnly=true
+Mount=type=tmpfs,tmpfs-size=4G,tmpfs-mode=1777,noexec,nosuid,nodev,destination=/tmp
 
 Environment=PORT=8080
 Environment=DATABASE_PATH=/data/scans.db
@@ -23,8 +25,6 @@ PodmanArgs=--cpus=2
 User=300005
 Group=300005
 
-GlobalArgs=--runtime /usr/local/bin/runsc
-SecurityLabelDisable=true
 NoNewPrivileges=true
 DropCapability=ALL
 

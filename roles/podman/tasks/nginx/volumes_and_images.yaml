@@ -169,6 +169,17 @@
         - src: 'nginx/snippets/universal_paths.conf'
           dest: 'universal_paths.conf'
 
+    - name: 'Template nginx proxy-protocol listener config into nginx-snippets volume'
+      ansible.builtin.template:
+        src: 'nginx/snippets/proxy-protocol-listener.conf.j2'
+        dest: '{{ nginx_snippets_mountpoint.stdout }}/proxy-protocol-listener.conf'
+        owner: 'root'
+        group: 'root'
+        mode: '0644'
+      when: 'nginx_snippets_mountpoint.stdout | default("") | trim | length > 0'
+      notify:
+        - 'Restart nginx'
+
     - name: 'Template nginx CrowdSec bouncer config into nginx-snippets volume'
       ansible.builtin.template:
         src: 'crowdsec/crowdsec-nginx-bouncer.conf.j2'

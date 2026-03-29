@@ -6,6 +6,149 @@
   ansible.builtin.systemd:
     daemon_reload: true
 
+- name: 'Recreate changed Podman networks'
+  vars:
+    podman_network_service_map:
+      haproxy-crowdsec:
+        - 'crowdsec.service'
+        - 'crowdsec-spoa.service'
+        - 'haproxy.service'
+      nginx-autopush:
+        - 'autoconnect.service'
+        - 'autoendpoint.service'
+        - 'nginx.service'
+      nginx-containercve:
+        - 'containercve.service'
+        - 'nginx.service'
+      nginx-crowdsec:
+        - 'crowdsec.service'
+        - 'nginx.service'
+      nginx-ente:
+        - 'ente-garage.service'
+        - 'ente-museum.service'
+        - 'ente-web.service'
+        - 'nginx.service'
+      nginx-grid:
+        - 'grid.service'
+        - 'nginx.service'
+      nginx-kanidm:
+        - 'kanidm.service'
+        - 'nginx.service'
+      nginx-mollysocket:
+        - 'mollysocket.service'
+        - 'nginx.service'
+      nginx-seedvault:
+        - 'seedvault.service'
+        - 'nginx.service'
+      nginx-stalwart:
+        - 'stalwart.service'
+        - 'nginx.service'
+      nginx-vaultwarden:
+        - 'vaultwarden.service'
+        - 'nginx.service'
+      autopush-valkey:
+        - 'autopush-valkey.service'
+        - 'autoconnect.service'
+        - 'autoendpoint.service'
+      ente-backend:
+        - 'ente-postgres.service'
+        - 'ente-museum.service'
+      grid-postgres:
+        - 'grid-postgres.service'
+        - 'grid.service'
+      stalwart-postgres:
+        - 'stalwart-postgres.service'
+        - 'stalwart.service'
+      vaultwarden-postgres:
+        - 'vaultwarden-postgres.service'
+        - 'vaultwarden.service'
+    podman_service_start_order:
+      - 'crowdsec.service'
+      - 'crowdsec-spoa.service'
+      - 'haproxy.service'
+      - 'vaultwarden-postgres.service'
+      - 'vaultwarden.service'
+      - 'grid-postgres.service'
+      - 'grid.service'
+      - 'ente-postgres.service'
+      - 'ente-garage.service'
+      - 'ente-museum.service'
+      - 'ente-web.service'
+      - 'containercve.service'
+      - 'stalwart-postgres.service'
+      - 'stalwart.service'
+      - 'autopush-valkey.service'
+      - 'autoconnect.service'
+      - 'autoendpoint.service'
+      - 'kanidm.service'
+      - 'seedvault.service'
+      - 'mollysocket.service'
+      - 'nginx.service'
+  block:
+    - name: 'Set impacted Podman network and service units'
+      ansible.builtin.set_fact:
+        podman_impacted_network_units: '{{
+          podman_changed_networks
+          | default([])
+          | unique
+          | map("regex_replace", "$", "-network.service")
+          | list }}'
+        podman_impacted_service_units_unordered: '{{
+          podman_network_service_map
+          | dict2items
+          | selectattr("key", "in", (podman_changed_networks | default([]) | unique))
+          | map(attribute="value")
+          | flatten
+          | unique
+          | list }}'
+
+    - name: 'List available systemd service units'
+      ansible.builtin.command:
+        argv:
+          - 'systemctl'
+          - 'list-unit-files'
+          - '--type=service'
+          - '--no-legend'
+          - '--plain'
+      register: 'podman_available_service_units'
+      changed_when: false
+
+    - name: 'Filter impacted Podman units to installed services'
+      ansible.builtin.set_fact:
+        podman_existing_impacted_network_units: '{{
+          podman_impacted_network_units
+          | intersect(podman_available_service_units.stdout_lines
+          | map("regex_replace", "^([^ ]+).*$", "\\1")
+          | list) }}'
+        podman_existing_impacted_service_units: '{{
+          podman_service_start_order
+          | select("in", podman_impacted_service_units_unordered)
+          | list }}'
+
+    - name: 'Stop services before recreating changed Podman networks'
+      ansible.builtin.systemd:
+        name: '{{ item }}'
+        state: 'stopped'
+      loop: '{{ podman_existing_impacted_service_units | reverse }}'
+      when:
+        - 'podman_existing_impacted_service_units | length > 0'
+
+    - name: 'Recreate changed Podman network units'
+      ansible.builtin.systemd:
+        name: '{{ item }}'
+        state: 'restarted'
+      loop: '{{ podman_existing_impacted_network_units }}'
+      when:
+        - 'podman_existing_impacted_network_units | length > 0'
+
+    - name: 'Start services after recreating changed Podman networks'
+      ansible.builtin.systemd:
+        name: '{{ item }}'
+        state: 'started'
+      loop: '{{ podman_existing_impacted_service_units }}'
+      when:
+        - 'podman_existing_impacted_service_units | length > 0'
+
 - name: 'Restart haproxy'
   ansible.builtin.systemd:
     name: 'haproxy.service'

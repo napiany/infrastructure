@@ -41,6 +41,16 @@
         notify:
           - 'Daemon reload'
           - 'Restart ente-museum'
+      - src: 'ente/ente-web.build'
+        dest: 'ente-web.build'
+        notify:
+          - 'Daemon reload'
+          - 'Restart ente-web'
+      - src: 'ente/ente-web.containerfile'
+        dest: 'ente-web.containerfile'
+        notify:
+          - 'Daemon reload'
+          - 'Restart ente-web'
       - src: 'ente/ente-web.container'
         dest: 'ente-web.container'
         notify:
@@ -425,6 +435,13 @@
     loop_var: 'ente_garage_bucket'
   changed_when: true
   when: 'not ansible_check_mode'
+
+- name: 'Set Ente admin user ID'
+  ansible.builtin.set_fact:
+    ente_admin_user_id: '{{ lookup(
+      "vars", "vault_podman_secret_ente_admin_user_id", default=""
+      ) | string | trim }}'
+  no_log: true
 
 - name: 'Check whether Ente credentials config exists'
   ansible.builtin.stat:

@@ -1,6 +1,6 @@
 [Unit]
 Description=CrowdSec security engine
-Wants=wg-quick@wg0.service
+Requires=wg-quick@wg0.service
 After=wg-quick@wg0.service
 
 [Container]
@@ -10,8 +10,10 @@ AutoUpdate=registry
 
 Network=haproxy-crowdsec.network
 NetworkAlias=crowdsec
-Volume=crowdsec-config:/etc/crowdsec:z
-Volume=crowdsec-data:/var/lib/crowdsec/data:z
+Volume=crowdsec-config:/etc/crowdsec:z,noexec
+Volume=crowdsec-data:/var/lib/crowdsec/data:z,noexec
+ReadOnly=true
+Mount=type=tmpfs,tmpfs-size=16M,tmpfs-mode=1777,U,noexec,nosuid,nodev,destination=/tmp
 
 Environment=TZ=UTC
 Environment=LOCAL_API_URL=http://0.0.0.0:8080
@@ -21,6 +23,9 @@ PublishPort=10.66.66.1:8080:8080/tcp
 Memory=512m
 PidsLimit=256
 PodmanArgs=--cpus=1
+User=300020
+Group=300020
+
 NoNewPrivileges=true
 DropCapability=ALL
 

@@ -138,8 +138,8 @@
       ansible.builtin.copy:
         src: 'haproxy/haproxy.build'
         dest: '/etc/containers/systemd/haproxy.build'
-        owner: 'root'
-        group: 'root'
+        owner: '300019'
+        group: '300019'
         mode: '0644'
       register: 'haproxy_build_unit'
       notify:
@@ -150,8 +150,8 @@
       ansible.builtin.copy:
         src: 'haproxy/haproxy.containerfile'
         dest: '/etc/containers/systemd/haproxy.containerfile'
-        owner: 'root'
-        group: 'root'
+        owner: '300019'
+        group: '300019'
         mode: '0644'
       register: 'haproxy_containerfile_file'
       notify:
@@ -162,8 +162,8 @@
       ansible.builtin.template:
         src: 'haproxy/haproxy.container.j2'
         dest: '/etc/containers/systemd/haproxy.container'
-        owner: 'root'
-        group: 'root'
+        owner: '300019'
+        group: '300019'
         mode: '0644'
       register: 'haproxy_container_unit'
       notify:
@@ -174,43 +174,34 @@
       ansible.builtin.copy:
         src: 'haproxy/crowdsec-spoa.container'
         dest: '/etc/containers/systemd/crowdsec-spoa.container'
-        owner: 'root'
-        group: 'root'
+        owner: '300019'
+        group: '300019'
         mode: '0644'
       register: 'crowdsec_spoa_container_unit'
       notify:
         - 'Daemon reload'
         - 'Restart crowdsec-spoa'
 
-    - name: 'Create the HAProxy config volume'
-      ansible.builtin.command:
-        cmd: 'podman volume create haproxy-config'
-      register: 'haproxy_config_volume_create'
-      changed_when: 'haproxy_config_volume_create.rc == 0'
-      failed_when:
-        - 'haproxy_config_volume_create.rc != 0'
-        - "'already exists' not in haproxy_config_volume_create.stderr"
+    - name: 'Manage the HAProxy config volume'
+      ansible.builtin.include_tasks: 'manage_volume.yaml'
+      vars:
+        manage_volume_name: 'haproxy-config'
+        manage_volume_uid: '300019'
+        manage_volume_gid: '300019'
+        manage_volume_mode: '0750'
+        manage_volume_recurse: true
 
-    - name: 'Get HAProxy config volume mount point'
-      ansible.builtin.command:
-        argv:
-          - 'podman'
-          - 'volume'
-          - 'inspect'
-          - 'haproxy-config'
-          - '--format'
-          - '{{ "{{.Mountpoint}}" }}'
-      register: 'haproxy_config_mountpoint'
-      changed_when: false
-      failed_when: 'not ansible_check_mode and haproxy_config_mountpoint.rc != 0'
-      check_mode: false
+    - name: 'Set the HAProxy config volume mount point fact'
+      ansible.builtin.set_fact:
+        haproxy_config_mountpoint: '{{ manage_volume_mountpoint }}'
+      when: 'manage_volume_mountpoint is defined'
 
     - name: 'Copy HAProxy CrowdSec SPOE config into the config volume'
       ansible.builtin.copy:
         src: 'haproxy/crowdsec.cfg'
         dest: '{{ haproxy_config_mountpoint.stdout }}/crowdsec.cfg'
-        owner: 'root'
-        group: 'root'
+        owner: '300019'
+        group: '300019'
         mode: '0644'
       register: 'haproxy_crowdsec_cfg'
       when: 'haproxy_config_mountpoint.stdout | default("") | trim | length > 0'
@@ -221,43 +212,34 @@
       ansible.builtin.template:
         src: 'haproxy/haproxy.cfg.j2'
         dest: '{{ haproxy_config_mountpoint.stdout }}/haproxy.cfg'
-        owner: 'root'
-        group: 'root'
+        owner: '300019'
+        group: '300019'
         mode: '0644'
       register: 'haproxy_config_file'
       when: 'haproxy_config_mountpoint.stdout | default("") | trim | length > 0'
       notify:
         - 'Restart haproxy'
 
-- name: 'Create the CrowdSec SPOA config volume'
-  ansible.builtin.command:
-    cmd: 'podman volume create crowdsec-spoa-config'
-  register: 'crowdsec_spoa_config_volume_create'
-  changed_when: 'crowdsec_spoa_config_volume_create.rc == 0'
-  failed_when:
-    - 'crowdsec_spoa_config_volume_create.rc != 0'
-    - "'already exists' not in crowdsec_spoa_config_volume_create.stderr"
+- name: 'Manage the CrowdSec SPOA config volume'
+  ansible.builtin.include_tasks: 'manage_volume.yaml'
+  vars:
+    manage_volume_name: 'crowdsec-spoa-config'
+    manage_volume_uid: '300021'
+    manage_volume_gid: '300021'
+    manage_volume_mode: '0750'
+    manage_volume_recurse: true
 
-- name: 'Get CrowdSec SPOA config volume mount point'
-  ansible.builtin.command:
-    argv:
-      - 'podman'
-      - 'volume'
-      - 'inspect'
-      - 'crowdsec-spoa-config'
-      - '--format'
-      - '{{ "{{.Mountpoint}}" }}'
-  register: 'crowdsec_spoa_config_mountpoint'
-  changed_when: false
-  failed_when: 'not ansible_check_mode and crowdsec_spoa_config_mountpoint.rc != 0'
-  check_mode: false
+- name: 'Set the CrowdSec SPOA config volume mount point fact'
+  ansible.builtin.set_fact:
+    crowdsec_spoa_config_mountpoint: '{{ manage_volume_mountpoint }}'
+  when: 'manage_volume_mountpoint is defined'
 
 - name: 'Copy crowdsec-spoa config into the config volume'
   ansible.builtin.copy:
     src: 'crowdsec/crowdsec-spoa-bouncer.yaml'
     dest: '{{ crowdsec_spoa_config_mountpoint.stdout }}/crowdsec-spoa-bouncer.yaml'
-    owner: 'root'
-    group: 'root'
+    owner: '300021'
+    group: '300021'
     mode: '0644'
   register: 'crowdsec_spoa_config_file'
   when: 'crowdsec_spoa_config_mountpoint.stdout | default("") | trim | length > 0'

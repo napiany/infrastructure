@@ -35,9 +35,17 @@
       src: 'mollysocket/nginx-mollysocket.network'
       dest: 'nginx-mollysocket.network'
   when: 'item.service in (podman_containers_selected | default([]))'
+  register: 'nginx_upstream_network_files'
   notify:
     - 'Daemon reload'
     - 'Restart nginx'
+    - 'Recreate changed Podman networks'
+
+- name: 'Track changed nginx upstream network files'
+  ansible.builtin.set_fact:
+    podman_changed_networks: '{{ ((podman_changed_networks | default([])) + (nginx_upstream_network_files.results | default([]) | selectattr("changed") | map(attribute="item.dest") | map("regex_replace", "\.network$", "") | list)) | unique }}'
+  when:
+    - '((nginx_upstream_network_files.results | default([]) | selectattr("changed") | list | length) > 0)'
 
 - name: 'Copy nginx build files and unit'
   block:

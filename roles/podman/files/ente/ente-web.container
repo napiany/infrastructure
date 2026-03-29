@@ -3,11 +3,12 @@ Description=Ente Web
 
 [Container]
 ContainerName=ente-web
-Image=ghcr.io/ente-io/web:697792888239c4dc5e6cb12956fddfc990222c15@sha256:8e2613273bbe28716d38e1a1f23cac18c1e3be5eecf3c9319370d1de2da30ea8
-AutoUpdate=registry
+Image=ente-web.build
 
 Network=nginx-ente.network
+IP=10.89.109.4
 NetworkAlias=ente-web
+
 
 Environment=ENTE_API_ORIGIN=https://api.ente.napiany.com
 Environment=ENTE_ALBUMS_ORIGIN=https://albums.ente.napiany.com
@@ -21,13 +22,11 @@ Mount=type=tmpfs,tmpfs-size=1M,tmpfs-mode=0777,U,noexec,nosuid,nodev,destination
 Memory=256m
 PidsLimit=256
 PodmanArgs=--cpus=1
-GlobalArgs=--runtime /usr/local/bin/runsc
-SecurityLabelDisable=true
+User=300022
+Group=300022
+
 NoNewPrivileges=true
 DropCapability=ALL
-AddCapability=CHOWN
-AddCapability=SETUID
-AddCapability=SETGID
 
 [Service]
 LockPersonality=true

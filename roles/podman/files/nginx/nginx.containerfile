@@ -53,9 +53,11 @@ RUN apk --no-cache upgrade && \
       /var/lib/crowdsec/lua/templates \
       /var/lib/nginx \
       /var/log/nginx && \
+    rm -rf /var/lib/nginx/logs && \
     rm -f /var/log/nginx/access.log /var/log/nginx/error.log && \
     install -o nginx -g nginx -m 0644 /dev/null /var/log/nginx/access.log && \
-    install -o nginx -g nginx -m 0644 /dev/null /var/log/nginx/error.log
+    install -o nginx -g nginx -m 0644 /dev/null /var/log/nginx/error.log && \
+    ln -s /var/log/nginx /var/lib/nginx/logs
 
 COPY --from=crowdsec-builder /out/usr/local/lua/crowdsec /usr/local/lua/crowdsec
 COPY --from=crowdsec-builder /out/usr/local/share/lua /usr/local/share/lua

@@ -11,13 +11,19 @@ AutoUpdate=registry
 Network=haproxy-crowdsec.network
 NetworkAlias=crowdsec-spoa
 IP=10.89.106.2
-Volume=crowdsec-spoa-config:/etc/crowdsec/bouncers:ro,z
+Volume=crowdsec-spoa-config:/etc/crowdsec/bouncers:ro,z,noexec
+ReadOnly=true
+Mount=type=tmpfs,tmpfs-size=4M,tmpfs-mode=0770,U,noexec,nosuid,nodev,destination=/run/crowdsec-spoa
+Mount=type=tmpfs,tmpfs-size=16M,tmpfs-mode=0770,U,noexec,nosuid,nodev,destination=/var/log/crowdsec-spoa
 Secret=crowdsec_spoa_bouncer_key,type=env,target=API_KEY
 Exec=-c /etc/crowdsec/bouncers/crowdsec-spoa-bouncer.yaml
 
 Memory=128m
 PidsLimit=128
 PodmanArgs=--cpus=1
+User=300021
+Group=300021
+
 NoNewPrivileges=true
 DropCapability=ALL
 

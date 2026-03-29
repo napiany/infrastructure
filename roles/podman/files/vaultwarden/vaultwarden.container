@@ -8,11 +8,11 @@ ContainerName=vaultwarden
 Image=ghcr.io/dani-garcia/vaultwarden:1.35.2-alpine
 AutoUpdate=registry
 
-Network=nginx-vaultwarden.network
+Network=nginx-vaultwarden.network:ip=10.89.101.2
 Network=vaultwarden-postgres.network
 NetworkAlias=vaultwarden
 
-Volume=vaultwarden:/data:Z
+Volume=vaultwarden:/data:Z,noexec
 ReadOnly=true
 
 Secret=vaultwarden-postgres_dburl,type=env,target=DATABASE_URL
@@ -81,8 +81,6 @@ PodmanArgs=--cpus=1
 User=300003
 Group=300003
 
-GlobalArgs=--runtime /usr/local/bin/runsc
-SecurityLabelDisable=true
 NoNewPrivileges=true
 DropCapability=ALL
 

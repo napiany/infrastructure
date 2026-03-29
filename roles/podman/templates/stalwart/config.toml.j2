@@ -47,8 +47,8 @@ tracer.log.rotate = "daily"
 tracer.log.type = "log"
 {% for block in stalwart_certificate_blocks %}
 [certificate."{{ (block.domains | first) }}"]
-cert = "%{file:/etc/letsencrypt/live/{{ block.domains | first }}/fullchain.pem}%"
-private-key = "%{file:/etc/letsencrypt/live/{{ block.domains | first }}/privkey.pem}%"
+cert = "%{file:/etc/letsencrypt/consumers/stalwart/{{ block.domains | first }}/fullchain.pem}%"
+private-key = "%{file:/etc/letsencrypt/consumers/stalwart/{{ block.domains | first }}/privkey.pem}%"
 {% if loop.first %}default = true
 {% endif %}
 

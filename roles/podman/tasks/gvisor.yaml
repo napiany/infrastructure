@@ -1,4 +1,21 @@
 ---
+- name: 'Ensure Podman containers.conf.d exists'
+  ansible.builtin.file:
+    path: '/etc/containers/containers.conf.d'
+    state: 'directory'
+    owner: 'root'
+    group: 'root'
+    mode: '0755'
+
+- name: 'Template Podman gVisor defaults'
+  ansible.builtin.template:
+    src: 'gvisor/containers.conf.j2'
+    dest: '/etc/containers/containers.conf.d/90-gvisor.conf'
+    owner: 'root'
+    group: 'root'
+    mode: '0644'
+  register: 'gvisor_defaults_config'
+
 - name: 'Copy gvisor-auto-update.service'
   ansible.builtin.copy:
     src: 'gvisor/auto-update.service'
@@ -52,3 +69,110 @@
     state: 'started'
     enabled: true
   when: 'not ansible_check_mode'
+
+- name: 'Set KVM kernel modules for gVisor'
+  ansible.builtin.set_fact:
+    gvisor_kvm_modules: '{{ ["kvm"] + (["kvm_intel"] if "GenuineIntel" in ((ansible_facts["processor"] | default([])) | join(" ")) else ["kvm_amd"] if "AuthenticAMD" in ((ansible_facts["processor"] | default([])) | join(" ")) else []) }}'
+
+- name: 'Try to load KVM kernel modules for gVisor'
+  community.general.modprobe:
+    name: '{{ item }}'
+    state: 'present'
+  loop: '{{ gvisor_kvm_modules }}'
+  failed_when: false
+  changed_when: false
+  when: 'not ansible_check_mode'
+
+- name: 'Check whether /dev/kvm is available for gVisor'
+  ansible.builtin.stat:
+    path: '/dev/kvm'
+  register: 'gvisor_kvm_device'
+
+- name: 'Set gVisor platform'
+  ansible.builtin.set_fact:
+    gvisor_platform: '{{ "kvm" if (gvisor_kvm_device.stat.exists | default(false)) else "systrap" }}'
+
+- name: 'Persist KVM kernel modules for gVisor when KVM is available'
+  ansible.builtin.template:
+    src: 'gvisor/kvm-modules-load.conf.j2'
+    dest: '/etc/modules-load.d/gvisor-kvm.conf'
+    owner: 'root'
+    group: 'root'
+    mode: '0644'
+  when: 'gvisor_platform == "kvm"'
+
+- name: 'Set gVisor Quadlet units'
+  ansible.builtin.set_fact:
+    gvisor_quadlet_units: '{{
+      ([]
+      + (["certbot"] if "nginx" in podman_containers_selected else [])
+      + (["crowdsec"] if ((crowdsec_agent_enabled | default(false) | bool) or
+        (crowdsec_is_lapi_server | default(false) | bool)) else [])
+      + (["haproxy", "crowdsec-spoa"] if "haproxy" in podman_containers_selected else [])
+      + (["kanidm"] if "kanidm" in podman_containers_selected else [])
+      + (["grid", "grid-postgres"] if "grid" in podman_containers_selected else [])
+      + (["ente-museum", "ente-postgres", "ente-web", "ente-garage"] if "ente" in podman_containers_selected else [])
+      + (["vaultwarden", "vaultwarden-postgres"] if "vaultwarden" in podman_containers_selected else [])
+      + (["seedvault"] if "seedvault" in podman_containers_selected else [])
+      + (["stalwart", "stalwart-postgres"] if "stalwart" in podman_containers_selected else [])
+      + (["autoconnect", "autoendpoint", "autopush-valkey"] if "autopush" in podman_containers_selected else [])
+      + (["mollysocket"] if "mollysocket" in podman_containers_selected else [])
+      + (["containercve"] if "containercve" in podman_containers_selected else []))
+      | unique }}'
+
+- name: 'Ensure gVisor Quadlet drop-in directories exist'
+  ansible.builtin.file:
+    path: '/etc/containers/systemd/{{ item }}.container.d'
+    state: 'directory'
+    owner: 'root'
+    group: 'root'
+    mode: '0755'
+  loop: '{{ gvisor_quadlet_units | default([]) }}'
+
+- name: 'Set long-running services using Podman gVisor defaults'
+  ansible.builtin.set_fact:
+    gvisor_running_service_units: '{{ (gvisor_quadlet_units | default([]) | difference(["certbot"])) + (["nginx"] if "nginx" in podman_containers_selected else []) | unique }}'
+
+- name: 'Template gVisor platform drop-ins'
+  ansible.builtin.template:
+    src: 'gvisor/platform-dropin.conf.j2'
+    dest: '/etc/containers/systemd/{{ item }}.container.d/90-gvisor-platform.conf'
+    owner: 'root'
+    group: 'root'
+    mode: '0644'
+  loop: '{{ gvisor_quadlet_units | default([]) }}'
+  register: 'gvisor_platform_dropins'
+
+- name: 'Remove nginx gVisor platform drop-in'
+  ansible.builtin.file:
+    path: '/etc/containers/systemd/nginx.container.d/90-gvisor-platform.conf'
+    state: 'absent'
+  when: '"nginx" in podman_containers_selected'
+  register: 'gvisor_nginx_dropin_removed'
+  notify:
+    - 'Daemon reload'
+    - 'Restart nginx'
+
+- name: 'Reload systemd after gVisor platform changes'
+  ansible.builtin.systemd:
+    daemon_reload: true
+  when: '((gvisor_platform_dropins.results | default([]) | selectattr("changed") | list | length) > 0) or (gvisor_nginx_dropin_removed is defined and gvisor_nginx_dropin_removed.changed | default(false))'
+
+- name: 'Restart long-running services after Podman gVisor defaults changes'
+  ansible.builtin.systemd:
+    name: '{{ item }}.service'
+    state: 'restarted'
+  loop: '{{ gvisor_running_service_units | default([]) }}'
+  when:
+    - 'not ansible_check_mode'
+    - 'gvisor_defaults_config is defined and gvisor_defaults_config.changed | default(false)'
+
+- name: 'Restart services after gVisor platform changes'
+  ansible.builtin.systemd:
+    name: '{{ item.item }}.service'
+    state: 'restarted'
+    daemon_reload: true
+  loop: '{{ gvisor_platform_dropins.results | default([]) }}'
+  when:
+    - 'not ansible_check_mode'
+    - 'item.changed | default(false)'

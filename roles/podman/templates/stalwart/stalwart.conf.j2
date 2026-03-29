@@ -1,16 +1,16 @@
 {% for block in stalwart_certificate_blocks %}
 server {
     listen 443 ssl;
-    listen 8443 ssl proxy_protocol;
+    include snippets/proxy-protocol-listener.conf;
     listen [::]:443 ssl;
 
     http2 on;
 
     server_name {{ block.domains | join(' ') }};
 
-    ssl_certificate /etc/letsencrypt/live/{{ block.domains | first }}/fullchain.pem;
-    ssl_certificate_key /etc/letsencrypt/live/{{ block.domains | first }}/privkey.pem;
-    ssl_trusted_certificate /etc/letsencrypt/live/{{ block.domains | first }}/chain.pem;
+    ssl_certificate /etc/letsencrypt/consumers/nginx/{{ block.domains | first }}/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/consumers/nginx/{{ block.domains | first }}/privkey.pem;
+    ssl_trusted_certificate /etc/letsencrypt/consumers/nginx/{{ block.domains | first }}/chain.pem;
 
     include snippets/universal_paths.conf;
     include snippets/security.conf;
@@ -19,10 +19,8 @@ server {
     include snippets/proxy.conf;
     include snippets/robots.conf;
 
-    resolver 10.89.103.1 valid=30s ipv6=off;
-
     location / {
-        set $upstream_stalwart https://stalwart:443;
+        set $upstream_stalwart https://10.89.103.2:443;
         proxy_ssl_name {{ block.domains | first }};
         proxy_ssl_server_name on;
         proxy_ssl_verify on;

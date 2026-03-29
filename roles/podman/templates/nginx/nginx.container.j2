@@ -1,59 +1,20 @@
-{% set has_ipv6 = ansible_facts["default_ipv6"]["address"] | default("") | length > 0 %}
-{% set publish_wireguard_ports = (nginx_edge_proxy_enabled | default(false) | bool) and (nginx_wireguard_address_available | default(false) | bool) %}
 [Unit]
 Description=nginx reverse proxy
 
 [Container]
 ContainerName=nginx
 Image=nginx.build
+GlobalArgs=--runtime={{ podman_host_oci_runtime_name }}
+Network=host
 
-{% if 'kanidm' in (podman_containers_selected | default([])) %}
-Network=nginx-kanidm.network
-{% endif %}
-{% if 'vaultwarden' in (podman_containers_selected | default([])) %}
-Network=nginx-vaultwarden.network
-{% endif %}
-{% if 'seedvault' in (podman_containers_selected | default([])) %}
-Network=nginx-seedvault.network
-{% endif %}
-{% if 'grid' in (podman_containers_selected | default([])) %}
-Network=nginx-grid.network
-{% endif %}
-{% if 'ente' in (podman_containers_selected | default([])) %}
-Network=nginx-ente.network
-{% endif %}
-{% if 'containercve' in (podman_containers_selected | default([])) %}
-Network=nginx-containercve.network
-{% endif %}
-{% if 'stalwart' in (podman_containers_selected | default([])) %}
-Network=nginx-stalwart.network
-{% endif %}
-{% if 'autopush' in (podman_containers_selected | default([])) %}
-Network=nginx-autopush.network
-{% endif %}
-{% if 'mollysocket' in (podman_containers_selected | default([])) %}
-Network=nginx-mollysocket.network
-{% endif %}
-Network=nginx-crowdsec.network
-
-Volume=nginx-conf:/etc/nginx/conf.d:ro,Z
-Volume=nginx-snippets:/etc/nginx/snippets:ro,Z
-Volume=nginx-webroot:/srv/nginx:ro,z
-Volume=nginx-logs:/var/log/nginx:z
-Volume=nginx-session-keys:/etc/nginx/session-ticket-keys:ro,Z
-Volume=certbot:/etc/letsencrypt:ro,z
-PublishPort={{ ansible_facts["default_ipv4"]["address"] }}:80:80/tcp
-PublishPort={{ ansible_facts["default_ipv4"]["address"] }}:443:443/tcp
-{% if has_ipv6 %}
-PublishPort=[::]:80:80/tcp
-PublishPort=[::]:443:443/tcp
-{% endif %}
-{% if publish_wireguard_ports %}
-PublishPort={{ podman_wireguard_ip }}:443:8443/tcp
-{% endif %}
+Volume=nginx-conf:/etc/nginx/conf.d:ro,Z,noexec
+Volume=nginx-snippets:/etc/nginx/snippets:ro,Z,noexec
+Volume=nginx-webroot:/srv/nginx:ro,z,noexec
+Volume=nginx-logs:/var/log/nginx:z,noexec
+Volume=nginx-session-keys:/etc/nginx/session-ticket-keys:ro,Z,noexec
+Volume=certbot:/etc/letsencrypt:ro,z,noexec
 ReadOnly=true
 Mount=type=tmpfs,tmpfs-size=50M,tmpfs-mode=0770,U,noexec,nosuid,nodev,destination=/var/cache/nginx
-Mount=type=tmpfs,tmpfs-size=50M,tmpfs-mode=0770,U,noexec,nosuid,nodev,destination=/var/lib/nginx
 Mount=type=tmpfs,tmpfs-size=50M,tmpfs-mode=1777,U,noexec,nosuid,nodev,destination=/tmp
 Mount=type=tmpfs,tmpfs-size=1M,tmpfs-mode=0777,U,noexec,nosuid,nodev,destination=/run
 
