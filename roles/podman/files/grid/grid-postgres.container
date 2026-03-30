@@ -3,7 +3,7 @@ Description=Grid Synapse PostgreSQL
 
 [Container]
 ContainerName=grid-postgres
-Image=docker.io/library/postgres:18-alpine
+Image=docker.io/library/postgres:18.3-alpine@sha256:4da1a4828be12604092fa55311276f08f9224a74a62dcb4708bd7439e2a03911
 AutoUpdate=registry
 
 Network=grid-postgres.network

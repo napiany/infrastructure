@@ -3,7 +3,7 @@ Description=Ente Garage S3 storage
 
 [Container]
 ContainerName=ente-garage
-Image=docker.io/dxflrs/garage:v2.1.0
+Image=docker.io/dxflrs/garage:v2.2.0@sha256:45a61ce3f7c9c24fc23d9ed2b09b27ed560ab87b34605d175d5c588f539c24e4
 
 Network=nginx-ente.network
 IP=10.89.109.2
