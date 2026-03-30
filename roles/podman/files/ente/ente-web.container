@@ -12,7 +12,7 @@ NetworkAlias=ente-web
 
 Environment=ENTE_API_ORIGIN=https://api.ente.napiany.com
 Environment=ENTE_ALBUMS_ORIGIN=https://albums.ente.napiany.com
-Environment=ENTE_PHOTOS_ORIGIN=https://ente.napiany.com
+Environment=ENTE_PHOTOS_ORIGIN=https://web.ente.napiany.com
 
 Mount=type=tmpfs,tmpfs-size=50M,tmpfs-mode=0770,U,noexec,nosuid,nodev,destination=/var/cache/nginx
 Mount=type=tmpfs,tmpfs-size=50M,tmpfs-mode=0770,U,noexec,nosuid,nodev,destination=/var/lib/nginx
