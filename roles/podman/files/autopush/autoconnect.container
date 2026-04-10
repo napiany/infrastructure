@@ -7,7 +7,7 @@ Wants=autopush-valkey.service
 ContainerName=autoconnect
 Image=autoconnect.build
 
-Network=nginx-autopush.network:ip=10.89.104.2
+Network=haproxy-autopush.network:ip=10.89.104.2,ip6=fd89:104::2
 Network=autopush-valkey.network
 NetworkAlias=autoconnect
 

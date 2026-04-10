@@ -5,5 +5,8 @@ label = false
 runtime = "runsc"
 
 [engine.runtimes]
-{{ podman_host_oci_runtime_name }} = ["{{ podman_host_oci_runtime_binary }}"]
+runc = ["/sbin/runc"]
 runsc = ["/usr/local/bin/runsc"]
+
+[engine.runtimes_flags]
+runsc = ["platform=kvm"]

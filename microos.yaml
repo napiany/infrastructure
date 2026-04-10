@@ -57,7 +57,20 @@
     - name: 'Run hardening role'
       ansible.builtin.include_role:
         name: 'hardening'
+        apply:
+          tags:
+            - 'hardening'
+      tags:
+        - 'hardening'
+
+    - name: 'Run gateway role'
+      ansible.builtin.import_role:
+        name: 'gateway'
+      when: "inventory_hostname == 'gateway'"
 
     - name: 'Run podman role'
-      ansible.builtin.include_role:
+      ansible.builtin.import_role:
         name: 'podman'
+      when: "inventory_hostname == 'miniserver'"
+      tags:
+        - 'podman'

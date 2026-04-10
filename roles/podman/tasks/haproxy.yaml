@@ -1,120 +1,113 @@
 ---
-- name: 'Set HAProxy edge backend facts'
+- name: 'Set HAProxy values'
   vars:
-    podman_edge_backends_candidate: "{%- set ns = namespace(items=[]) -%}
-      {%- for item in groups['servers'] | default([]) -%}
-      {%- set selected = hostvars[item].podman_containers | default([]) -%}
-      {%- set services = hostvars[item].podman_services | default({}) -%}
-      {%- set stalwart_settings = services.get('stalwart', {}) -%}
-      {%- set stalwart_certificate_blocks = stalwart_settings.get('certificate_blocks', [{'domains': stalwart_settings.get('domains', [])}] if stalwart_settings.get('domains', []) else []) -%}
-      {%- if 'nginx' in selected -%}
-      {%- set state = namespace(domains=[]) -%}
-      {%- if 'kanidm' in selected and services.get('kanidm', {}).get('domain', '') | length > 0 -%}
-      {%- set state.domains = state.domains + [services.get('kanidm', {}).get('domain')] -%}
-      {%- endif -%}
-      {%- if 'vaultwarden' in selected -%}
-      {%- set state.domains = state.domains + ['vault.napiany.com'] -%}
-      {%- endif -%}
-      {%- if 'seedvault' in selected -%}
-      {%- set state.domains = state.domains + ['seedvault.napiany.com'] -%}
-      {%- endif -%}
-      {%- if 'grid' in selected -%}
-      {%- set state.domains = state.domains + ['grid.napiany.com'] -%}
-      {%- endif -%}
-      {%- if 'ente' in selected -%}
-      {%- set state.domains = state.domains + ['api.ente.napiany.com', 'ente.napiany.com', 'web.ente.napiany.com', 'albums.ente.napiany.com', 'accounts.ente.napiany.com', 'auth.ente.napiany.com', 'cast.ente.napiany.com', 'locker.ente.napiany.com', 'embed.ente.napiany.com'] -%}
-      {%- endif -%}
-      {%- if 'stalwart' in selected -%}
-      {%- for block in stalwart_certificate_blocks -%}
-      {%- set state.domains = state.domains + (block.domains | default([])) -%}
-      {%- endfor -%}
-      {%- endif -%}
-      {%- if 'autopush' in selected -%}
-      {%- set state.domains = state.domains + ['push.napiany.com', 'updates.push.napiany.com'] -%}
-      {%- endif -%}
-      {%- if 'mollysocket' in selected -%}
-      {%- set state.domains = state.domains + ['mollysocket.napiany.com'] -%}
-      {%- endif -%}
-      {%- if 'containercve' in selected -%}
-      {%- set state.domains = state.domains + ['containercve.com'] -%}
-      {%- endif -%}
-      {%- if state.domains | length > 0 -%}
-      {%- set ns.items = ns.items + [{'name': item, 'id': item | replace('-', '_'), 'wireguard_ip': hostvars[item].podman_wireguard_ip | default(''), 'domains': state.domains | unique | list}] -%}
-      {%- endif -%}
-      {%- endif -%}
-      {%- endfor -%}
-      {{ ns.items }}"
-    podman_edge_default_backend_candidate: "{%- set preferred = namespace(item={}) -%}
-      {%- for item in podman_edge_backends_candidate -%}
-      {%- if item.name == 'miniserver' -%}
-      {%- set preferred.item = item -%}
-      {%- endif -%}
-      {%- endfor -%}
+    podman_wireguard_local_ipv6_value: '{{ podman_wireguard_ipv6_prefix ~ (podman_wireguard_ip.split(".")[-1]) }}'
+    podman_local_ingress_ipv6_value: '{{ podman_local_ingress_ipv6 | default("") | trim }}'
+    podman_local_source_ipv4_cidrs_value: >-
       {{
-        preferred.item if preferred.item | length > 0 else
-        (podman_edge_backends_candidate | first | default({}))
-      }}"
+        (
+          podman_local_source_ipv4_cidrs
+          if (podman_local_source_ipv4_cidrs | length) > 0 else
+          [
+            '127.0.0.0/8',
+            (podman_wireguard_ip | regex_replace('\\.[0-9]+$', '.0')) ~ '/24',
+          ]
+        )
+      }}
+    podman_local_source_ipv6_cidrs_value: >-
+      {{
+        (
+          podman_local_source_ipv6_cidrs
+          if (podman_local_source_ipv6_cidrs | length) > 0 else
+          [
+            '::1/128',
+            podman_wireguard_ipv6_prefix ~ '/64',
+          ]
+        )
+      }}
   ansible.builtin.set_fact:
-    podman_edge_backends: '{{ podman_edge_backends_candidate }}'
-    podman_edge_default_backend: '{{ podman_edge_default_backend_candidate }}'
+    podman_local_wireguard_ipv6: '{{ podman_wireguard_local_ipv6_value }}'
+    podman_local_ingress_ipv6: '{{ podman_local_ingress_ipv6_value }}'
+    podman_local_source_ipv4_cidrs_effective: '{{ podman_local_source_ipv4_cidrs_value }}'
+    podman_local_source_ipv6_cidrs_effective: '{{ podman_local_source_ipv6_cidrs_value }}'
+    haproxy_service_networks:
+      - service: 'kanidm'
+        src: 'kanidm/haproxy-kanidm.network'
+        dest: 'haproxy-kanidm.network'
+        restart_units:
+          - 'haproxy.service'
+          - 'kanidm.service'
+      - service: 'vaultwarden'
+        src: 'vaultwarden/haproxy-vaultwarden.network'
+        dest: 'haproxy-vaultwarden.network'
+        restart_units:
+          - 'haproxy.service'
+          - 'vaultwarden.service'
+      - service: 'seedvault'
+        src: 'seedvault/haproxy-seedvault.network'
+        dest: 'haproxy-seedvault.network'
+        restart_units:
+          - 'haproxy.service'
+          - 'seedvault.service'
+      - service: 'grid'
+        src: 'grid/haproxy-grid.network'
+        dest: 'haproxy-grid.network'
+        restart_units:
+          - 'haproxy.service'
+          - 'grid.service'
+      - service: 'ente'
+        src: 'ente/haproxy-ente.network'
+        dest: 'haproxy-ente.network'
+        restart_units:
+          - 'haproxy.service'
+          - 'ente-garage.service'
+          - 'ente-museum.service'
+          - 'ente-web.service'
+      - service: 'containercve'
+        src: 'containercve/haproxy-containercve.network'
+        dest: 'haproxy-containercve.network'
+        restart_units:
+          - 'haproxy.service'
+          - 'containercve.service'
+      - service: 'stalwart'
+        src: 'stalwart/haproxy-stalwart.network'
+        dest: 'haproxy-stalwart.network'
+        restart_units:
+          - 'haproxy.service'
+          - 'stalwart.service'
+      - service: 'autopush'
+        src: 'autopush/haproxy-autopush.network'
+        dest: 'haproxy-autopush.network'
+        restart_units:
+          - 'haproxy.service'
+          - 'autoconnect.service'
+          - 'autoendpoint.service'
+      - service: 'mollysocket'
+        src: 'mollysocket/haproxy-mollysocket.network'
+        dest: 'haproxy-mollysocket.network'
+        restart_units:
+          - 'haproxy.service'
+          - 'mollysocket.service'
 
-- name: 'Set HAProxy Stalwart mail backend facts'
-  vars:
-    podman_stalwart_mail_backends_candidate: "{%- set ns = namespace(items=[]) -%}
-      {%- for item in groups['servers'] | default([]) -%}
-      {%- set selected = hostvars[item].podman_containers | default([]) -%}
-      {%- if 'stalwart' in selected -%}
-      {%- set ns.items = ns.items + [{'name': item, 'id': item | replace('-', '_'), 'wireguard_ip': hostvars[item].podman_wireguard_ip | default('')}] -%}
-      {%- endif -%}
-      {%- endfor -%}
-      {{ ns.items }}"
-  ansible.builtin.set_fact:
-    podman_stalwart_mail_backends: '{{ podman_stalwart_mail_backends_candidate }}'
-    podman_stalwart_mail_backend: '{{ podman_stalwart_mail_backends_candidate | first | default({}) }}'
-- name: 'Ensure at most one Stalwart mail backend exists for the edge proxy'
+- name: 'Validate HAProxy listener addresses'
   ansible.builtin.assert:
     that:
-      - 'podman_stalwart_mail_backends | length <= 1'
-    fail_msg: 'Unable to derive a unique Stalwart mail backend for the edge proxy. Select exactly one Stalwart host.'
-
-- name: 'Ensure the Stalwart mail backend has a WireGuard address'
-  ansible.builtin.assert:
-    that:
-      - '(podman_stalwart_mail_backend.wireguard_ip | default("")) | length > 0'
-    fail_msg: 'Missing podman_wireguard_ip for the Stalwart mail backend. Set a tunnel IP for the Stalwart host.'
-  when: 'podman_stalwart_mail_backend | length > 0'
-
-- name: 'Ensure at least one nginx backend exists for the edge proxy'
-  ansible.builtin.assert:
-    that:
-      - 'podman_edge_backends | length > 0'
-    fail_msg: 'Unable to derive any nginx backends for the edge proxy. Select at least one nginx host in podman_containers first.'
-
-- name: 'Ensure HAProxy edge backends have WireGuard addresses'
-  ansible.builtin.assert:
-    that:
-      - 'item.wireguard_ip | length > 0'
-    fail_msg: 'Missing podman_wireguard_ip for {{ item.name }}. Set a unique tunnel IP for each nginx host.'
-  loop: '{{ podman_edge_backends }}'
-
-- name: 'Ensure required WireGuard variables are defined for the edge proxy'
-  ansible.builtin.assert:
-    that:
-      - "(vault_wireguard_private_keys | default({})).get( inventory_hostname, '' ) | length > 0"
-      - "(vault_wireguard_public_keys | default({})).get( item.name, '' ) | length > 0"
-      - "(vault_wireguard_preshared_keys | default({})).get( item.name, '' ) | length > 0"
-    fail_msg: 'Missing required WireGuard variables for the edge proxy host'
-  loop: '{{ podman_edge_backends }}'
+      - 'podman_wireguard_ip | default("") | length > 0'
+      - 'podman_local_ingress_ipv6 | length == 0 or podman_local_ingress_ipv6 in (ansible_facts.get("all_ipv6_addresses", []))'
+      - "(vault_wireguard_private_keys | default({})).get(inventory_hostname, '') | length > 0"
+      - "(vault_wireguard_public_keys | default({})).get('gateway', '') | length > 0"
+      - "(vault_wireguard_preshared_keys | default({})).get(inventory_hostname, '') | length > 0"
+      - "lookup('vars', 'vault_certbot_dns_desec_ini', default='') | length > 0"
+    fail_msg: 'Missing HAProxy listener, WireGuard, or certbot configuration.'
   no_log: true
 
-- name: 'Manage the CrowdSec SPOA podman secret'
-  ansible.builtin.include_tasks: 'manage_secret.yaml'
+- name: 'Copy HAProxy service networks'
+  ansible.builtin.include_tasks: 'service_task.yaml'
   vars:
-    podman_secret:
-      name: 'crowdsec_spoa_bouncer_key'
-      value_var: 'vault_crowdsec_spoa_bouncer_key'
+    podman_service_task: 'quadlets'
+    podman_quadlet_files: '{{ haproxy_service_networks | selectattr("service", "in", podman_containers_selected | difference(["haproxy"])) | list }}'
 
-- name: 'Ensure /etc/wireguard exists for the edge proxy host'
+- name: 'Create /etc/wireguard'
   ansible.builtin.file:
     path: '/etc/wireguard'
     state: 'directory'
@@ -122,9 +115,9 @@
     group: 'root'
     mode: '0700'
 
-- name: 'Template WireGuard server config for the edge proxy host'
+- name: 'Render WireGuard client config'
   ansible.builtin.template:
-    src: 'wireguard/wireguard-server.conf.j2'
+    src: 'wireguard/wireguard-client.conf.j2'
     dest: '/etc/wireguard/wg0.conf'
     owner: 'root'
     group: 'root'
@@ -132,135 +125,214 @@
   notify:
     - 'Restart wireguard'
 
-- name: 'Copy HAProxy edge Quadlet files'
-  block:
-    - name: 'Copy haproxy.build'
-      ansible.builtin.copy:
-        src: 'haproxy/haproxy.build'
-        dest: '/etc/containers/systemd/haproxy.build'
-        owner: '300019'
-        group: '300019'
-        mode: '0644'
-      register: 'haproxy_build_unit'
-      notify:
-        - 'Daemon reload'
-        - 'Restart haproxy'
+- name: 'Start WireGuard'
+  ansible.builtin.systemd:
+    name: 'wg-quick@wg0.service'
+    state: 'started'
+    enabled: true
 
-    - name: 'Copy haproxy Containerfile'
-      ansible.builtin.copy:
-        src: 'haproxy/haproxy.containerfile'
-        dest: '/etc/containers/systemd/haproxy.containerfile'
-        owner: '300019'
-        group: '300019'
-        mode: '0644'
-      register: 'haproxy_containerfile_file'
-      notify:
-        - 'Daemon reload'
-        - 'Restart haproxy'
-
-    - name: 'Template haproxy.container'
-      ansible.builtin.template:
-        src: 'haproxy/haproxy.container.j2'
-        dest: '/etc/containers/systemd/haproxy.container'
-        owner: '300019'
-        group: '300019'
-        mode: '0644'
-      register: 'haproxy_container_unit'
-      notify:
-        - 'Daemon reload'
-        - 'Restart haproxy'
-
-    - name: 'Copy crowdsec-spoa.container'
-      ansible.builtin.copy:
-        src: 'haproxy/crowdsec-spoa.container'
-        dest: '/etc/containers/systemd/crowdsec-spoa.container'
-        owner: '300019'
-        group: '300019'
-        mode: '0644'
-      register: 'crowdsec_spoa_container_unit'
-      notify:
-        - 'Daemon reload'
-        - 'Restart crowdsec-spoa'
-
-    - name: 'Manage the HAProxy config volume'
-      ansible.builtin.include_tasks: 'manage_volume.yaml'
-      vars:
-        manage_volume_name: 'haproxy-config'
-        manage_volume_uid: '300019'
-        manage_volume_gid: '300019'
-        manage_volume_mode: '0750'
-        manage_volume_recurse: true
-
-    - name: 'Set the HAProxy config volume mount point fact'
-      ansible.builtin.set_fact:
-        haproxy_config_mountpoint: '{{ manage_volume_mountpoint }}'
-      when: 'manage_volume_mountpoint is defined'
-
-    - name: 'Copy HAProxy CrowdSec SPOE config into the config volume'
-      ansible.builtin.copy:
-        src: 'haproxy/crowdsec.cfg'
-        dest: '{{ haproxy_config_mountpoint.stdout }}/crowdsec.cfg'
-        owner: '300019'
-        group: '300019'
-        mode: '0644'
-      register: 'haproxy_crowdsec_cfg'
-      when: 'haproxy_config_mountpoint.stdout | default("") | trim | length > 0'
-      notify:
-        - 'Restart haproxy'
-
-    - name: 'Template haproxy.cfg into the config volume'
-      ansible.builtin.template:
-        src: 'haproxy/haproxy.cfg.j2'
-        dest: '{{ haproxy_config_mountpoint.stdout }}/haproxy.cfg'
-        owner: '300019'
-        group: '300019'
-        mode: '0644'
-      register: 'haproxy_config_file'
-      when: 'haproxy_config_mountpoint.stdout | default("") | trim | length > 0'
-      notify:
-        - 'Restart haproxy'
-
-- name: 'Manage the CrowdSec SPOA config volume'
-  ansible.builtin.include_tasks: 'manage_volume.yaml'
-  vars:
-    manage_volume_name: 'crowdsec-spoa-config'
-    manage_volume_uid: '300021'
-    manage_volume_gid: '300021'
-    manage_volume_mode: '0750'
-    manage_volume_recurse: true
-
-- name: 'Set the CrowdSec SPOA config volume mount point fact'
-  ansible.builtin.set_fact:
-    crowdsec_spoa_config_mountpoint: '{{ manage_volume_mountpoint }}'
-  when: 'manage_volume_mountpoint is defined'
-
-- name: 'Copy crowdsec-spoa config into the config volume'
+- name: 'Copy haproxy.build'
   ansible.builtin.copy:
-    src: 'crowdsec/crowdsec-spoa-bouncer.yaml'
-    dest: '{{ crowdsec_spoa_config_mountpoint.stdout }}/crowdsec-spoa-bouncer.yaml'
-    owner: '300021'
-    group: '300021'
+    src: 'haproxy/haproxy.build'
+    dest: '/etc/containers/systemd/haproxy.build'
+    owner: 'root'
+    group: 'root'
     mode: '0644'
-  register: 'crowdsec_spoa_config_file'
-  when: 'crowdsec_spoa_config_mountpoint.stdout | default("") | trim | length > 0'
+  register: 'haproxy_build_unit'
   notify:
-    - 'Restart crowdsec-spoa'
+    - 'Daemon reload'
 
-- name: 'Reload systemd after edge proxy unit changes'
+- name: 'Copy haproxy Containerfile'
+  ansible.builtin.copy:
+    src: 'haproxy/haproxy.containerfile'
+    dest: '/etc/containers/systemd/haproxy.containerfile'
+    owner: 'root'
+    group: 'root'
+    mode: '0644'
+  register: 'haproxy_containerfile_file'
+  notify:
+    - 'Daemon reload'
+
+- name: 'Render haproxy.container'
+  ansible.builtin.template:
+    src: 'haproxy/haproxy.container.j2'
+    dest: '/etc/containers/systemd/haproxy.container'
+    owner: 'root'
+    group: 'root'
+    mode: '0644'
+  register: 'haproxy_container_unit'
+  notify:
+    - 'Daemon reload'
+    - 'Restart haproxy'
+
+- name: 'Copy certbot.build'
+  ansible.builtin.copy:
+    src: 'certbot/certbot.build'
+    dest: '/etc/containers/systemd/certbot.build'
+    owner: 'root'
+    group: 'root'
+    mode: '0644'
+  register: 'certbot_build_unit'
+  notify:
+    - 'Daemon reload'
+
+- name: 'Copy certbot Containerfile'
+  ansible.builtin.copy:
+    src: 'certbot/certbot.containerfile'
+    dest: '/etc/containers/systemd/certbot.containerfile'
+    owner: 'root'
+    group: 'root'
+    mode: '0644'
+  register: 'certbot_containerfile_file'
+  notify:
+    - 'Daemon reload'
+
+- name: 'Render certbot.container'
+  ansible.builtin.template:
+    src: 'certbot/certbot.container.j2'
+    dest: '/etc/containers/systemd/certbot.container'
+    owner: 'root'
+    group: 'root'
+    mode: '0644'
+  register: 'certbot_container_unit'
+  notify:
+    - 'Daemon reload'
+    - 'Restart certbot timer'
+
+- name: 'Copy certbot.timer'
+  ansible.builtin.copy:
+    src: 'certbot/certbot.timer'
+    dest: '/etc/systemd/system/certbot.timer'
+    owner: 'root'
+    group: 'root'
+    mode: '0644'
+  register: 'certbot_timer_unit'
+  notify:
+    - 'Daemon reload'
+    - 'Restart certbot timer'
+
+- name: 'Create the certbot-config volume'
+  ansible.builtin.include_tasks: 'service_task.yaml'
   vars:
-    haproxy_daemon_reload_triggers:
-      - '{{ haproxy_build_unit.changed }}'
-      - '{{ haproxy_containerfile_file.changed }}'
-      - '{{ haproxy_container_unit.changed }}'
-      - '{{ crowdsec_spoa_container_unit.changed }}'
-      - '{{ crowdsec_spoa_config_file.changed }}'
-      - '{{ haproxy_crowdsec_cfg.changed }}'
-      - '{{ haproxy_config_file.changed }}'
+    podman_service_task: 'volume'
+    podman_volume:
+      name: 'certbot-config'
+      uid: '0'
+      gid: '0'
+      mode: '0755'
+
+- name: 'Create the haproxy-config volume'
+  ansible.builtin.include_tasks: 'service_task.yaml'
+  vars:
+    podman_service_task: 'volume'
+    podman_volume:
+      name: 'haproxy-config'
+      uid: '300019'
+      gid: '300019'
+      mode: '0750'
+      recurse: true
+
+- name: 'Create the certbot volume'
+  ansible.builtin.include_tasks: 'service_task.yaml'
+  vars:
+    podman_service_task: 'volume'
+    podman_volume:
+      name: 'certbot'
+      uid: '0'
+      gid: '0'
+      mode: '0755'
+
+- name: 'Set HAProxy and certbot mount points'
+  ansible.builtin.set_fact:
+    certbot_config_mountpoint: '{{ (podman_volume_mountpoints | default({})).get("certbot-config", "") }}'
+    haproxy_config_mountpoint: '{{ (podman_volume_mountpoints | default({})).get("haproxy-config", "") }}'
+    certbot_mountpoint: '{{ (podman_volume_mountpoints | default({})).get("certbot", "") }}'
+
+- name: 'Render the certbot deploy hook'
+  ansible.builtin.template:
+    src: 'certbot/certbot-deploy-hook.sh.j2'
+    dest: '{{ certbot_config_mountpoint }}/certbot-deploy-hook.sh'
+    owner: 'root'
+    group: 'root'
+    mode: '0755'
+  when: 'certbot_config_mountpoint | length > 0'
+
+- name: 'Create certbot directories'
+  ansible.builtin.file:
+    path: '{{ certbot_mountpoint }}/{{ item.path }}'
+    state: 'directory'
+    owner: '{{ item.owner }}'
+    group: '{{ item.group }}'
+    mode: '{{ item.mode }}'
+  loop:
+    - path: 'ansible'
+      owner: 'root'
+      group: 'root'
+      mode: '0700'
+    - path: 'secrets'
+      owner: 'root'
+      group: 'root'
+      mode: '0700'
+    - path: 'consumers'
+      owner: 'root'
+      group: 'root'
+      mode: '0755'
+    - path: 'consumers/haproxy'
+      owner: '300019'
+      group: '300019'
+      mode: '0700'
+  when: 'certbot_mountpoint | length > 0'
+
+- name: 'Copy deSEC credentials into the certbot volume'
+  ansible.builtin.copy:
+    dest: '{{ certbot_mountpoint }}/secrets/DESEC.ini'
+    content: '{{ lookup("vars", "vault_certbot_dns_desec_ini") }}'
+    owner: 'root'
+    group: 'root'
+    mode: '0600'
+  no_log: true
+  when: 'certbot_mountpoint | length > 0'
+
+- name: 'Copy the CrowdSec SPOE config'
+  ansible.builtin.copy:
+    src: 'haproxy/crowdsec.cfg'
+    dest: '{{ haproxy_config_mountpoint }}/crowdsec.cfg'
+    owner: '300019'
+    group: '300019'
+    mode: '0644'
+  when: 'haproxy_config_mountpoint | length > 0'
+  notify:
+    - 'Restart haproxy'
+
+- name: 'Render haproxy.cfg'
+  ansible.builtin.template:
+    src: 'haproxy/haproxy.cfg.j2'
+    dest: '{{ haproxy_config_mountpoint }}/haproxy.cfg'
+    owner: '300019'
+    group: '300019'
+    mode: '0644'
+  when: 'haproxy_config_mountpoint | length > 0'
+  notify:
+    - 'Restart haproxy'
+
+- name: 'Reload systemd before Podman image builds'
   ansible.builtin.systemd:
     daemon_reload: true
-  when: "haproxy_daemon_reload_triggers | map('bool') | select('equalto', true) | list | length > 0"
+  when:
+    - 'certbot_build_unit.changed or certbot_containerfile_file.changed or certbot_container_unit.changed or haproxy_build_unit.changed or haproxy_containerfile_file.changed or haproxy_container_unit.changed'
 
-- name: 'Build haproxy image'
+- name: 'Build the certbot image'
+  ansible.builtin.command:
+    argv:
+      - 'systemctl'
+      - 'restart'
+      - '--wait'
+      - 'certbot-build.service'
+  register: 'certbot_build_start'
+  changed_when: 'certbot_build_start.rc == 0'
+  when: 'certbot_build_unit.changed or certbot_containerfile_file.changed or certbot_container_unit.changed'
+
+- name: 'Build the haproxy image'
   ansible.builtin.command:
     argv:
       - 'systemctl'
@@ -269,24 +341,11 @@
       - 'haproxy-build.service'
   register: 'haproxy_build_start'
   changed_when: 'haproxy_build_start.rc == 0'
-  failed_when: 'haproxy_build_start.rc != 0'
+  when: 'haproxy_build_unit.changed or haproxy_containerfile_file.changed or haproxy_container_unit.changed'
 
-- name: 'Enable and start wg-quick@wg0.service on the edge proxy host'
+- name: 'Start certbot.timer'
   ansible.builtin.systemd:
-    name: 'wg-quick@wg0.service'
-    state: 'started'
-    enabled: true
-
-- name: 'Enable and start crowdsec-spoa.service'
-  ansible.builtin.systemd:
-    name: 'crowdsec-spoa.service'
-    state: 'started'
-    enabled: true
-    daemon_reload: true
-
-- name: 'Enable and start haproxy.service'
-  ansible.builtin.systemd:
-    name: 'haproxy.service'
+    name: 'certbot.timer'
     state: 'started'
     enabled: true
     daemon_reload: true

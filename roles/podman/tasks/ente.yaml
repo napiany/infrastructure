@@ -1,101 +1,103 @@
 ---
 - name: 'Manage Ente Postgres podman secret'
-  ansible.builtin.include_tasks: 'manage_secret.yaml'
+  ansible.builtin.include_tasks: 'service_task.yaml'
   vars:
+    podman_service_task: 'secret'
     podman_secret:
       name: 'ente-postgres_password'
       value_var: 'vault_podman_secret_ente_postgres_password'
+      restart_units:
+        - 'ente-postgres.service'
   no_log: true
 
 - name: 'Copy Ente Quadlet files'
-  ansible.builtin.include_tasks: 'copy_quadlet.yaml'
+  ansible.builtin.include_tasks: 'service_task.yaml'
   vars:
-    podman_quadlet_files_label: 'Ente Quadlet'
+    podman_service_task: 'quadlets'
     podman_quadlet_files:
-      - src: 'ente/nginx-ente.network'
-        dest: 'nginx-ente.network'
-        notify:
-          - 'Daemon reload'
-          - 'Restart nginx'
-          - 'Restart ente-museum'
-          - 'Restart ente-web'
+      - src: 'ente/haproxy-ente.network'
+        dest: 'haproxy-ente.network'
+        restart_units:
+          - 'haproxy.service'
+          - 'ente-garage.service'
+          - 'ente-museum.service'
+          - 'ente-web.service'
       - src: 'ente/ente-backend.network'
         dest: 'ente-backend.network'
-        notify:
-          - 'Daemon reload'
-          - 'Restart ente-postgres'
-          - 'Restart ente-garage'
-          - 'Restart ente-museum'
+        restart_units:
+          - 'ente-postgres.service'
+          - 'ente-garage.service'
+          - 'ente-museum.service'
       - src: 'ente/ente-postgres.container'
         dest: 'ente-postgres.container'
-        notify:
-          - 'Daemon reload'
-          - 'Restart ente-postgres'
+        restart_units:
+          - 'ente-postgres.service'
       - src: 'ente/ente-garage.container'
         dest: 'ente-garage.container'
-        notify:
-          - 'Daemon reload'
-          - 'Restart ente-garage'
+        restart_units:
+          - 'ente-garage.service'
       - src: 'ente/ente-museum.container'
         dest: 'ente-museum.container'
-        notify:
-          - 'Daemon reload'
-          - 'Restart ente-museum'
+        restart_units:
+          - 'ente-museum.service'
       - src: 'ente/ente-web.build'
         dest: 'ente-web.build'
-        notify:
-          - 'Daemon reload'
-          - 'Restart ente-web'
+        restart_units:
+          - 'ente-web.service'
       - src: 'ente/ente-web.containerfile'
         dest: 'ente-web.containerfile'
-        notify:
-          - 'Daemon reload'
-          - 'Restart ente-web'
+        restart_units:
+          - 'ente-web.service'
       - src: 'ente/ente-web.container'
         dest: 'ente-web.container'
-        notify:
-          - 'Daemon reload'
-          - 'Restart ente-web'
+        restart_units:
+          - 'ente-web.service'
 
 - name: 'Prepare Ente Postgres volume'
-  ansible.builtin.include_tasks: 'manage_volume.yaml'
+  ansible.builtin.include_tasks: 'service_task.yaml'
   vars:
-    manage_volume_name: 'ente-postgres'
-    manage_volume_uid: '300016'
-    manage_volume_gid: '300016'
+    podman_service_task: 'volume'
+    podman_volume:
+      name: 'ente-postgres'
+      uid: '300016'
+      gid: '300016'
 
 - name: 'Prepare Ente config volume'
-  ansible.builtin.include_tasks: 'manage_volume.yaml'
+  ansible.builtin.include_tasks: 'service_task.yaml'
   vars:
-    manage_volume_name: 'ente-config'
-    manage_volume_uid: '300015'
-    manage_volume_gid: '300015'
+    podman_service_task: 'volume'
+    podman_volume:
+      name: 'ente-config'
+      uid: '300015'
+      gid: '300015'
 
 - name: 'Set Ente config volume mount point'
   ansible.builtin.set_fact:
-    ente_config_mountpoint: '{{
-      manage_volume_mountpoint.stdout | default("") | trim }}'
+    ente_config_mountpoint: '{{ (podman_volume_mountpoints | default({})).get("ente-config", "") }}'
 
 - name: 'Prepare Ente Garage config volume'
-  ansible.builtin.include_tasks: 'manage_volume.yaml'
+  ansible.builtin.include_tasks: 'service_task.yaml'
   vars:
-    manage_volume_name: 'ente-garage-config'
-    manage_volume_uid: '300017'
-    manage_volume_gid: '300017'
+    podman_service_task: 'volume'
+    podman_volume:
+      name: 'ente-garage-config'
+      uid: '300017'
+      gid: '300017'
 
 - name: 'Set Ente Garage config volume mount point'
   ansible.builtin.set_fact:
-    ente_garage_config_mountpoint: '{{
-      manage_volume_mountpoint.stdout | default("") | trim }}'
+    ente_garage_config_mountpoint: '{{ (podman_volume_mountpoints | default({})).get("ente-garage-config", "") }}'
 
 - name: 'Prepare Ente Garage metadata volume'
-  ansible.builtin.include_tasks: 'manage_volume.yaml'
+  ansible.builtin.include_tasks: 'service_task.yaml'
   vars:
-    manage_volume_name: 'ente-garage-meta'
-    manage_volume_uid: '300017'
-    manage_volume_gid: '300017'
+    podman_service_task: 'volume'
+    podman_volume:
+      name: 'ente-garage-meta'
+      uid: '300017'
+      gid: '300017'
 
-- name: 'Ensure Ente Garage data directories exist'
+- name: 'Create Ente Garage data directories'
   ansible.builtin.file:
     path: '/srv/data/garage'
     state: 'directory'
@@ -143,11 +145,20 @@
     - 'not (ente_garage_config_file.stat.exists | default(false)) or
       (ente_garage_config_file_raw.content | b64decode) !=
       ente_garage_config_content'
-  notify:
-    - 'Restart ente-garage'
+  register: 'ente_garage_config_written'
   no_log: true
 
-- name: 'Ensure Ente Garage config ownership and mode'
+- name: 'Track Ente Garage restart after config changes'
+  ansible.builtin.include_tasks: 'service_task.yaml'
+  vars:
+    podman_service_task: 'track_units'
+    podman_restart_units:
+      - 'ente-garage.service'
+  when:
+    - 'ente_garage_config_written is defined'
+    - 'ente_garage_config_written.changed | default(false)'
+
+- name: 'Set Ente Garage config ownership'
   ansible.builtin.file:
     path: '{{ ente_garage_config_mountpoint }}/garage.toml'
     owner: '300017'
@@ -484,11 +495,20 @@
     - 'not (ente_credentials_file.stat.exists | default(false)) or
       (ente_credentials_file_raw.content | b64decode) !=
       ente_credentials_content'
-  notify:
-    - 'Restart ente-museum'
+  register: 'ente_credentials_written'
   no_log: true
 
-- name: 'Ensure Ente credentials config ownership and mode'
+- name: 'Track Ente Museum restart after credential changes'
+  ansible.builtin.include_tasks: 'service_task.yaml'
+  vars:
+    podman_service_task: 'track_units'
+    podman_restart_units:
+      - 'ente-museum.service'
+  when:
+    - 'ente_credentials_written is defined'
+    - 'ente_credentials_written.changed | default(false)'
+
+- name: 'Set Ente credentials config ownership'
   ansible.builtin.file:
     path: '{{ ente_config_mountpoint }}/credentials.yaml'
     owner: '300015'
@@ -508,10 +528,11 @@
     enabled: true
     daemon_reload: true
 
-- name: 'Ensure Ente certificate is issued'
-  ansible.builtin.include_tasks: 'issue_certificate.yaml'
+- name: 'Issue the Ente certificate'
+  ansible.builtin.include_tasks: 'service_task.yaml'
   vars:
-    certbot_certificate:
+    podman_service_task: 'certificate'
+    podman_certificate:
       domains:
         - 'api.ente.napiany.com'
         - 's3.ente.napiany.com'
@@ -523,6 +544,8 @@
         - 'cast.ente.napiany.com'
         - 'locker.ente.napiany.com'
         - 'embed.ente.napiany.com'
+        - 'paste.ente.napiany.com'
+        - 'memories.ente.napiany.com'
   when:
     - 'not ansible_check_mode or
       certbot_mountpoint | default("") | trim | length > 0'
@@ -540,11 +563,3 @@
     state: 'started'
     enabled: true
     daemon_reload: true
-
-- name: 'Manage Ente nginx config'
-  ansible.builtin.include_tasks: 'nginx_config.yaml'
-  vars:
-    podman_nginx_config_name: 'ente'
-    podman_nginx_config_copies:
-      - src: 'ente/ente.conf'
-        dest: 'ente.conf'

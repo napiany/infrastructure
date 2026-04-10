@@ -1,3 +1,7 @@
+{% set selected = podman_containers_selected | default(podman_containers | default([])) %}
+{% set kanidm_domain = ((podman_services | default({})).get('kanidm', {})).get('domain', '') %}
+{% set stalwart_settings = (podman_services | default({})).get('stalwart', {}) %}
+{% set stalwart_certificate_blocks = stalwart_settings.get('certificate_blocks', [{'domains': stalwart_settings.get('domains', [])}] if stalwart_settings.get('domains', []) else []) %}
 global
     log stdout format raw local0
     tune.bufsize 65536
@@ -11,25 +15,42 @@ global
 
 defaults
     log global
-    timeout client 10m
-    timeout server 10m
+    mode http
+    timeout client 1h
+    timeout server 1h
     timeout connect 10s
     timeout http-keep-alive 2m
     timeout queue 15s
     timeout tunnel 4h
 
-frontend public_http
-    mode http
-    bind 0.0.0.0:80
+frontend local_http
+    bind :80
     bind [::]:80 v6only
     option httplog
-    option http-buffer-request
     unique-id-format %[uuid()]
     unique-id-header X-Unique-ID
+    http-request redirect scheme https code 308
+
+frontend local_https
+    bind :443 ssl crt /etc/letsencrypt/consumers/haproxy alpn h2,http/1.1
+    bind [::]:443 ssl crt /etc/letsencrypt/consumers/haproxy alpn h2,http/1.1 v6only
+    bind quic4@:443 ssl crt /etc/letsencrypt/consumers/haproxy alpn h3
+    bind quic6@:443 ssl crt /etc/letsencrypt/consumers/haproxy alpn h3
+    option forwardfor if-none
+    stick-table type ip size 100k expire 30s store conn_cur,http_req_rate(1s)
+    option httplog
+    unique-id-format %[uuid()]
+    unique-id-header X-Unique-ID
+    http-request set-header X-Real-IP %[src]
+    http-request set-header X-Forwarded-Proto https
+    http-request set-header X-Forwarded-Port 443
+    http-request set-header X-Forwarded-Host %[req.hdr(host)]
+    http-request set-header X-Original-URL %[url]
     filter spoe engine crowdsec config /usr/local/etc/haproxy/crowdsec.cfg
+    acl crowdsec_bypass hdr(host) -i s3.ente.napiany.com seedvault.napiany.com
     acl body_within_limit req.body_size -m int le 51200
-    http-request send-spoe-group crowdsec crowdsec-http-body if body_within_limit || !{ req.body_size -m found }
-    http-request send-spoe-group crowdsec crowdsec-http-no-body if !body_within_limit { req.body_size -m found }
+    http-request send-spoe-group crowdsec crowdsec-http-body if !crowdsec_bypass body_within_limit || !{ req.body_size -m found }
+    http-request send-spoe-group crowdsec crowdsec-http-no-body if !crowdsec_bypass !body_within_limit { req.body_size -m found }
     http-request set-header X-Crowdsec-Remediation %[var(txn.crowdsec.remediation)] if { var(txn.crowdsec.remediation) -m found }
     http-request set-header X-Crowdsec-IsoCode %[var(txn.crowdsec.isocode)] if { var(txn.crowdsec.isocode) -m found }
     http-request redirect code 302 location %[url] if { var(txn.crowdsec.remediation) -m str allow } { var(txn.crowdsec.redirect) -m found }
@@ -37,102 +58,211 @@ frontend public_http
     http-request lua.crowdsec_handle if { var(txn.crowdsec.remediation) -m str ban }
     http-after-response set-header Set-Cookie %[var(txn.crowdsec.captcha_cookie)] if { var(txn.crowdsec.captcha_status) -m found } { var(txn.crowdsec.captcha_cookie) -m found }
     http-after-response set-header Set-Cookie %[var(txn.crowdsec.captcha_cookie)] if { var(txn.crowdsec.captcha_cookie) -m found } !{ var(txn.crowdsec.captcha_status) -m found }
-    acl acme_challenge path_beg /.well-known/acme-challenge/
-{% for backend in podman_edge_backends %}
-{% for domain in backend.domains %}
-    acl host_{{ backend.id }}_{{ loop.index }} hdr(host) -i {{ domain }}
+    http-response set-header Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
+    http-response set-header X-Content-Type-Options "nosniff"
+    acl local_src src {{ (podman_local_source_ipv4_cidrs_effective + podman_local_source_ipv6_cidrs_effective) | join(' ') }}
+{% if kanidm_domain | length > 0 and 'kanidm' in selected %}
+    acl host_kanidm hdr(host) -i {{ kanidm_domain }}
+{% endif %}
+{% if 'vaultwarden' in selected %}
+    acl host_vaultwarden hdr(host) -i vault.napiany.com
+    acl vaultwarden_admin path_beg /admin
+{% endif %}
+{% if 'seedvault' in selected %}
+    acl host_seedvault hdr(host) -i seedvault.napiany.com
+{% endif %}
+{% if 'grid' in selected %}
+    acl host_grid hdr(host) -i grid.napiany.com
+    acl grid_matrix path_beg /_matrix
+    acl grid_synapse path_beg /_synapse/client
+    acl grid_well_known path -i /.well-known/matrix/client
+    acl grid_root path -i /
+{% endif %}
+{% if 'ente' in selected %}
+    acl host_ente_api hdr(host) -i api.ente.napiany.com
+    acl host_ente_s3 hdr(host) -i s3.ente.napiany.com
+    acl host_ente_root hdr(host) -i ente.napiany.com
+    acl host_ente_web hdr(host) -i web.ente.napiany.com
+    acl host_ente_accounts hdr(host) -i accounts.ente.napiany.com
+    acl host_ente_albums hdr(host) -i albums.ente.napiany.com
+    acl host_ente_auth hdr(host) -i auth.ente.napiany.com
+    acl host_ente_cast hdr(host) -i cast.ente.napiany.com
+    acl host_ente_locker hdr(host) -i locker.ente.napiany.com
+    acl host_ente_embed hdr(host) -i embed.ente.napiany.com
+    acl host_ente_paste hdr(host) -i paste.ente.napiany.com
+    acl host_ente_memories hdr(host) -i memories.ente.napiany.com
+{% endif %}
+{% if 'stalwart' in selected %}
+{% for block in stalwart_certificate_blocks if (block.domains | default([]) | length) > 0 %}
+    acl host_stalwart_{{ loop.index }} hdr(host) -i {{ block.domains | join(' ') }}
 {% endfor %}
+{% endif %}
+{% if 'autopush' in selected %}
+    acl host_push hdr(host) -i push.napiany.com
+    acl host_updates_push hdr(host) -i updates.push.napiany.com
+    acl autopush_local_path path -i /health /__heartbeat__ /__version__
+    http-request track-sc0 src if host_push || host_updates_push
+    acl autopush_push_conn_limit sc_conn_cur(0) gt 10
+    acl autopush_push_req_limit sc_http_req_rate(0) gt 30
+    acl autopush_updates_conn_limit sc_conn_cur(0) gt 20
+    acl autopush_updates_req_limit sc_http_req_rate(0) gt 50
+{% endif %}
+{% if 'mollysocket' in selected %}
+    acl host_mollysocket hdr(host) -i mollysocket.napiany.com
+{% endif %}
+{% if 'containercve' in selected %}
+    acl host_containercve hdr(host) -i containercve.com
+    acl containercve_scan path_reg ^/scan
+    acl containercve_api_scan path_beg /api/scan
+{% endif %}
+{% if 'vaultwarden' in selected %}
+    http-request deny deny_status 403 if host_vaultwarden vaultwarden_admin !local_src
+{% endif %}
+{% if 'autopush' in selected %}
+    http-request deny deny_status 429 if host_push autopush_push_conn_limit
+    http-request deny deny_status 429 if host_push autopush_push_req_limit
+    http-request deny deny_status 429 if host_updates_push autopush_updates_conn_limit
+    http-request deny deny_status 429 if host_updates_push autopush_updates_req_limit
+    http-request deny deny_status 403 if host_push autopush_local_path !local_src
+    http-request deny deny_status 403 if host_updates_push autopush_local_path !local_src
+{% endif %}
+{% if 'grid' in selected %}
+    http-request return status 200 content-type application/json hdr Access-Control-Allow-Origin "*" lf-string '{"m.homeserver":{"base_url":"https://grid.napiany.com"}}' if host_grid grid_well_known
+    http-request return status 200 content-type text/plain lf-string 'Grid Matrix homeserver\n' if host_grid grid_root
+    http-request return status 404 if host_grid !grid_matrix !grid_synapse !grid_well_known !grid_root
+{% endif %}
+{% if 'ente' in selected %}
+    http-request return status 204 hdr Access-Control-Allow-Origin "*" hdr Access-Control-Allow-Methods "GET, PUT, POST, HEAD, OPTIONS" hdr Access-Control-Allow-Headers "Content-Type, Content-Length, Content-MD5, Authorization, X-Amz-Date, X-Amz-Content-Sha256, X-Amz-Security-Token, X-Requested-With, X-Auth-Token, X-Client-Package, X-Client-Version, Origin, Accept, Range" hdr Access-Control-Max-Age "86400" if host_ente_s3 METH_OPTIONS
+    http-request redirect code 308 prefix https://web.ente.napiany.com if host_ente_root
+{% endif %}
+{% if 'grid' in selected %}
+    use_backend be_grid if host_grid grid_matrix || host_grid grid_synapse
+{% endif %}
+{% if 'ente' in selected %}
+    use_backend be_ente_museum if host_ente_api
+    use_backend be_ente_s3 if host_ente_s3
+    use_backend be_ente_web if host_ente_web
+    use_backend be_ente_accounts if host_ente_accounts
+    use_backend be_ente_albums if host_ente_albums
+    use_backend be_ente_auth if host_ente_auth
+    use_backend be_ente_cast if host_ente_cast
+    use_backend be_ente_locker if host_ente_locker
+    use_backend be_ente_embed if host_ente_embed
+    use_backend be_ente_memories if host_ente_paste
+    use_backend be_ente_memories if host_ente_memories
+{% endif %}
+{% if kanidm_domain | length > 0 and 'kanidm' in selected %}
+    use_backend be_kanidm if host_kanidm
+{% endif %}
+{% if 'vaultwarden' in selected %}
+    use_backend be_vaultwarden if host_vaultwarden
+{% endif %}
+{% if 'seedvault' in selected %}
+    use_backend be_seedvault if host_seedvault
+{% endif %}
+{% if 'mollysocket' in selected %}
+    use_backend be_mollysocket if host_mollysocket
+{% endif %}
+{% if 'containercve' in selected %}
+    use_backend be_containercve if host_containercve
+{% endif %}
+{% if 'autopush' in selected %}
+    use_backend be_autoconnect if host_push
+    use_backend be_autoendpoint if host_updates_push
+{% endif %}
+{% if 'stalwart' in selected %}
+{% for block in stalwart_certificate_blocks if (block.domains | default([]) | length) > 0 %}
+    use_backend be_stalwart if host_stalwart_{{ loop.index }}
 {% endfor %}
-{% set http_use_backend_rules = namespace(items=[]) %}
-{% for backend in podman_edge_backends %}
-{% set http_rule_conditions = namespace(items=[]) %}
-{% for domain in backend.domains %}
-{% set http_rule_conditions.items = http_rule_conditions.items + ['host_' ~ backend.id ~ '_' ~ (loop.index | string)] %}
-{% endfor %}
-{% set http_use_backend_rules.items = http_use_backend_rules.items + ['    use_backend ' ~ backend.id ~ '_acme if acme_challenge ' ~ (http_rule_conditions.items | join(' || '))] %}
-{% endfor %}
-{{ http_use_backend_rules.items | join('
-') }}
-    http-request redirect scheme https code 308 unless acme_challenge
+{% endif %}
+    default_backend be_not_found
 
-frontend public_https
-    mode tcp
-    bind 0.0.0.0:443
-    bind [::]:443 v6only
-    option tcplog
-    unique-id-format %[uuid()]
-    tcp-request inspect-delay 5s
-    filter spoe engine crowdsec config /usr/local/etc/haproxy/crowdsec.cfg
-    tcp-request content reject if { var(txn.crowdsec.remediation) -m str ban }
-    tcp-request content accept if { req.ssl_hello_type 1 }
-{% for backend in podman_edge_backends %}
-{% for domain in backend.domains %}
-    acl sni_{{ backend.id }}_{{ loop.index }} req.ssl_sni -i {{ domain }}
-{% endfor %}
-{% endfor %}
-{% set https_use_backend_rules = namespace(items=[]) %}
-{% for backend in podman_edge_backends %}
-{% set https_rule_conditions = namespace(items=[]) %}
-{% for domain in backend.domains %}
-{% set https_rule_conditions.items = https_rule_conditions.items + ['sni_' ~ backend.id ~ '_' ~ (loop.index | string)] %}
-{% endfor %}
-{% set https_use_backend_rules.items = https_use_backend_rules.items + ['    use_backend ' ~ backend.id ~ '_https if ' ~ (https_rule_conditions.items | join(' || '))] %}
-{% endfor %}
-{{ https_use_backend_rules.items | join('
-') }}
-    default_backend {{ podman_edge_default_backend.id }}_https
-
-{% if podman_stalwart_mail_backend | default({}) | length > 0 %}
-listen public_smtp
-    mode tcp
-    bind 0.0.0.0:25
-    bind [::]:25 v6only
-    option tcplog
-    timeout client 4h
-    timeout server 4h
-    server stalwart_mail {{ podman_stalwart_mail_backend.wireguard_ip }}:25
-
-listen public_submissions
-    mode tcp
-    bind 0.0.0.0:465
-    bind [::]:465 v6only
-    option tcplog
-    timeout client 4h
-    timeout server 4h
-    server stalwart_mail {{ podman_stalwart_mail_backend.wireguard_ip }}:465
-
-listen public_submission
-    mode tcp
-    bind 0.0.0.0:587
-    bind [::]:587 v6only
-    option tcplog
-    timeout client 4h
-    timeout server 4h
-    server stalwart_mail {{ podman_stalwart_mail_backend.wireguard_ip }}:587
-
-listen public_imaptls
-    mode tcp
-    bind 0.0.0.0:993
-    bind [::]:993 v6only
-    option tcplog
-    timeout client 4h
-    timeout server 4h
-    server stalwart_mail {{ podman_stalwart_mail_backend.wireguard_ip }}:993
-
+{% if 'kanidm' in selected %}
+backend be_kanidm
+    server kanidm [{{ podman_haproxy_networks.kanidm.ipv6 }}]:8443 ssl verify required sni req.hdr(Host) ca-file /etc/ssl/cert.pem
 {% endif %}
 
-{% for backend in podman_edge_backends %}
-backend {{ backend.id }}_acme
-    mode http
-    server {{ backend.id }} {{ backend.wireguard_ip }}:8443 ssl verify none alpn h2 send-proxy-v2
+{% if 'vaultwarden' in selected %}
+backend be_vaultwarden
+    server vaultwarden [{{ podman_haproxy_networks.vaultwarden.ipv6 }}]:8080
+{% endif %}
 
-backend {{ backend.id }}_https
-    mode tcp
-    server {{ backend.id }} {{ backend.wireguard_ip }}:8443 send-proxy-v2
+{% if 'seedvault' in selected %}
+backend be_seedvault
+    server seedvault [{{ podman_haproxy_networks.seedvault.ipv6 }}]:8080
+{% endif %}
 
-{% endfor %}
+{% if 'grid' in selected %}
+backend be_grid
+    server grid [{{ podman_haproxy_networks.grid.ipv6 }}]:8008
+{% endif %}
+
+{% if 'ente' in selected %}
+backend be_ente_museum
+    server ente_museum [{{ podman_haproxy_networks.ente.ipv6 }}]:8080
+
+backend be_ente_s3
+    http-response set-header Access-Control-Allow-Origin "*"
+    http-response set-header Access-Control-Allow-Methods "GET, PUT, POST, HEAD, OPTIONS"
+    http-response set-header Access-Control-Allow-Headers "Content-Type, Content-Length, Content-MD5, Authorization, X-Amz-Date, X-Amz-Content-Sha256, X-Amz-Security-Token, X-Requested-With, X-Auth-Token, X-Client-Package, X-Client-Version, Origin, Accept, Range"
+    http-response set-header Access-Control-Expose-Headers "ETag, x-amz-request-id, x-amz-id-2"
+    server ente_garage [{{ podman_haproxy_networks.ente.s3_ipv6 }}]:3900
+
+backend be_ente_web
+    server ente_web [{{ podman_haproxy_networks.ente.web_ipv6 }}]:3000
+
+backend be_ente_accounts
+    server ente_accounts [{{ podman_haproxy_networks.ente.web_ipv6 }}]:3001
+
+backend be_ente_albums
+    server ente_albums [{{ podman_haproxy_networks.ente.web_ipv6 }}]:3002
+
+backend be_ente_auth
+    server ente_auth [{{ podman_haproxy_networks.ente.web_ipv6 }}]:3003
+
+backend be_ente_cast
+    server ente_cast [{{ podman_haproxy_networks.ente.web_ipv6 }}]:3004
+
+backend be_ente_locker
+    server ente_locker [{{ podman_haproxy_networks.ente.web_ipv6 }}]:3005
+
+backend be_ente_embed
+    server ente_embed [{{ podman_haproxy_networks.ente.web_ipv6 }}]:3006
+
+backend be_ente_memories
+    server ente_memories [{{ podman_haproxy_networks.ente.web_ipv6 }}]:3008
+{% endif %}
+
+{% if 'stalwart' in selected %}
+backend be_stalwart
+    server stalwart [{{ podman_haproxy_networks.stalwart.ipv6 }}]:443 ssl verify required sni req.hdr(Host) ca-file /etc/ssl/cert.pem
+{% endif %}
+
+{% if 'autopush' in selected %}
+backend be_autoconnect
+    server autoconnect {{ podman_haproxy_networks.autopush.ipv4 }}:8080
+
+backend be_autoendpoint
+    server autoendpoint {{ podman_haproxy_networks.autopush.secondary_ipv4 }}:8000
+{% endif %}
+
+{% if 'mollysocket' in selected %}
+backend be_mollysocket
+    server mollysocket {{ podman_haproxy_networks.mollysocket.ipv4 }}:8020
+{% endif %}
+
+{% if 'containercve' in selected %}
+backend be_containercve
+    http-response set-header Content-Security-Policy "default-src 'none'; script-src 'sha256-Jw6/Xad7U0tsgxWfyCIdipF6cR2QSY8da0PVW1YztVg=' 'sha256-sMQN0ivKSXn4CzbfctfuDwOLVQHzbHrf9DKYzVlcJWs='; style-src 'sha256-cNByiQgjaEOf3hPC5AgBGfG8FNkBmSfZMoP1lAxYGqo=' 'sha256-68zmB9dSOQFLut1tIRsm8/AkvU9Mk6uWLXDzcjcleyA=' 'sha256-iKtLdCjH63HrirR5Mj0AzskMBwKQ6Vayyx2dPEGh79A='; connect-src 'self'; img-src 'self' data:; font-src 'none'; frame-src 'none'; frame-ancestors 'none'; object-src 'none'; base-uri 'self'; form-action 'self'; manifest-src 'none'; worker-src 'none'; upgrade-insecure-requests; require-trusted-types-for 'script'; trusted-types containercve;"
+    http-response set-header X-Robots-Tag "noindex" if { path_reg ^/scan }
+    server containercve [{{ podman_haproxy_networks.containercve.ipv6 }}]:8080
+{% endif %}
+
 backend crowdsec-spoa
     mode tcp
     timeout connect 2s
     timeout server 60s
-    server crowdsec-spoa 10.89.106.2:9000
+    server crowdsec-spoa [{{ podman_crowdsec_spoa_ipv6 }}]:9000
+
+backend be_not_found
+    http-request return status 404

@@ -1,0 +1,23 @@
+---
+mode: 'nftables'
+update_frequency: '10s'
+api_url: 'http://[{{ gateway_wireguard_ipv6_prefix ~ ((hostvars["miniserver"].podman_wireguard_ip | default("0.0.0.0")).split(".")[-1]) }}]:8080/'
+api_key: '{{ gateway_firewall_bouncer_key }}'
+insecure_skip_verify: false
+disable_ipv4: false
+disable_ipv6: false
+deny_action: 'DROP'
+log_mode: 'file'
+log_dir: '/var/log'
+log_level: 'info'
+nftables:
+  ipv4:
+    enabled: true
+    set-only: false
+    table: 'crowdsec'
+    chain: 'crowdsec-chain'
+  ipv6:
+    enabled: true
+    set-only: false
+    table: 'crowdsec6'
+    chain: 'crowdsec6-chain'

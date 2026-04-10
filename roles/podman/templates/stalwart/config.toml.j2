@@ -23,6 +23,7 @@ server.socket.backlog = 1024
 server.socket.nodelay = true
 server.socket.reuse-addr = true
 server.socket.reuse-port = true
+queue.outbound.ip-strategy = "ipv6_then_ipv4"
 storage.blob = "postgresql"
 storage.data = "postgresql"
 storage.directory = "internal"
@@ -45,6 +46,10 @@ tracer.log.path = "/opt/stalwart/logs"
 tracer.log.prefix = "stalwart.log"
 tracer.log.rotate = "daily"
 tracer.log.type = "log"
+[queue.outbound.source-ip]
+v4 = "['{{ podman_stalwart_ipv4 }}']"
+v6 = "['{{ podman_stalwart_ipv6 }}']"
+
 {% for block in stalwart_certificate_blocks %}
 [certificate."{{ (block.domains | first) }}"]
 cert = "%{file:/etc/letsencrypt/consumers/stalwart/{{ block.domains | first }}/fullchain.pem}%"

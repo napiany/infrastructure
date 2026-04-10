@@ -8,10 +8,9 @@ ContainerName=crowdsec-spoa
 Image=docker.io/crowdsecurity/spoa-bouncer:v0.3.0
 AutoUpdate=registry
 
-Network=haproxy-crowdsec.network
+Network=haproxy-crowdsec.network:ip=10.89.106.3,ip6=fd89:106::3
 NetworkAlias=crowdsec-spoa
-IP=10.89.106.2
-Volume=crowdsec-spoa-config:/etc/crowdsec/bouncers:ro,z,noexec
+Volume=crowdsec-spoa-config:/etc/crowdsec/bouncers:ro,U,z,noexec
 ReadOnly=true
 Mount=type=tmpfs,tmpfs-size=4M,tmpfs-mode=0770,U,noexec,nosuid,nodev,destination=/run/crowdsec-spoa
 Mount=type=tmpfs,tmpfs-size=16M,tmpfs-mode=0770,U,noexec,nosuid,nodev,destination=/var/log/crowdsec-spoa

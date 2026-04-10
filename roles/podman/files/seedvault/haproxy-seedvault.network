@@ -1,0 +1,5 @@
+[Network]
+Subnet=fd89:110::/64
+Gateway=fd89:110::1
+IPv6=true
+NetworkDeleteOnStop=true

@@ -1,6 +1,0 @@
-[Service]
-Environment=BUILDAH_ISOLATION=chroot
-
-[Build]
-ImageTag=localhost/nginx:latest
-File=/etc/containers/systemd/nginx.containerfile

@@ -5,12 +5,12 @@ Description=Ente Garage S3 storage
 ContainerName=ente-garage
 Image=docker.io/dxflrs/garage:v2.2.0@sha256:45a61ce3f7c9c24fc23d9ed2b09b27ed560ab87b34605d175d5c588f539c24e4
 
-Network=nginx-ente.network
-IP=10.89.109.2
+Network=haproxy-ente.network:ip6=fd89:109::3
+Network=ente-backend.network
 NetworkAlias=ente-garage
 
-Volume=ente-garage-config:/config:ro,Z,noexec
-Volume=ente-garage-meta:/var/lib/garage/meta:Z,noexec
+Volume=ente-garage-config:/config:ro,U,Z,noexec
+Volume=ente-garage-meta:/var/lib/garage/meta:U,Z,noexec
 Volume=/srv/data/garage:/var/lib/garage/data:Z,noexec
 ReadOnly=true
 Mount=type=tmpfs,tmpfs-size=16M,tmpfs-mode=1777,U,noexec,nosuid,nodev,destination=/tmp

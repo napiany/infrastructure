@@ -1,5 +1,5 @@
 ---
-- name: 'Refresh zypper metadata for podman prerequisites'
+- name: 'Refresh zypper metadata for Podman'
   ansible.builtin.command:
     argv:
       - 'zypper'
@@ -7,13 +7,19 @@
       - 'refresh'
   changed_when: false
 
-- name: 'Ensure podman is installed'
+- name: 'Install Podman packages'
   community.general.zypper:
     name:
       - 'podman'
+      - 'netavark'
+      - 'aardvark-dns'
+      - 'wireguard-tools'
     state: 'present'
   notify:
     - 'Reboot'
+
+- name: 'Apply pending reboot for Podman packages'
+  ansible.builtin.meta: 'flush_handlers'
 
 - name: 'Enable and start podman-auto-update.timer'
   ansible.builtin.systemd:
@@ -23,56 +29,73 @@
 
 - name: 'Set effective podman container list'
   ansible.builtin.set_fact:
-    podman_containers_selected: '{{
-      podman_containers | default(podman_available_containers) }}'
+    podman_containers_selected: >-
+      {{
+        podman_containers | default(podman_available_containers)
+        | unique
+        | list
+      }}
 
-- name: 'Detect host OCI runtime binary'
-  ansible.builtin.command:
-    argv:
-      - 'sh'
-      - '-lc'
-      - 'command -v crun || command -v runc || true'
-  register: 'podman_host_oci_runtime_detect'
-  changed_when: false
-  failed_when: 'not ansible_check_mode and (podman_host_oci_runtime_detect.stdout | trim | length == 0)'
+- name: 'Validate selected podman containers'
+  ansible.builtin.assert:
+    that:
+      - >-
+        (
+          podman_containers_selected
+          | difference(podman_available_containers)
+          | length
+        ) == 0
+    fail_msg: 'podman_containers contains unsupported services.'
 
-- name: 'Set host OCI runtime facts'
-  ansible.builtin.set_fact:
-    podman_host_oci_runtime_binary: '{{ podman_host_oci_runtime_detect.stdout | trim }}'
-    podman_host_oci_runtime_name: '{{ (podman_host_oci_runtime_detect.stdout | trim) | basename }}'
-
-- name: 'Ensure WireGuard tools are installed for edge proxy hosts'
-  community.general.zypper:
-    name:
-      - 'wireguard-tools'
-    state: 'present'
-  when:
-    - "podman_containers_selected | intersect(podman_edge_proxy_containers) |
-      length > 0"
-  notify:
-    - 'Reboot'
+- name: 'Include HAProxy tasks'
+  ansible.builtin.include_tasks:
+    file: 'haproxy.yaml'
+    apply:
+      tags:
+        - 'podman'
+        - 'haproxy'
+  when: "'haproxy' in podman_containers_selected"
+  tags:
+    - 'podman'
+    - 'haproxy'
 
 - name: 'Include CrowdSec tasks'
-  ansible.builtin.include_tasks: 'crowdsec.yaml'
-  when:
-    - "'nginx' in podman_containers_selected or
-      (crowdsec_lapi_server | default(false))"
+  ansible.builtin.include_tasks:
+    file: 'crowdsec.yaml'
+    apply:
+      tags:
+        - 'podman'
+        - 'crowdsec'
+  tags:
+    - 'podman'
+    - 'crowdsec'
 
 - name: 'Include selected podman service tasks'
-  ansible.builtin.include_tasks: '{{ podman_service_name }}.yaml'
-  loop: '{{ podman_available_containers }}'
+  ansible.builtin.include_tasks:
+    file: '{{ podman_service_name }}.yaml'
+    apply:
+      tags:
+        - 'podman'
+        - '{{ podman_service_name }}'
+  loop: >-
+    {{
+      podman_available_containers
+      | difference(["haproxy"])
+      | select("in", podman_containers_selected)
+      | list
+    }}
   loop_control:
     loop_var: 'podman_service_name'
-  when: 'podman_service_name in podman_containers_selected'
-
+  tags:
+    - 'always'
 
 - name: 'Include gVisor tasks'
-  ansible.builtin.include_tasks: 'gvisor.yaml'
-
-- name: 'Ensure nginx.service is running after reverse-proxy tasks'
-  ansible.builtin.systemd:
-    name: 'nginx.service'
-    state: 'started'
-    enabled: true
-    daemon_reload: true
-  when: "'nginx' in podman_containers_selected"
+  ansible.builtin.include_tasks:
+    file: 'gvisor.yaml'
+    apply:
+      tags:
+        - 'podman'
+        - 'gvisor'
+  tags:
+    - 'podman'
+    - 'gvisor'

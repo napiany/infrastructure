@@ -16,7 +16,7 @@
         mode: '0644'
         url: 'https://gitlab.com/divested/brace/-/raw/master/brace/usr/lib/systemd/system/NetworkManager.service.d/99-brace.conf'
         dest: '/etc/systemd/system/NetworkManager.service.d/override.conf'
-        checksum: 'sha256:85cb7ee1f91dead17ad633bfbc53a4f00ad3882f75d9295c28d6969cf3c35442'
+        checksum: 'sha256:c3c0199d350938c698592e396280fa05f158c0c8db8424c2039c8a16b666cc7e'
       notify: 'Restart NetworkManager'
 
 - name: 'Configure NetworkManager privacy enhancements'

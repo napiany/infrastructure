@@ -1,0 +1,12 @@
+---
+- name: 'Restart gateway wireguard'
+  ansible.builtin.systemd:
+    name: 'wg-quick@wg0.service'
+    state: 'restarted'
+    enabled: true
+
+- name: 'Restart gateway crowdsec-firewall-bouncer'
+  ansible.builtin.systemd:
+    name: 'crowdsec-firewall-bouncer.service'
+    state: 'restarted'
+    enabled: true

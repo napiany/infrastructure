@@ -24,11 +24,11 @@ PublishPort={{ podman_wireguard_ip }}:{{ port }}:{{ port }}/tcp
 {% endfor %}
 {% endif %}
 
-Network=nginx-stalwart.network:ip=10.89.103.2
+Network=haproxy-stalwart.network:ip6={{ podman_haproxy_networks.stalwart.ipv6 }}
 Network=stalwart-postgres.network
 NetworkAlias=stalwart
 
-Volume=stalwart:/opt/stalwart:Z,noexec
+Volume=stalwart:/opt/stalwart:U,Z,noexec
 Volume=certbot:/etc/letsencrypt:ro,z,noexec
 ReadOnly=true
 Mount=type=tmpfs,tmpfs-size=64M,tmpfs-mode=1777,U,noexec,nosuid,nodev,destination=/tmp
