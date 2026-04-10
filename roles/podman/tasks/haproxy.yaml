@@ -3,28 +3,8 @@
   vars:
     podman_wireguard_local_ipv6_value: '{{ podman_wireguard_ipv6_prefix ~ (podman_wireguard_ip.split(".")[-1]) }}'
     podman_local_ingress_ipv6_value: '{{ podman_local_ingress_ipv6 | default("") | trim }}'
-    podman_local_source_ipv4_cidrs_value: >-
-      {{
-        (
-          podman_local_source_ipv4_cidrs
-          if (podman_local_source_ipv4_cidrs | length) > 0 else
-          [
-            '127.0.0.0/8',
-            (podman_wireguard_ip | regex_replace('\\.[0-9]+$', '.0')) ~ '/24',
-          ]
-        )
-      }}
-    podman_local_source_ipv6_cidrs_value: >-
-      {{
-        (
-          podman_local_source_ipv6_cidrs
-          if (podman_local_source_ipv6_cidrs | length) > 0 else
-          [
-            '::1/128',
-            podman_wireguard_ipv6_prefix ~ '/64',
-          ]
-        )
-      }}
+    podman_local_source_ipv4_cidrs_value: '{{ podman_local_source_ipv4_cidrs if (podman_local_source_ipv4_cidrs | length) > 0 else ["127.0.0.0/8", (podman_wireguard_ip | regex_replace("\\.[0-9]+$", ".0")) ~ "/24"] }}'
+    podman_local_source_ipv6_cidrs_value: '{{ podman_local_source_ipv6_cidrs if (podman_local_source_ipv6_cidrs | length) > 0 else ["::1/128", podman_wireguard_ipv6_prefix ~ "/64"] }}'
   ansible.builtin.set_fact:
     podman_local_wireguard_ipv6: '{{ podman_wireguard_local_ipv6_value }}'
     podman_local_ingress_ipv6: '{{ podman_local_ingress_ipv6_value }}'

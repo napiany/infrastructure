@@ -21,14 +21,7 @@
 - name: 'Set changed Podman network units'
   ansible.builtin.set_fact:
     podman_installed_unit_names: '{{ podman_installed_units.stdout_lines | map("regex_replace", "^([^ ]+).*$", "\\1") | list }}'
-    podman_existing_network_basenames: >-
-      {{
-        podman_changed_networks
-        | default([])
-        | unique
-        | map("regex_replace", "(\\.network|-network\\.service)$", "")
-        | list
-      }}
+    podman_existing_network_basenames: '{{ podman_changed_networks | default([]) | unique | map("regex_replace", "(\\.network|-network\\.service)$", "") | list }}'
     podman_existing_network_units: '{{ podman_existing_network_basenames | map("regex_replace", "$", "-network.service") | list }}'
   listen: 'Recreate changed Podman networks'
 
