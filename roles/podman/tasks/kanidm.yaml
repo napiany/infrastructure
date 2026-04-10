@@ -1,67 +1,69 @@
 ---
-- name: 'Set Kanidm domain facts'
+- name: 'Set Kanidm values'
   vars:
-    kanidm_settings_candidate: '{{ (podman_services | default({})).get(
-      "kanidm", {}) }}'
+    kanidm_settings: '{{ (podman_services | default({})).get("kanidm", {}) }}'
   ansible.builtin.set_fact:
-    kanidm_domain: '{{ kanidm_settings_candidate.domain | default("") }}'
-
-- name: 'Copy Kanidm Quadlet files'
-  ansible.builtin.include_tasks: 'copy_quadlet.yaml'
-  vars:
-    podman_quadlet_files_label: 'Kanidm Quadlet'
-    podman_quadlet_files:
-      - src: 'kanidm/nginx-kanidm.network'
-        dest: 'nginx-kanidm.network'
-        notify:
-          - 'Daemon reload'
-          - 'Restart nginx'
-          - 'Restart kanidm'
+    kanidm_domain: '{{ kanidm_settings.domain | default("") }}'
+    kanidm_quadlets:
+      - src: 'kanidm/haproxy-kanidm.network'
+        dest: 'haproxy-kanidm.network'
+        restart_units:
+          - 'haproxy.service'
+          - 'kanidm.service'
       - src: 'kanidm/kanidm.container'
         dest: 'kanidm.container'
-        notify:
-          - 'Daemon reload'
-          - 'Restart kanidm'
+        restart_units:
+          - 'kanidm.service'
 
-- name: 'Prepare Kanidm volume'
-  ansible.builtin.include_tasks: 'manage_volume.yaml'
+- name: 'Copy Kanidm Quadlets'
+  ansible.builtin.include_tasks: 'service_task.yaml'
   vars:
-    manage_volume_name: 'kanidm'
-    manage_volume_uid: '300002'
-    manage_volume_gid: '300002'
+    podman_service_task: 'quadlets'
+    podman_quadlet_files: '{{ kanidm_quadlets }}'
 
-- name: 'Template Kanidm config into the Kanidm volume'
+- name: 'Create the Kanidm volume'
+  ansible.builtin.include_tasks: 'service_task.yaml'
+  vars:
+    podman_service_task: 'volume'
+    podman_volume:
+      name: 'kanidm'
+      uid: '300002'
+      gid: '300002'
+
+- name: 'Render the Kanidm config'
   ansible.builtin.template:
     src: 'kanidm/server.toml.j2'
-    dest: '{{ manage_volume_mountpoint.stdout }}/server.toml'
+    dest: '{{ podman_volume_mountpoints.kanidm }}/server.toml'
     owner: '300002'
     group: '300002'
     mode: '0600'
-  when: 'manage_volume_mountpoint.stdout | default("") | trim | length > 0'
-  notify:
-    - 'Restart kanidm'
+  register: 'kanidm_server_config'
+  when: '(podman_volume_mountpoints | default({})).get("kanidm", "") | length > 0'
 
-- name: 'Ensure Kanidm certificate is issued'
-  ansible.builtin.include_tasks: 'issue_certificate.yaml'
+- name: 'Track Kanidm restart after config changes'
+  ansible.builtin.include_tasks: 'service_task.yaml'
   vars:
-    certbot_certificate:
+    podman_service_task: 'track_units'
+    podman_restart_units:
+      - 'kanidm.service'
+  when:
+    - 'kanidm_server_config is defined'
+    - 'kanidm_server_config.changed | default(false)'
+
+- name: 'Issue the Kanidm certificate'
+  ansible.builtin.include_tasks: 'service_task.yaml'
+  vars:
+    podman_service_task: 'certificate'
+    podman_certificate:
       domains:
         - '{{ kanidm_domain }}'
-  when:
-    - 'not ansible_check_mode or
-      certbot_mountpoint | default("") | trim | length > 0'
+      restart_units:
+        - 'kanidm.service'
+  when: 'kanidm_domain | length > 0'
 
-- name: 'Enable and start kanidm.service'
+- name: 'Start Kanidm'
   ansible.builtin.systemd:
     name: 'kanidm.service'
     state: 'started'
     enabled: true
     daemon_reload: true
-
-- name: 'Manage Kanidm nginx config'
-  ansible.builtin.include_tasks: 'nginx_config.yaml'
-  vars:
-    podman_nginx_config_name: 'kanidm'
-    podman_nginx_config_templates:
-      - src: 'kanidm/kanidm.conf.j2'
-        dest: 'kanidm.conf'

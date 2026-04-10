@@ -1,92 +1,102 @@
 ---
-- name: 'Manage Vaultwarden podman secrets'
-  ansible.builtin.include_tasks: 'manage_secret.yaml'
-  loop:
-    - name: 'vaultwarden-postgres_password'
-      value_var: 'vault_podman_secret_vaultwarden_postgres_password'
-    - name: 'vaultwarden-postgres_dburl'
-      value_var: 'vault_podman_secret_vaultwarden_postgres_dburl'
-    - name: 'vaultwarden_installationid'
-      value_var: 'vault_podman_secret_vaultwarden_installationid'
-    - name: 'vaultwarden_installationkey'
-      value_var: 'vault_podman_secret_vaultwarden_installationkey'
-    - name: 'vaultwarden_admintoken'
-      value_var: 'vault_podman_secret_vaultwarden_admintoken'
-    - name: 'vaultwarden_ssoclientpassword'
-      value_var: 'vault_podman_secret_vaultwarden_ssoclientpassword'
-  loop_control:
-    loop_var: 'podman_secret'
-
-- name: 'Copy Vaultwarden Quadlet files'
-  ansible.builtin.include_tasks: 'copy_quadlet.yaml'
-  vars:
-    podman_quadlet_files_label: 'Vaultwarden Quadlet'
-    podman_quadlet_files:
-      - src: 'vaultwarden/nginx-vaultwarden.network'
-        dest: 'nginx-vaultwarden.network'
-        notify:
-          - 'Daemon reload'
-          - 'Restart nginx'
-          - 'Restart vaultwarden'
+- name: 'Set Vaultwarden values'
+  ansible.builtin.set_fact:
+    vaultwarden_secrets:
+      - name: 'vaultwarden-postgres_password'
+        value_var: 'vault_podman_secret_vaultwarden_postgres_password'
+        restart_units:
+          - 'vaultwarden-postgres.service'
+          - 'vaultwarden.service'
+      - name: 'vaultwarden-postgres_dburl'
+        value_var: 'vault_podman_secret_vaultwarden_postgres_dburl'
+        restart_units:
+          - 'vaultwarden-postgres.service'
+          - 'vaultwarden.service'
+      - name: 'vaultwarden_installationid'
+        value_var: 'vault_podman_secret_vaultwarden_installationid'
+        restart_units:
+          - 'vaultwarden.service'
+      - name: 'vaultwarden_installationkey'
+        value_var: 'vault_podman_secret_vaultwarden_installationkey'
+        restart_units:
+          - 'vaultwarden.service'
+      - name: 'vaultwarden_admintoken'
+        value_var: 'vault_podman_secret_vaultwarden_admintoken'
+        restart_units:
+          - 'vaultwarden.service'
+      - name: 'vaultwarden_ssoclientpassword'
+        value_var: 'vault_podman_secret_vaultwarden_ssoclientpassword'
+        restart_units:
+          - 'vaultwarden.service'
+    vaultwarden_quadlets:
+      - src: 'vaultwarden/haproxy-vaultwarden.network'
+        dest: 'haproxy-vaultwarden.network'
+        restart_units:
+          - 'haproxy.service'
+          - 'vaultwarden.service'
       - src: 'vaultwarden/vaultwarden-postgres.network'
         dest: 'vaultwarden-postgres.network'
-        notify:
-          - 'Daemon reload'
-          - 'Restart vaultwarden-postgres'
-          - 'Restart vaultwarden'
+        restart_units:
+          - 'vaultwarden-postgres.service'
+          - 'vaultwarden.service'
       - src: 'vaultwarden/vaultwarden-postgres.container'
         dest: 'vaultwarden-postgres.container'
-        notify:
-          - 'Daemon reload'
-          - 'Restart vaultwarden-postgres'
+        restart_units:
+          - 'vaultwarden-postgres.service'
       - src: 'vaultwarden/vaultwarden.container'
         dest: 'vaultwarden.container'
-        notify:
-          - 'Daemon reload'
-          - 'Restart vaultwarden'
+        restart_units:
+          - 'vaultwarden.service'
+    vaultwarden_volumes:
+      - name: 'vaultwarden-postgres'
+        uid: '300004'
+        gid: '300004'
+      - name: 'vaultwarden'
+        uid: '300003'
+        gid: '300003'
 
-- name: 'Prepare Vaultwarden Postgres volume'
-  ansible.builtin.include_tasks: 'manage_volume.yaml'
+- name: 'Manage Vaultwarden secrets'
+  ansible.builtin.include_tasks: 'service_task.yaml'
   vars:
-    manage_volume_name: 'vaultwarden-postgres'
-    manage_volume_uid: '300004'
-    manage_volume_gid: '300004'
+    podman_service_task: 'secret'
+    podman_secret: '{{ item }}'
+  loop: '{{ vaultwarden_secrets }}'
+  loop_control:
+    label: '{{ item.name }}'
 
-- name: 'Prepare Vaultwarden volume'
-  ansible.builtin.include_tasks: 'manage_volume.yaml'
+- name: 'Copy Vaultwarden Quadlets'
+  ansible.builtin.include_tasks: 'service_task.yaml'
   vars:
-    manage_volume_name: 'vaultwarden'
-    manage_volume_uid: '300003'
-    manage_volume_gid: '300003'
+    podman_service_task: 'quadlets'
+    podman_quadlet_files: '{{ vaultwarden_quadlets }}'
 
-- name: 'Enable and start vaultwarden-postgres.service'
+- name: 'Create Vaultwarden volumes'
+  ansible.builtin.include_tasks: 'service_task.yaml'
+  vars:
+    podman_service_task: 'volume'
+    podman_volume: '{{ item }}'
+  loop: '{{ vaultwarden_volumes }}'
+  loop_control:
+    label: '{{ item.name }}'
+
+- name: 'Start Vaultwarden Postgres'
   ansible.builtin.systemd:
     name: 'vaultwarden-postgres.service'
     state: 'started'
     enabled: true
     daemon_reload: true
 
-- name: 'Ensure Vaultwarden certificate is issued'
-  ansible.builtin.include_tasks: 'issue_certificate.yaml'
+- name: 'Issue the Vaultwarden certificate'
+  ansible.builtin.include_tasks: 'service_task.yaml'
   vars:
-    certbot_certificate:
+    podman_service_task: 'certificate'
+    podman_certificate:
       domains:
         - 'vault.napiany.com'
-  when:
-    - 'not ansible_check_mode or
-      certbot_mountpoint | default("") | trim | length > 0'
 
-- name: 'Enable and start vaultwarden.service'
+- name: 'Start Vaultwarden'
   ansible.builtin.systemd:
     name: 'vaultwarden.service'
     state: 'started'
     enabled: true
     daemon_reload: true
-
-- name: 'Manage Vaultwarden nginx config'
-  ansible.builtin.include_tasks: 'nginx_config.yaml'
-  vars:
-    podman_nginx_config_name: 'vaultwarden'
-    podman_nginx_config_copies:
-      - src: 'vaultwarden/vaultwarden.conf'
-        dest: 'vaultwarden.conf'

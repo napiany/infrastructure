@@ -1,0 +1,24 @@
+---
+log_mode: 'file'
+log_dir: '/var/log/crowdsec-spoa/'
+log_level: 'info'
+log_compression: true
+log_max_size: 100
+log_max_backups: 3
+log_max_age: 30
+
+update_frequency: '10s'
+api_url: '{{ crowdsec_lapi_url }}/'
+api_key: '${API_KEY}'
+insecure_skip_verify: false
+{% if crowdsec_appsec_enabled | default(false) | bool %}
+appsec_url: 'http://crowdsec:{{ crowdsec_appsec_listen_port_effective }}/'
+{% endif %}
+
+listen_tcp: '0.0.0.0:9000'
+listen_unix: '/run/crowdsec-spoa/spoa.sock'
+
+prometheus:
+  enabled: false
+  listen_addr: '127.0.0.1'
+  listen_port: 60601

@@ -1,26 +1,25 @@
 [Unit]
 Description=CrowdSec security engine
+Requires=wg-quick@wg0.service
+After=wg-quick@wg0.service
 
 [Container]
 ContainerName=crowdsec
-Image=docker.io/crowdsecurity/crowdsec:v1.7.6
+Image=docker.io/crowdsecurity/crowdsec:v1.7.6@sha256:63b595fef92de1778573b375897a45dd226637ee9a3d3db9f57ac7355c369493
 AutoUpdate=registry
-Network=nginx-crowdsec.network
-IP=10.89.107.2
+Network=haproxy-crowdsec.network:ip={{ podman_crowdsec_ipv4 }},ip6={{ podman_crowdsec_ipv6 }}
 NetworkAlias=crowdsec
 
-Volume=crowdsec-config:/etc/crowdsec:z,noexec
-Volume=crowdsec-data:/var/lib/crowdsec/data:z,noexec
-Volume=nginx-logs:/var/log/nginx:ro,z,noexec
+Volume=crowdsec-config:/etc/crowdsec:U,z,noexec
+Volume=crowdsec-data:/var/lib/crowdsec/data:U,z,noexec
 ReadOnly=true
 Mount=type=tmpfs,tmpfs-size=16M,tmpfs-mode=1777,U,noexec,nosuid,nodev,destination=/tmp
 
 Environment=TZ=UTC
-Environment="COLLECTIONS={{ crowdsec_agent_collections_effective | join(' ') }}"
-Environment=DISABLE_LOCAL_API=true
-Environment=LOCAL_API_URL={{ crowdsec_lapi_url }}
-Environment=AGENT_USERNAME={{ inventory_hostname }}
-Secret=crowdsec_agent_password,type=env,target=AGENT_PASSWORD
+Environment="COLLECTIONS={{ crowdsec_collections | join(' ') }}"
+Environment=LOCAL_API_URL=http://0.0.0.0:8080
+PublishPort={{ podman_wireguard_ip }}:8080:8080/tcp
+PublishPort=[{{ crowdsec_wireguard_ipv6 }}]:8080:8080/tcp
 
 Memory=512m
 PidsLimit=256
@@ -30,6 +29,11 @@ Group=300020
 
 NoNewPrivileges=true
 DropCapability=ALL
+
+HealthCmd=cscli lapi status
+HealthInterval=15s
+HealthTimeout=5s
+Notify=healthy
 
 [Service]
 LockPersonality=true

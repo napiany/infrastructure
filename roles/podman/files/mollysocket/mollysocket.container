@@ -6,11 +6,12 @@ ContainerName=mollysocket
 Image=ghcr.io/mollyim/mollysocket:1.7.1-alpine
 AutoUpdate=registry
 
-Network=nginx-mollysocket.network
-IP=10.89.105.2
+Network=haproxy-mollysocket.network:ip=10.89.105.2,ip6=fd89:105::2
+Network=haproxy-crowdsec.network:no_default_route=1
 NetworkAlias=mollysocket
+AddHost=updates.push.napiany.com:fd89:106::4
 
-Volume=mollysocket:/data:Z,noexec
+Volume=mollysocket:/data:U,Z,noexec
 ReadOnly=true
 Mount=type=tmpfs,tmpfs-size=16M,tmpfs-mode=1777,noexec,nosuid,nodev,destination=/tmp
 

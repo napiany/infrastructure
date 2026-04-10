@@ -6,11 +6,10 @@ ContainerName=containercve
 Image=registry.gitlab.com/napiany/containercve:latest
 AutoUpdate=registry
 
-Network=nginx-containercve.network
-IP=10.89.102.2
+Network=haproxy-containercve.network:ip=10.89.102.2,ip6=fd89:102::2
 NetworkAlias=containercve
 
-Volume=containercve:/data:Z,noexec
+Volume=containercve:/data:U,Z,noexec
 ReadOnly=true
 Mount=type=tmpfs,tmpfs-size=4G,tmpfs-mode=1777,noexec,nosuid,nodev,destination=/tmp
 

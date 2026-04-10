@@ -5,8 +5,7 @@ Description=Ente Web
 ContainerName=ente-web
 Image=ente-web.build
 
-Network=nginx-ente.network
-IP=10.89.109.4
+Network=haproxy-ente.network:ip6=fd89:109::4
 NetworkAlias=ente-web
 
 

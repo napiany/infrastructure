@@ -1,49 +1,43 @@
 ---
-- name: 'Copy ContainerCVE Quadlet files'
-  ansible.builtin.include_tasks: 'copy_quadlet.yaml'
-  vars:
-    podman_quadlet_files_label: 'ContainerCVE Quadlet'
-    podman_quadlet_files:
-      - src: 'containercve/nginx-containercve.network'
-        dest: 'nginx-containercve.network'
-        notify:
-          - 'Daemon reload'
-          - 'Restart nginx'
-          - 'Restart containercve'
+- name: 'Set ContainerCVE values'
+  ansible.builtin.set_fact:
+    containercve_quadlets:
+      - src: 'containercve/haproxy-containercve.network'
+        dest: 'haproxy-containercve.network'
+        restart_units:
+          - 'haproxy.service'
+          - 'containercve.service'
       - src: 'containercve/containercve.container'
         dest: 'containercve.container'
-        notify:
-          - 'Daemon reload'
-          - 'Restart containercve'
+        restart_units:
+          - 'containercve.service'
 
-- name: 'Prepare ContainerCVE volume'
-  ansible.builtin.include_tasks: 'manage_volume.yaml'
+- name: 'Copy ContainerCVE Quadlets'
+  ansible.builtin.include_tasks: 'service_task.yaml'
   vars:
-    manage_volume_name: 'containercve'
-    manage_volume_uid: '300005'
-    manage_volume_gid: '300005'
+    podman_service_task: 'quadlets'
+    podman_quadlet_files: '{{ containercve_quadlets }}'
 
-- name: 'Ensure ContainerCVE certificate is issued'
-  ansible.builtin.include_tasks: 'issue_certificate.yaml'
+- name: 'Create the ContainerCVE volume'
+  ansible.builtin.include_tasks: 'service_task.yaml'
   vars:
-    certbot_certificate:
+    podman_service_task: 'volume'
+    podman_volume:
+      name: 'containercve'
+      uid: '300005'
+      gid: '300005'
+
+- name: 'Issue the ContainerCVE certificate'
+  ansible.builtin.include_tasks: 'service_task.yaml'
+  vars:
+    podman_service_task: 'certificate'
+    podman_certificate:
       domains:
         - 'containercve.com'
-  when:
-    - 'not ansible_check_mode or
-      certbot_mountpoint | default("") | trim | length > 0'
 
-- name: 'Enable and start containercve.service'
+- name: 'Start ContainerCVE'
   ansible.builtin.systemd:
     name: 'containercve.service'
     state: 'started'
     enabled: true
     daemon_reload: true
-
-- name: 'Manage ContainerCVE nginx config'
-  ansible.builtin.include_tasks: 'nginx_config.yaml'
-  vars:
-    podman_nginx_config_name: 'containercve'
-    podman_nginx_config_copies:
-      - src: 'containercve/containercve.conf'
-        dest: 'containercve.conf'

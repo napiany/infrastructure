@@ -5,14 +5,20 @@ all:
       hosts:
         gateway:
           ansible_host: 'gateway.napiany.com'
-          crowdsec_lapi_server: true
+        miniserver:
+          ansible_host: 'miniserver.internal'
+          podman_wireguard_ip: '10.66.66.2'
+          podman_local_ingress_ipv6: 'fd6e:64e3:424d:3::8e7'
+          podman_local_source_ipv4_cidrs:
+            - '127.0.0.0/8'
+            - '10.66.66.0/24'
+            - '192.168.0.0/16'
+          podman_local_source_ipv6_cidrs:
+            - '::1/128'
+            - 'fd66:66::/64'
+            - 'fd6e:64e3:424d::/48'
           podman_containers:
             - 'haproxy'
-        miniserver:
-          ansible_host: 'miniserver.napiany.com'
-          podman_wireguard_ip: '10.66.66.2'
-          podman_containers:
-            - 'nginx'
             - 'kanidm'
             - 'grid'
             - 'ente'

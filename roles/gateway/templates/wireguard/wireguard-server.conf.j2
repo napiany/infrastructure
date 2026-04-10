@@ -1,0 +1,42 @@
+{% set miniserver_wg_ipv4 = hostvars['miniserver'].podman_wireguard_ip %}
+{% set miniserver_wg_ipv6 = gateway_wireguard_ipv6_prefix ~ (miniserver_wg_ipv4.split('.')[-1]) %}
+[Interface]
+Address = 10.66.66.1/24, {{ gateway_wireguard_ipv6 }}/64
+ListenPort = 51820
+PrivateKey = {{ vault_wireguard_private_keys['gateway'] }}
+PostUp = sysctl -w net.ipv4.ip_forward=1
+PostUp = sysctl -w net.ipv6.conf.all.forwarding=1
+PostUp = nft delete table inet gateway_web_forwarding >/dev/null 2>&1 || true
+PostUp = nft add table inet gateway_web_forwarding
+PostUp = nft 'add chain inet gateway_web_forwarding prerouting { type nat hook prerouting priority dstnat; policy accept; }'
+PostUp = nft 'add chain inet gateway_web_forwarding forward { type filter hook forward priority filter; policy accept; }'
+PostUp = nft 'add rule inet gateway_web_forwarding prerouting ip protocol tcp tcp dport 80 dnat ip to {{ miniserver_wg_ipv4 }}:80'
+PostUp = nft 'add rule inet gateway_web_forwarding prerouting ip protocol tcp tcp dport 443 dnat ip to {{ miniserver_wg_ipv4 }}:443'
+PostUp = nft 'add rule inet gateway_web_forwarding prerouting ip protocol udp udp dport 443 dnat ip to {{ miniserver_wg_ipv4 }}:443'
+PostUp = nft 'add rule inet gateway_web_forwarding prerouting ip protocol tcp tcp dport { 25, 465, 587, 993 } dnat ip to {{ miniserver_wg_ipv4 }}'
+PostUp = nft 'add rule inet gateway_web_forwarding prerouting ip6 daddr {{ ansible_facts["default_ipv6"]["address"] }} meta l4proto tcp tcp dport 80 dnat ip6 to [{{ miniserver_wg_ipv6 }}]:80'
+PostUp = nft 'add rule inet gateway_web_forwarding prerouting ip6 daddr {{ ansible_facts["default_ipv6"]["address"] }} meta l4proto tcp tcp dport 443 dnat ip6 to [{{ miniserver_wg_ipv6 }}]:443'
+PostUp = nft 'add rule inet gateway_web_forwarding prerouting ip6 daddr {{ ansible_facts["default_ipv6"]["address"] }} meta l4proto udp udp dport 443 dnat ip6 to [{{ miniserver_wg_ipv6 }}]:443'
+PostUp = nft 'add rule inet gateway_web_forwarding prerouting ip6 daddr {{ ansible_facts["default_ipv6"]["address"] }} meta l4proto tcp tcp dport { 25, 465, 587, 993 } dnat ip6 to [{{ miniserver_wg_ipv6 }}]'
+PostUp = nft 'add rule inet gateway_web_forwarding forward ct state related,established accept'
+PostUp = nft 'add rule inet gateway_web_forwarding forward ip daddr {{ miniserver_wg_ipv4 }}/32 tcp dport { 25, 80, 443, 465, 587, 993 } accept'
+PostUp = nft 'add rule inet gateway_web_forwarding forward ip daddr {{ miniserver_wg_ipv4 }}/32 udp dport 443 accept'
+PostUp = nft 'add rule inet gateway_web_forwarding forward ip6 daddr {{ miniserver_wg_ipv6 }}/128 tcp dport { 25, 80, 443, 465, 587, 993 } accept'
+PostUp = nft 'add rule inet gateway_web_forwarding forward ip6 daddr {{ miniserver_wg_ipv6 }}/128 udp dport 443 accept'
+PostUp = nft delete table inet gateway_stalwart_egress >/dev/null 2>&1 || true
+PostUp = nft add table inet gateway_stalwart_egress
+PostUp = nft 'add chain inet gateway_stalwart_egress forward { type filter hook forward priority filter; policy accept; }'
+PostUp = nft 'add chain inet gateway_stalwart_egress postrouting { type nat hook postrouting priority srcnat; policy accept; }'
+PostUp = nft 'add rule inet gateway_stalwart_egress forward ip saddr { {{ miniserver_wg_ipv4 }}/32, {{ gateway_stalwart_ipv4 }}/32 } accept'
+PostUp = nft 'add rule inet gateway_stalwart_egress forward ip daddr { {{ miniserver_wg_ipv4 }}/32, {{ gateway_stalwart_ipv4 }}/32 } ct state related,established accept'
+PostUp = nft 'add rule inet gateway_stalwart_egress forward ip6 saddr { {{ miniserver_wg_ipv6 }}/128, {{ gateway_stalwart_ipv6 }}/128 } accept'
+PostUp = nft 'add rule inet gateway_stalwart_egress forward ip6 daddr { {{ miniserver_wg_ipv6 }}/128, {{ gateway_stalwart_ipv6 }}/128 } ct state related,established accept'
+PostUp = nft 'add rule inet gateway_stalwart_egress postrouting ip saddr { {{ miniserver_wg_ipv4 }}/32, {{ gateway_stalwart_ipv4 }}/32 } masquerade'
+PostUp = nft 'add rule inet gateway_stalwart_egress postrouting ip6 saddr { {{ miniserver_wg_ipv6 }}/128, {{ gateway_stalwart_ipv6 }}/128 } masquerade'
+PostDown = nft delete table inet gateway_web_forwarding >/dev/null 2>&1 || true
+PostDown = nft delete table inet gateway_stalwart_egress >/dev/null 2>&1 || true
+
+[Peer]
+PublicKey = {{ vault_wireguard_public_keys['miniserver'] }}
+PresharedKey = {{ vault_wireguard_preshared_keys['miniserver'] }}
+AllowedIPs = {{ miniserver_wg_ipv4 }}/32, {{ miniserver_wg_ipv6 }}/128, {{ gateway_stalwart_ipv4 }}/32, {{ gateway_stalwart_ipv6 }}/128

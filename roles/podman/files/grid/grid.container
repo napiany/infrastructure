@@ -5,14 +5,14 @@ Wants=grid-postgres.service
 
 [Container]
 ContainerName=grid
-Image=ghcr.io/element-hq/synapse:v1.150.0@sha256:cba0969087ca70a3ec72ebcd1491a6c8391a7da2c0b92738231dd9c7ad55df4d
+Image=ghcr.io/element-hq/synapse:v1.151.0@sha256:184dc8757daef019b511e7f96fc6e5edfb880fd074d8cf702c7e3aa899d188c8
 AutoUpdate=registry
 
-Network=nginx-grid.network:ip=10.89.108.2
+Network=haproxy-grid.network:ip6=fd89:108::2
 Network=grid-postgres.network
 NetworkAlias=grid
 
-Volume=grid:/data:Z,noexec
+Volume=grid:/data:U,Z,noexec
 ReadOnly=true
 Mount=type=tmpfs,tmpfs-size=256M,tmpfs-mode=1777,U,noexec,nosuid,nodev,destination=/tmp
 

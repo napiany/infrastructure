@@ -6,7 +6,6 @@ ContainerName=certbot
 Image=certbot.build
 
 Volume=certbot:/etc/letsencrypt:z,noexec
-Volume=nginx-webroot:/srv/nginx:z,noexec
 Volume=certbot-config:/hooks:ro,z
 ReadOnly=true
 Mount=type=tmpfs,tmpfs-size=32M,tmpfs-mode=1777,U,noexec,nosuid,nodev,destination=/tmp
@@ -22,6 +21,9 @@ User=0
 Group=0
 
 DropCapability=ALL
+AddCapability=CHOWN
+AddCapability=DAC_OVERRIDE
+AddCapability=FOWNER
 NoNewPrivileges=true
 
 [Service]
@@ -35,9 +37,9 @@ Restart=on-failure
 RestartSec=10s
 Type=oneshot
 RemainAfterExit=no
-ExecStartPost=-/usr/bin/podman kill --signal HUP nginx
+ExecStartPost=-/usr/bin/podman kill --signal HUP haproxy
 ExecStartPost=-/usr/bin/podman kill --signal HUP kanidm
 ExecStartPost=-/usr/bin/systemctl restart stalwart.service
 
 [Install]
-WantedBy=nginx.target
+WantedBy=default.target
