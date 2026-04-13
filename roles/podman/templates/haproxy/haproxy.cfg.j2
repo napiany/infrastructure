@@ -171,7 +171,7 @@ frontend local_https
 
 {% if 'kanidm' in selected %}
 backend be_kanidm
-    server kanidm [{{ podman_haproxy_networks.kanidm.ipv6 }}]:8443 ssl verify required sni req.hdr(Host) ca-file /etc/ssl/cert.pem
+    server kanidm [{{ podman_haproxy_networks.kanidm.ipv6 }}]:8443 ssl alpn h2,http/1.1 verify required sni req.hdr(Host) ca-file /etc/ssl/cert.pem
 {% endif %}
 
 {% if 'vaultwarden' in selected %}
@@ -227,7 +227,7 @@ backend be_ente_memories
 
 {% if 'stalwart' in selected %}
 backend be_stalwart
-    server stalwart [{{ podman_haproxy_networks.stalwart.ipv6 }}]:443 ssl verify required sni req.hdr(Host) ca-file /etc/ssl/cert.pem
+    server stalwart [{{ podman_haproxy_networks.stalwart.ipv6 }}]:443 ssl alpn h2,http/1.1 verify required sni req.hdr(Host) ca-file /etc/ssl/cert.pem
 {% endif %}
 
 {% if 'autopush' in selected %}
@@ -240,7 +240,7 @@ backend be_autoendpoint
 
 {% if 'mollysocket' in selected %}
 backend be_mollysocket
-    server mollysocket {{ podman_haproxy_networks.mollysocket.ipv4 }}:8020
+    server mollysocket {{ podman_haproxy_networks.mollysocket.ipv4 }}:8020 proto h2
 {% endif %}
 
 backend crowdsec-spoa
