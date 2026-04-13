@@ -19,6 +19,8 @@ podman_wireguard_gateway_ipv6: 'fd66:66::1'
 podman_local_ingress_ipv6: ''
 podman_local_source_ipv4_cidrs: []
 podman_local_source_ipv6_cidrs: []
+podman_gvisor_dcache_size: '5000'
+podman_gvisor_thp_shmem_enabled: 'advise'
 podman_crowdsec_ipv4: '10.89.106.2'
 podman_crowdsec_ipv6: 'fd89:106::2'
 podman_crowdsec_spoa_ipv4: '10.89.106.3'

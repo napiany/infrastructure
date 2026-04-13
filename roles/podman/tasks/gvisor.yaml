@@ -14,7 +14,16 @@
     owner: 'root'
     group: 'root'
     mode: '0644'
-  register: 'gvisor_defaults_config'
+  register: 'podman_gvisor_defaults_config'
+
+- name: 'Template gVisor transparent hugepage tuning'
+  ansible.builtin.template:
+    src: 'gvisor/transparent-hugepage.conf.j2'
+    dest: '/etc/tmpfiles.d/gvisor-thp.conf'
+    owner: 'root'
+    group: 'root'
+    mode: '0644'
+  register: 'podman_gvisor_thp_config'
 
 - name: 'Copy gvisor-auto-update.service'
   ansible.builtin.copy:
@@ -44,7 +53,7 @@
 - name: 'Check whether runsc is already installed'
   ansible.builtin.stat:
     path: '/usr/local/bin/runsc'
-  register: 'gvisor_runsc_binary'
+  register: 'podman_gvisor_runsc_binary'
 
 - name: 'Run gvisor-auto-update.service immediately when runsc is missing'
   ansible.builtin.systemd:
@@ -52,7 +61,7 @@
     state: 'started'
   when:
     - 'not ansible_check_mode'
-    - 'not (gvisor_runsc_binary.stat.exists | default(false))'
+    - 'not (podman_gvisor_runsc_binary.stat.exists | default(false))'
 
 - name: 'Wait for runsc to become available'
   ansible.builtin.wait_for:
@@ -61,7 +70,7 @@
     timeout: 300
   when:
     - 'not ansible_check_mode'
-    - 'not (gvisor_runsc_binary.stat.exists | default(false))'
+    - 'not (podman_gvisor_runsc_binary.stat.exists | default(false))'
 
 - name: 'Enable and start gvisor-auto-update.timer'
   ansible.builtin.systemd:
@@ -70,22 +79,41 @@
     enabled: true
   when: 'not ansible_check_mode'
 
+- name: 'Apply gVisor transparent hugepage tuning'
+  ansible.builtin.command:
+    argv:
+      - 'systemd-tmpfiles'
+      - '--create'
+      - '/etc/tmpfiles.d/gvisor-thp.conf'
+  changed_when: false
+  when: 'not ansible_check_mode'
+
+- name: 'Set Podman gVisor CPU vendor'
+  ansible.builtin.set_fact:
+    podman_gvisor_cpu_vendor: '{{ ansible_facts["processor"] | default([]) | join(" ") }}'
+    podman_gvisor_is_intel: '{{ "GenuineIntel" in (ansible_facts["processor"] | default([]) | join(" ")) }}'
+    podman_gvisor_is_amd: '{{ "AuthenticAMD" in (ansible_facts["processor"] | default([]) | join(" ")) }}'
+
+- name: 'Set Podman gVisor vendor KVM modules'
+  ansible.builtin.set_fact:
+    podman_gvisor_vendor_kvm_modules: '{{ ["kvm_intel"] if podman_gvisor_is_intel else ["kvm_amd"] if podman_gvisor_is_amd else [] }}'
+
 - name: 'Set KVM kernel modules for gVisor'
   ansible.builtin.set_fact:
-    gvisor_kvm_modules: '{{ ["kvm"] + (["kvm_intel"] if "GenuineIntel" in ((ansible_facts["processor"] | default([])) | join(" ")) else ["kvm_amd"] if "AuthenticAMD" in ((ansible_facts["processor"] | default([])) | join(" ")) else []) }}'
+    podman_gvisor_kvm_modules: '{{ ["kvm"] + podman_gvisor_vendor_kvm_modules }}'
 
 - name: 'Try to load KVM kernel modules for gVisor'
   community.general.modprobe:
     name: '{{ item }}'
     state: 'present'
-  loop: '{{ gvisor_kvm_modules }}'
+  loop: '{{ podman_gvisor_kvm_modules }}'
   failed_when: false
   changed_when: false
   when: 'not ansible_check_mode'
 
 - name: 'Set gVisor platform'
   ansible.builtin.set_fact:
-    gvisor_platform: 'kvm'
+    podman_gvisor_platform: 'kvm'
 
 - name: 'Persist KVM kernel modules for gVisor'
   ansible.builtin.template:
@@ -97,7 +125,7 @@
 
 - name: 'Set gVisor Quadlet units'
   ansible.builtin.set_fact:
-    gvisor_quadlet_units: '{{
+    podman_gvisor_quadlet_units: '{{
       ([]
       + (["haproxy", "certbot", "crowdsec-spoa"] if ("haproxy" in podman_containers_selected) else [])
       + (["crowdsec"])
@@ -114,35 +142,41 @@
 
 - name: 'Set long-running services using Podman gVisor defaults'
   ansible.builtin.set_fact:
-    gvisor_running_service_units: '{{ (gvisor_quadlet_units | default([]) | difference(["certbot"])) | unique }}'
+    podman_gvisor_running_service_units: '{{ (podman_gvisor_quadlet_units | default([]) | difference(["certbot"])) | unique }}'
 
 - name: 'Remove stale gVisor platform drop-ins'
   ansible.builtin.file:
     path: '/etc/containers/systemd/{{ item }}.container.d/90-gvisor-platform.conf'
     state: 'absent'
-  loop: '{{ gvisor_quadlet_units | default([]) }}'
-  register: 'gvisor_platform_dropins_removed'
+  loop: '{{ podman_gvisor_quadlet_units | default([]) }}'
+  register: 'podman_gvisor_platform_dropins_removed'
 
 - name: 'Reload systemd after gVisor platform changes'
   ansible.builtin.systemd:
     daemon_reload: true
-  when: '(gvisor_platform_dropins_removed.results | default([]) | selectattr("changed") | list | length) > 0'
+  when: '(podman_gvisor_platform_dropins_removed.results | default([]) | selectattr("changed") | list | length) > 0'
 
-- name: 'Restart long-running services after Podman gVisor defaults changes'
+- name: 'Set Podman gVisor restart state'
+  ansible.builtin.set_fact:
+    podman_gvisor_defaults_restart_required: '{{ podman_gvisor_defaults_config is defined and podman_gvisor_defaults_config.changed | default(false) }}'
+    podman_gvisor_thp_restart_required: '{{ podman_gvisor_thp_config is defined and podman_gvisor_thp_config.changed | default(false) }}'
+    podman_gvisor_runtime_restart_required: '{{ podman_gvisor_defaults_restart_required or podman_gvisor_thp_restart_required }}'
+
+- name: 'Restart long-running services after Podman gVisor runtime changes'
   ansible.builtin.systemd:
     name: '{{ item }}.service'
     state: 'restarted'
-  loop: '{{ gvisor_running_service_units | default([]) }}'
+  loop: '{{ podman_gvisor_running_service_units | default([]) }}'
   when:
     - 'not ansible_check_mode'
-    - 'gvisor_defaults_config is defined and gvisor_defaults_config.changed | default(false)'
+    - 'podman_gvisor_runtime_restart_required | default(false)'
 
 - name: 'Restart services after gVisor platform changes'
   ansible.builtin.systemd:
     name: '{{ item }}.service'
     state: 'restarted'
     daemon_reload: true
-  loop: '{{ gvisor_running_service_units | default([]) }}'
+  loop: '{{ podman_gvisor_running_service_units | default([]) }}'
   when:
     - 'not ansible_check_mode'
-    - '(gvisor_platform_dropins_removed.results | default([]) | selectattr("changed") | list | length) > 0'
+    - '(podman_gvisor_platform_dropins_removed.results | default([]) | selectattr("changed") | list | length) > 0'
