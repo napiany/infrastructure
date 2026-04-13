@@ -266,28 +266,24 @@ backend be_stalwart
 
 backend be_stalwart_smtp
     mode tcp
-    option tcplog
     timeout connect 10s
     timeout server 4h
     server stalwart_smtp [{{ podman_haproxy_networks.stalwart.ipv6 }}]:25 send-proxy-v2
 
 backend be_stalwart_submissions
     mode tcp
-    option tcplog
     timeout connect 10s
     timeout server 4h
     server stalwart_submissions [{{ podman_haproxy_networks.stalwart.ipv6 }}]:465 send-proxy-v2
 
 backend be_stalwart_submission
     mode tcp
-    option tcplog
     timeout connect 10s
     timeout server 4h
     server stalwart_submission [{{ podman_haproxy_networks.stalwart.ipv6 }}]:587 send-proxy-v2
 
 backend be_stalwart_imaptls
     mode tcp
-    option tcplog
     timeout connect 10s
     timeout server 4h
     server stalwart_imaptls [{{ podman_haproxy_networks.stalwart.ipv6 }}]:993 send-proxy-v2

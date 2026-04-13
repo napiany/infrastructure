@@ -159,7 +159,10 @@
   ansible.builtin.set_fact:
     podman_gvisor_defaults_restart_required: '{{ podman_gvisor_defaults_config is defined and podman_gvisor_defaults_config.changed | default(false) }}'
     podman_gvisor_thp_restart_required: '{{ podman_gvisor_thp_config is defined and podman_gvisor_thp_config.changed | default(false) }}'
-    podman_gvisor_runtime_restart_required: '{{ podman_gvisor_defaults_restart_required or podman_gvisor_thp_restart_required }}'
+
+- name: 'Set Podman gVisor runtime restart state'
+  ansible.builtin.set_fact:
+    podman_gvisor_runtime_restart_required: '{{ (podman_gvisor_defaults_restart_required | default(false)) or (podman_gvisor_thp_restart_required | default(false)) }}'
 
 - name: 'Restart long-running services after Podman gVisor runtime changes'
   ansible.builtin.systemd:
