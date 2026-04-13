@@ -1,0 +1,27 @@
+#!/usr/bin/bash
+
+set -o errexit -o nounset -o pipefail
+
+cd '{{ certbot_mountpoint }}/consumers/haproxy/session-ticket-keys'
+
+/usr/bin/rsync -tI 2.key 1.key
+/usr/bin/rsync -tI 3.key 2.key
+/usr/bin/rsync -tI 4.key 3.key
+/usr/bin/rsync -tI next.key 4.key
+/usr/bin/head -c 80 </dev/random | /usr/bin/openssl base64 -A > tmp.key
+printf '\n' >> tmp.key
+/usr/bin/mv tmp.key next.key
+
+cat next.key {1..4}.key > keys.new
+/usr/bin/mv keys.new keys
+
+/usr/bin/chown 300019:300019 next.key {1..4}.key keys
+/usr/bin/chmod 0400 next.key {1..4}.key keys
+
+status=0
+
+if /usr/bin/systemctl is-active --quiet haproxy.service; then
+    /usr/bin/systemctl reload haproxy || status=1
+fi
+
+exit $status

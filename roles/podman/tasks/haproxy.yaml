@@ -239,6 +239,10 @@
       owner: '300019'
       group: '300019'
       mode: '0700'
+    - path: 'consumers/haproxy/session-ticket-keys'
+      owner: '300019'
+      group: '300019'
+      mode: '0700'
   when: 'certbot_mountpoint | length > 0'
 
 - name: 'Create certbot ACME webroot directories'
@@ -252,6 +256,80 @@
     - '.well-known'
     - '.well-known/acme-challenge'
   when: 'certbot_webroot_mountpoint | length > 0'
+
+- name: 'Create /usr/local/libexec'
+  ansible.builtin.file:
+    path: '/usr/local/libexec'
+    state: 'directory'
+    owner: 'root'
+    group: 'root'
+    mode: '0755'
+
+- name: 'Render HAProxy TLS ticket create script'
+  ansible.builtin.template:
+    src: 'haproxy/session-ticket-keys-create.j2'
+    dest: '/usr/local/libexec/haproxy-session-ticket-keys-create'
+    owner: 'root'
+    group: 'root'
+    mode: '0755'
+  when: 'certbot_mountpoint | length > 0'
+
+- name: 'Render HAProxy TLS ticket rotate script'
+  ansible.builtin.template:
+    src: 'haproxy/session-ticket-keys-rotate.j2'
+    dest: '/usr/local/libexec/haproxy-session-ticket-keys-rotate'
+    owner: 'root'
+    group: 'root'
+    mode: '0755'
+  when: 'certbot_mountpoint | length > 0'
+
+- name: 'Render HAProxy TLS ticket key creation service'
+  ansible.builtin.template:
+    src: 'haproxy/haproxy-create-tls-ticket-keys.service.j2'
+    dest: '/etc/systemd/system/haproxy-create-tls-ticket-keys.service'
+    owner: 'root'
+    group: 'root'
+    mode: '0644'
+  register: 'haproxy_tls_ticket_create_service_unit'
+  notify:
+    - 'Daemon reload'
+
+- name: 'Check current HAProxy TLS ticket key file'
+  ansible.builtin.stat:
+    path: '{{ certbot_mountpoint }}/consumers/haproxy/session-ticket-keys/keys'
+  register: 'haproxy_tls_ticket_key_file'
+  when: 'certbot_mountpoint | length > 0'
+
+- name: 'Initialize HAProxy TLS ticket keys'
+  ansible.builtin.systemd:
+    name: 'haproxy-create-tls-ticket-keys.service'
+    state: 'started'
+    daemon_reload: true
+  when:
+    - 'certbot_mountpoint | length > 0'
+    - 'not (haproxy_tls_ticket_key_file.stat.exists | default(false))'
+
+- name: 'Render HAProxy TLS ticket rotation service'
+  ansible.builtin.template:
+    src: 'haproxy/haproxy-rotate-tls-ticket-keys.service.j2'
+    dest: '/etc/systemd/system/haproxy-rotate-tls-ticket-keys.service'
+    owner: 'root'
+    group: 'root'
+    mode: '0644'
+  register: 'haproxy_tls_ticket_rotate_service_unit'
+  notify:
+    - 'Daemon reload'
+
+- name: 'Copy HAProxy TLS ticket rotation timer'
+  ansible.builtin.copy:
+    src: 'haproxy/haproxy-rotate-tls-ticket-keys.timer'
+    dest: '/etc/systemd/system/haproxy-rotate-tls-ticket-keys.timer'
+    owner: 'root'
+    group: 'root'
+    mode: '0644'
+  register: 'haproxy_tls_ticket_rotate_timer_unit'
+  notify:
+    - 'Daemon reload'
 
 - name: 'Copy the CrowdSec SPOE config'
   ansible.builtin.copy:
@@ -306,6 +384,13 @@
 - name: 'Start certbot.timer'
   ansible.builtin.systemd:
     name: 'certbot.timer'
+    state: 'started'
+    enabled: true
+    daemon_reload: true
+
+- name: 'Start haproxy-tls-ticket-rotate.timer'
+  ansible.builtin.systemd:
+    name: 'haproxy-rotate-tls-ticket-keys.timer'
     state: 'started'
     enabled: true
     daemon_reload: true

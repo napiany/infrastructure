@@ -7,6 +7,12 @@ global
     tune.bufsize 65536
     stats socket /tmp/haproxy.sock mode 660 level admin
     stats timeout 30s
+    ssl-default-bind-options ssl-min-ver TLSv1.2 ssl-max-ver TLSv1.3
+    ssl-default-bind-ciphers ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-ECDSA-CHACHA20-POLY1305:ECDHE-ECDSA-AES128-GCM-SHA256
+    ssl-default-bind-ciphersuites TLS_AES_256_GCM_SHA384:TLS_CHACHA20_POLY1305_SHA256:TLS_AES_128_GCM_SHA256
+    ssl-default-server-options ssl-min-ver TLSv1.2 ssl-max-ver TLSv1.3
+    ssl-default-server-ciphers ECDHE-ECDSA-AES256-GCM-SHA384:ECDHE-ECDSA-CHACHA20-POLY1305:ECDHE-ECDSA-AES128-GCM-SHA256
+    ssl-default-server-ciphersuites TLS_AES_256_GCM_SHA384:TLS_CHACHA20_POLY1305_SHA256:TLS_AES_128_GCM_SHA256
     tune.lua.bool-sample-conversion pre-3.1-bug
     lua-prepend-path /usr/lib/crowdsec-haproxy-spoa-bouncer/lua/?.lua
     lua-load /usr/lib/crowdsec-haproxy-spoa-bouncer/lua/crowdsec.lua
@@ -35,10 +41,10 @@ frontend local_http
     http-request redirect scheme https code 308
 
 frontend local_https
-    bind :443 ssl crt /etc/letsencrypt/consumers/haproxy alpn h2,http/1.1
-    bind [::]:443 ssl crt /etc/letsencrypt/consumers/haproxy alpn h2,http/1.1 v6only
-    bind quic4@:443 ssl crt /etc/letsencrypt/consumers/haproxy alpn h3
-    bind quic6@:443 ssl crt /etc/letsencrypt/consumers/haproxy alpn h3
+    bind :443 ssl crt /etc/letsencrypt/consumers/haproxy tls-ticket-keys /etc/letsencrypt/consumers/haproxy/session-ticket-keys/keys alpn h2,http/1.1
+    bind [::]:443 ssl crt /etc/letsencrypt/consumers/haproxy tls-ticket-keys /etc/letsencrypt/consumers/haproxy/session-ticket-keys/keys alpn h2,http/1.1 v6only
+    bind quic4@:443 ssl crt /etc/letsencrypt/consumers/haproxy tls-ticket-keys /etc/letsencrypt/consumers/haproxy/session-ticket-keys/keys alpn h3
+    bind quic6@:443 ssl crt /etc/letsencrypt/consumers/haproxy tls-ticket-keys /etc/letsencrypt/consumers/haproxy/session-ticket-keys/keys alpn h3
     option forwardfor if-none
     stick-table type ip size 100k expire 30s store conn_cur,http_req_rate(1s)
     option httplog
