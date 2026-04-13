@@ -4,5 +4,4 @@ Gateway=10.89.105.1
 Subnet=fd89:105::/64
 Gateway=fd89:105::1
 IPv6=true
-Options=no_default_route=1
 NetworkDeleteOnStop=true

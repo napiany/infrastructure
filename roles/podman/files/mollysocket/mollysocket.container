@@ -7,7 +7,6 @@ Image=ghcr.io/mollyim/mollysocket:1.7.1-alpine
 AutoUpdate=registry
 
 Network=haproxy-mollysocket.network:ip=10.89.105.2,ip6=fd89:105::2
-Network=haproxy-crowdsec.network:no_default_route=1
 NetworkAlias=mollysocket
 AddHost=updates.push.napiany.com:fd89:106::4
 
