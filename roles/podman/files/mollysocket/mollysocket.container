@@ -3,7 +3,7 @@ Description=MollySocket
 
 [Container]
 ContainerName=mollysocket
-Image=ghcr.io/mollyim/mollysocket:1.7.1-alpine
+Image=ghcr.io/mollyim/mollysocket:1.7.1-alpine@sha256:b0afc99bdd719836829e0c7a88cfce620846b0a97e81bddb2434a44582c4b336
 AutoUpdate=registry
 
 Network=haproxy-mollysocket.network:ip=10.89.105.2,ip6=fd89:105::2

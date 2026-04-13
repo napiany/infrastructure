@@ -23,6 +23,38 @@
     group: 'root'
     mode: '0644'
 
+- name: 'Ensure /etc/pki/rpm-gpg exists'
+  ansible.builtin.file:
+    path: '/etc/pki/rpm-gpg'
+    state: 'directory'
+    owner: 'root'
+    group: 'root'
+    mode: '0755'
+
+- name: 'Copy vendored CrowdSec repository signing keys'
+  ansible.builtin.copy:
+    src: 'crowdsec/{{ item }}'
+    dest: '/etc/pki/rpm-gpg/{{ item }}'
+    owner: 'root'
+    group: 'root'
+    mode: '0644'
+  loop:
+    - 'crowdsec-packagecloud.gpg'
+    - 'crowdsec-crowdsec-EDE2C695EC9A5A5C.pub.gpg'
+    - 'crowdsec-crowdsec-C822EDD6B39954A1.pub.gpg'
+    - 'crowdsec-crowdsec-FED78314A2468CCF.pub.gpg'
+
+- name: 'Import vendored CrowdSec repository signing keys'
+  ansible.builtin.rpm_key:
+    key: '/etc/pki/rpm-gpg/{{ item }}'
+    state: 'present'
+  loop:
+    - 'crowdsec-packagecloud.gpg'
+    - 'crowdsec-crowdsec-EDE2C695EC9A5A5C.pub.gpg'
+    - 'crowdsec-crowdsec-C822EDD6B39954A1.pub.gpg'
+    - 'crowdsec-crowdsec-FED78314A2468CCF.pub.gpg'
+
+
 - name: 'Install gateway packages'
   community.general.zypper:
     name:

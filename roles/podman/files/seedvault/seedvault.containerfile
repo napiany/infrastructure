@@ -1,4 +1,4 @@
-FROM httpd:2.4.66-alpine
+FROM httpd:2.4.66-alpine@sha256:311fe37fcbcd2861cb2b1eef1a16d4977cf1bb01916de00ddfbddad2bb76a519
 
 RUN apk add --no-cache apr-util-dbm_gdbm \
     && addgroup -S -g 300018 seedvault \
