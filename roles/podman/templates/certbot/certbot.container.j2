@@ -3,16 +3,17 @@ Description=certbot ACME cert renewal
 
 [Container]
 ContainerName=certbot
-Image=certbot.build
+Image={{ podman_certbot_image }}
 
 Volume=certbot:/etc/letsencrypt:z,noexec
 Volume=certbot-config:/hooks:ro,z
+Volume=certbot-webroot:/var/www/certbot:z,noexec
 ReadOnly=true
 Mount=type=tmpfs,tmpfs-size=32M,tmpfs-mode=1777,U,noexec,nosuid,nodev,destination=/tmp
 Mount=type=tmpfs,tmpfs-size=128M,tmpfs-mode=0755,U,noexec,nosuid,nodev,destination=/var/lib/letsencrypt
 Mount=type=tmpfs,tmpfs-size=64M,tmpfs-mode=0755,U,noexec,nosuid,nodev,destination=/var/log/letsencrypt
 
-Exec=renew --non-interactive --deploy-hook /hooks/certbot-deploy-hook.sh
+Exec=renew --webroot --webroot-path /var/www/certbot --non-interactive --deploy-hook /hooks/certbot-deploy-hook.sh
 
 Memory=256m
 PidsLimit=128

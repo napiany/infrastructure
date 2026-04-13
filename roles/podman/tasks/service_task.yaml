@@ -222,16 +222,29 @@
         path: '{{ certbot_mountpoint }}/ansible/{{ podman_certificate_name }}.domains'
       register: 'podman_certificate_manifest_file'
 
+    - name: 'Check current certificate challenge manifest'
+      ansible.builtin.stat:
+        path: '{{ certbot_mountpoint }}/ansible/{{ podman_certificate_name }}.challenge'
+      register: 'podman_certificate_challenge_manifest_file'
+
     - name: 'Read current certificate manifest'
       ansible.builtin.slurp:
         path: '{{ certbot_mountpoint }}/ansible/{{ podman_certificate_name }}.domains'
       register: 'podman_certificate_manifest_raw'
       when: 'podman_certificate_manifest_file.stat.exists'
 
+    - name: 'Read current certificate challenge manifest'
+      ansible.builtin.slurp:
+        path: '{{ certbot_mountpoint }}/ansible/{{ podman_certificate_name }}.challenge'
+      register: 'podman_certificate_challenge_manifest_raw'
+      when: 'podman_certificate_challenge_manifest_file.stat.exists'
+
     - name: 'Set desired certificate manifest'
       ansible.builtin.set_fact:
         podman_certificate_desired_manifest: '{{ podman_certificate.domains | join("\n") ~ "\n" }}'
         podman_certificate_current_manifest: '{{ (podman_certificate_manifest_raw.content | b64decode) if (podman_certificate_manifest_file.stat.exists | default(false)) else "" }}'
+        podman_certificate_desired_challenge_manifest: 'http-01-webroot:/var/www/certbot{{ "\n" }}'
+        podman_certificate_current_challenge_manifest: '{{ (podman_certificate_challenge_manifest_raw.content | b64decode) if (podman_certificate_challenge_manifest_file.stat.exists | default(false)) else "" }}'
         podman_certificate_missing: '{{ not podman_certificate_file.stat.exists }}'
 
     - name: 'Reset certificate domain arguments'
@@ -250,14 +263,14 @@
       ansible.builtin.command:
         argv: '{{ [
           "podman", "run", "--rm",
-          "--entrypoint", "/usr/local/bin/certbot",
           "-v", "certbot:/etc/letsencrypt:z",
+          "-v", "certbot-webroot:/var/www/certbot:z",
           "-v", "certbot-config:/hooks:ro,z",
-          "localhost/certbot:latest",
+          podman_certbot_image,
           "certonly",
-          "--authenticator", "dns-desec",
-          "--dns-desec-credentials", "/etc/letsencrypt/secrets/DESEC.ini",
-          "--dns-desec-propagation-seconds", "120",
+          "--webroot",
+          "--webroot-path", "/var/www/certbot",
+          "--preferred-challenges", "http",
           "--deploy-hook", "/hooks/certbot-deploy-hook.sh",
           "--non-interactive",
           "--agree-tos",
@@ -269,7 +282,7 @@
         ] + podman_certificate_domain_argv }}'
       register: 'podman_certificate_issue'
       when:
-        - 'podman_certificate_missing or podman_certificate_current_manifest != podman_certificate_desired_manifest'
+        - 'podman_certificate_missing or podman_certificate_current_manifest != podman_certificate_desired_manifest or podman_certificate_current_challenge_manifest != podman_certificate_desired_challenge_manifest'
       changed_when: true
 
     - name: 'Check current certificate consumer outputs'
@@ -296,15 +309,14 @@
           - 'run'
           - '--rm'
           - '--entrypoint'
-          - '/bin/sh'
+          - '/hooks/certbot-deploy-hook.sh'
           - '-e'
           - 'RENEWED_LINEAGE=/etc/letsencrypt/live/{{ podman_certificate_name }}'
           - '-v'
           - 'certbot:/etc/letsencrypt:z'
           - '-v'
           - 'certbot-config:/hooks:ro,z'
-          - 'localhost/certbot:latest'
-          - '/hooks/certbot-deploy-hook.sh'
+          - '{{ podman_certbot_image }}'
       register: 'podman_certificate_replay'
       changed_when: 'podman_certificate_replay_needed'
       when: 'podman_certificate_replay_needed'
@@ -313,6 +325,15 @@
       ansible.builtin.copy:
         dest: '{{ certbot_mountpoint }}/ansible/{{ podman_certificate_name }}.domains'
         content: '{{ podman_certificate_desired_manifest }}'
+        owner: 'root'
+        group: 'root'
+        mode: '0644'
+      when: 'podman_certificate_issue is defined and podman_certificate_issue.changed | default(false)'
+
+    - name: 'Write certificate challenge manifest'
+      ansible.builtin.copy:
+        dest: '{{ certbot_mountpoint }}/ansible/{{ podman_certificate_name }}.challenge'
+        content: '{{ podman_certificate_desired_challenge_manifest }}'
         owner: 'root'
         group: 'root'
         mode: '0644'

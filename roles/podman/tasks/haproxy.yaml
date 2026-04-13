@@ -71,7 +71,6 @@
       - "(vault_wireguard_private_keys | default({})).get(inventory_hostname, '') | length > 0"
       - "(vault_wireguard_public_keys | default({})).get('gateway', '') | length > 0"
       - "(vault_wireguard_preshared_keys | default({})).get(inventory_hostname, '') | length > 0"
-      - "lookup('vars', 'vault_certbot_dns_desec_ini', default='') | length > 0"
     fail_msg: 'Missing HAProxy listener, WireGuard, or certbot configuration.'
   no_log: true
 
@@ -139,28 +138,6 @@
     - 'Daemon reload'
     - 'Restart haproxy'
 
-- name: 'Copy certbot.build'
-  ansible.builtin.copy:
-    src: 'certbot/certbot.build'
-    dest: '/etc/containers/systemd/certbot.build'
-    owner: 'root'
-    group: 'root'
-    mode: '0644'
-  register: 'certbot_build_unit'
-  notify:
-    - 'Daemon reload'
-
-- name: 'Copy certbot Containerfile'
-  ansible.builtin.copy:
-    src: 'certbot/certbot.containerfile'
-    dest: '/etc/containers/systemd/certbot.containerfile'
-    owner: 'root'
-    group: 'root'
-    mode: '0644'
-  register: 'certbot_containerfile_file'
-  notify:
-    - 'Daemon reload'
-
 - name: 'Render certbot.container'
   ansible.builtin.template:
     src: 'certbot/certbot.container.j2'
@@ -216,11 +193,22 @@
       gid: '0'
       mode: '0755'
 
+- name: 'Create the certbot-webroot volume'
+  ansible.builtin.include_tasks: 'service_task.yaml'
+  vars:
+    podman_service_task: 'volume'
+    podman_volume:
+      name: 'certbot-webroot'
+      uid: '0'
+      gid: '0'
+      mode: '0755'
+
 - name: 'Set HAProxy and certbot mount points'
   ansible.builtin.set_fact:
     certbot_config_mountpoint: '{{ (podman_volume_mountpoints | default({})).get("certbot-config", "") }}'
     haproxy_config_mountpoint: '{{ (podman_volume_mountpoints | default({})).get("haproxy-config", "") }}'
     certbot_mountpoint: '{{ (podman_volume_mountpoints | default({})).get("certbot", "") }}'
+    certbot_webroot_mountpoint: '{{ (podman_volume_mountpoints | default({})).get("certbot-webroot", "") }}'
 
 - name: 'Render the certbot deploy hook'
   ansible.builtin.template:
@@ -243,10 +231,6 @@
       owner: 'root'
       group: 'root'
       mode: '0700'
-    - path: 'secrets'
-      owner: 'root'
-      group: 'root'
-      mode: '0700'
     - path: 'consumers'
       owner: 'root'
       group: 'root'
@@ -257,15 +241,17 @@
       mode: '0700'
   when: 'certbot_mountpoint | length > 0'
 
-- name: 'Copy deSEC credentials into the certbot volume'
-  ansible.builtin.copy:
-    dest: '{{ certbot_mountpoint }}/secrets/DESEC.ini'
-    content: '{{ lookup("vars", "vault_certbot_dns_desec_ini") }}'
+- name: 'Create certbot ACME webroot directories'
+  ansible.builtin.file:
+    path: '{{ certbot_webroot_mountpoint }}/{{ item }}'
+    state: 'directory'
     owner: 'root'
     group: 'root'
-    mode: '0600'
-  no_log: true
-  when: 'certbot_mountpoint | length > 0'
+    mode: '0755'
+  loop:
+    - '.well-known'
+    - '.well-known/acme-challenge'
+  when: 'certbot_webroot_mountpoint | length > 0'
 
 - name: 'Copy the CrowdSec SPOE config'
   ansible.builtin.copy:
@@ -289,22 +275,22 @@
   notify:
     - 'Restart haproxy'
 
+- name: 'Render ACME HTTP-01 Lua handler'
+  ansible.builtin.template:
+    src: 'haproxy/acme-http01.lua.j2'
+    dest: '{{ haproxy_config_mountpoint }}/acme-http01.lua'
+    owner: '300019'
+    group: '300019'
+    mode: '0644'
+  when: 'haproxy_config_mountpoint | length > 0'
+  notify:
+    - 'Restart haproxy'
+
 - name: 'Reload systemd before Podman image builds'
   ansible.builtin.systemd:
     daemon_reload: true
   when:
-    - 'certbot_build_unit.changed or certbot_containerfile_file.changed or certbot_container_unit.changed or haproxy_build_unit.changed or haproxy_containerfile_file.changed or haproxy_container_unit.changed'
-
-- name: 'Build the certbot image'
-  ansible.builtin.command:
-    argv:
-      - 'systemctl'
-      - 'restart'
-      - '--wait'
-      - 'certbot-build.service'
-  register: 'certbot_build_start'
-  changed_when: 'certbot_build_start.rc == 0'
-  when: 'certbot_build_unit.changed or certbot_containerfile_file.changed or certbot_container_unit.changed'
+    - 'haproxy_build_unit.changed or haproxy_containerfile_file.changed or haproxy_container_unit.changed'
 
 - name: 'Build the haproxy image'
   ansible.builtin.command:

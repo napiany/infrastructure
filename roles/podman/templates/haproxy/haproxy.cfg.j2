@@ -10,6 +10,7 @@ global
     tune.lua.bool-sample-conversion pre-3.1-bug
     lua-prepend-path /usr/lib/crowdsec-haproxy-spoa-bouncer/lua/?.lua
     lua-load /usr/lib/crowdsec-haproxy-spoa-bouncer/lua/crowdsec.lua
+    lua-load /usr/local/etc/haproxy/acme-http01.lua
     setenv CROWDSEC_BAN_TEMPLATE_PATH /var/lib/crowdsec-haproxy-spoa-bouncer/html/ban.html
     setenv CROWDSEC_CAPTCHA_TEMPLATE_PATH /var/lib/crowdsec-haproxy-spoa-bouncer/html/captcha.html
 
@@ -29,6 +30,8 @@ frontend local_http
     option httplog
     unique-id-format %[uuid()]
     unique-id-header X-Unique-ID
+    acl acme_http01 path_beg /.well-known/acme-challenge/
+    http-request use-service lua.acme_http01 if acme_http01
     http-request redirect scheme https code 308
 
 frontend local_https
@@ -41,6 +44,8 @@ frontend local_https
     option httplog
     unique-id-format %[uuid()]
     unique-id-header X-Unique-ID
+    acl acme_http01 path_beg /.well-known/acme-challenge/
+    http-request use-service lua.acme_http01 if acme_http01
     http-request set-header X-Real-IP %[src]
     http-request set-header X-Forwarded-Proto https
     http-request set-header X-Forwarded-Port 443

@@ -1,0 +1,37 @@
+local challenge_prefix = "/.well-known/acme-challenge/"
+local challenge_root = "/var/www/certbot"
+
+local function send_text(applet, status, body)
+    applet:set_status(status)
+    applet:add_header("content-type", "text/plain")
+    applet:add_header("content-length", tostring(#body))
+    applet:start_response()
+    if #body > 0 then
+        applet:send(body)
+    end
+end
+
+core.register_service("acme_http01", "http", function(applet)
+    local path = applet.path or ""
+    if string.sub(path, 1, #challenge_prefix) ~= challenge_prefix then
+        send_text(applet, 404, "")
+        return
+    end
+
+    local token = string.sub(path, #challenge_prefix + 1)
+    if token == "" or not string.match(token, "^[A-Za-z0-9_-]+$") then
+        send_text(applet, 404, "")
+        return
+    end
+
+    local challenge_file = challenge_root .. challenge_prefix .. token
+    local file = io.open(challenge_file, "rb")
+    if file == nil then
+        send_text(applet, 404, "")
+        return
+    end
+
+    local body = file:read("*a") or ""
+    file:close()
+    send_text(applet, 200, body)
+end)

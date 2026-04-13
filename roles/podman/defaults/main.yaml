@@ -26,6 +26,7 @@ podman_crowdsec_spoa_ipv4: '10.89.106.3'
 podman_crowdsec_spoa_ipv6: 'fd89:106::3'
 podman_haproxy_crowdsec_ipv4: '10.89.106.4'
 podman_haproxy_crowdsec_ipv6: 'fd89:106::4'
+podman_certbot_image: 'docker.io/certbot/certbot:v5.5.0@sha256:96c03eed9a5439b6e0093f801ca18607a4c0d3d994256d38bd392232a9cb2b89'
 
 podman_haproxy_networks:
   kanidm:

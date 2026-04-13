@@ -42,6 +42,7 @@ PublishPort={{ podman_wireguard_ip }}:{{ port }}:{{ port }}/tcp
 
 Volume=haproxy-config:/usr/local/etc/haproxy:ro,U,z,noexec
 Volume=certbot:/etc/letsencrypt:ro,z,noexec
+Volume=certbot-webroot:/var/www/certbot:ro,z,noexec
 ReadOnly=true
 Mount=type=tmpfs,tmpfs-size=4M,tmpfs-mode=0770,U,noexec,nosuid,nodev,destination=/run
 Mount=type=tmpfs,tmpfs-size=16M,tmpfs-mode=1777,U,noexec,nosuid,nodev,destination=/tmp
