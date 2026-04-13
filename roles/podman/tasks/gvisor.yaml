@@ -136,8 +136,7 @@
       + (["seedvault"] if "seedvault" in podman_containers_selected else [])
       + (["stalwart", "stalwart-postgres"] if "stalwart" in podman_containers_selected else [])
       + (["autoconnect", "autoendpoint", "autopush-valkey"] if "autopush" in podman_containers_selected else [])
-      + (["mollysocket"] if "mollysocket" in podman_containers_selected else [])
-      + (["containercve"] if "containercve" in podman_containers_selected else []))
+      + (["mollysocket"] if "mollysocket" in podman_containers_selected else []))
       | unique }}'
 
 - name: 'Set long-running services using Podman gVisor defaults'

@@ -6,7 +6,6 @@ podman_available_containers:
   - 'ente'
   - 'vaultwarden'
   - 'seedvault'
-  - 'containercve'
   - 'stalwart'
   - 'autopush'
   - 'mollysocket'
@@ -41,13 +40,6 @@ podman_haproxy_networks:
     ipv4: '10.89.101.2'
     ipv6: 'fd89:101::2'
     proxy_ipv6: 'fd89:101::10'
-  containercve:
-    resolver: '10.89.102.1'
-    alias: 'containercve'
-    ipv4: '10.89.102.2'
-    ipv6: 'fd89:102::2'
-    proxy_ipv4: '10.89.102.10'
-    proxy_ipv6: 'fd89:102::10'
   stalwart:
     resolver: '10.89.103.1'
     alias: 'stalwart'

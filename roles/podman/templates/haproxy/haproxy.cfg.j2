@@ -110,11 +110,6 @@ frontend local_https
 {% if 'mollysocket' in selected %}
     acl host_mollysocket hdr(host) -i mollysocket.napiany.com
 {% endif %}
-{% if 'containercve' in selected %}
-    acl host_containercve hdr(host) -i containercve.com
-    acl containercve_scan path_reg ^/scan
-    acl containercve_api_scan path_beg /api/scan
-{% endif %}
 {% if 'vaultwarden' in selected %}
     http-request deny deny_status 403 if host_vaultwarden vaultwarden_admin !local_src
 {% endif %}
@@ -162,9 +157,6 @@ frontend local_https
 {% endif %}
 {% if 'mollysocket' in selected %}
     use_backend be_mollysocket if host_mollysocket
-{% endif %}
-{% if 'containercve' in selected %}
-    use_backend be_containercve if host_containercve
 {% endif %}
 {% if 'autopush' in selected %}
     use_backend be_autoconnect if host_push
@@ -249,13 +241,6 @@ backend be_autoendpoint
 {% if 'mollysocket' in selected %}
 backend be_mollysocket
     server mollysocket {{ podman_haproxy_networks.mollysocket.ipv4 }}:8020
-{% endif %}
-
-{% if 'containercve' in selected %}
-backend be_containercve
-    http-response set-header Content-Security-Policy "default-src 'none'; script-src 'sha256-Jw6/Xad7U0tsgxWfyCIdipF6cR2QSY8da0PVW1YztVg=' 'sha256-sMQN0ivKSXn4CzbfctfuDwOLVQHzbHrf9DKYzVlcJWs='; style-src 'sha256-cNByiQgjaEOf3hPC5AgBGfG8FNkBmSfZMoP1lAxYGqo=' 'sha256-68zmB9dSOQFLut1tIRsm8/AkvU9Mk6uWLXDzcjcleyA=' 'sha256-iKtLdCjH63HrirR5Mj0AzskMBwKQ6Vayyx2dPEGh79A='; connect-src 'self'; img-src 'self' data:; font-src 'none'; frame-src 'none'; frame-ancestors 'none'; object-src 'none'; base-uri 'self'; form-action 'self'; manifest-src 'none'; worker-src 'none'; upgrade-insecure-requests; require-trusted-types-for 'script'; trusted-types containercve;"
-    http-response set-header X-Robots-Tag "noindex" if { path_reg ^/scan }
-    server containercve [{{ podman_haproxy_networks.containercve.ipv6 }}]:8080
 {% endif %}
 
 backend crowdsec-spoa
