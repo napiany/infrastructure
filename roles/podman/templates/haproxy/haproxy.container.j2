@@ -1,3 +1,6 @@
+{% set has_default_ipv6 = ansible_facts["default_ipv6"]["address"] | default("") | length > 0 %}
+{% set stalwart_local_mail_ports = [465, 587, 993] %}
+{% set stalwart_wireguard_mail_ports = [25, 465, 587, 993] %}
 [Unit]
 Description=HAProxy
 Requires=wg-quick@wg0.service crowdsec.service crowdsec-spoa.service
@@ -20,6 +23,21 @@ PublishPort=[{{ podman_local_ingress_ipv6 }}]:443:443/udp
 {% endif %}
 {% if 'ente' in podman_containers_selected %}
 PublishPort=[fd89:109::1]:443:443/tcp
+{% endif %}
+{% if 'stalwart' in podman_containers_selected %}
+{% for port in stalwart_local_mail_ports %}
+PublishPort={{ ansible_facts["default_ipv4"]["address"] }}:{{ port }}:{{ port }}/tcp
+{% endfor %}
+{% if has_default_ipv6 %}
+{% for port in stalwart_local_mail_ports %}
+PublishPort=[{{ ansible_facts["default_ipv6"]["address"] }}]:{{ port }}:{{ port }}/tcp
+{% endfor %}
+{% endif %}
+{% if podman_wireguard_ip | default("") | length > 0 %}
+{% for port in stalwart_wireguard_mail_ports %}
+PublishPort={{ podman_wireguard_ip }}:{{ port }}:{{ port }}/tcp
+{% endfor %}
+{% endif %}
 {% endif %}
 
 Volume=haproxy-config:/usr/local/etc/haproxy:ro,U,z,noexec

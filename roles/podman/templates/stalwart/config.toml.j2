@@ -11,13 +11,21 @@ server.listener.https.tls.implicit = true
 server.listener.imaptls.bind = "[::]:993"
 server.listener.imaptls.protocol = "imap"
 server.listener.imaptls.tls.implicit = true
+[server.listener."imaptls".proxy]
+trusted-networks = ["{{ podman_haproxy_crowdsec_ipv4 }}/32", "{{ podman_haproxy_crowdsec_ipv6 }}/128"]
 server.listener.smtp.bind = "[::]:25"
 server.listener.smtp.protocol = "smtp"
+[server.listener."smtp".proxy]
+trusted-networks = ["{{ podman_haproxy_crowdsec_ipv4 }}/32", "{{ podman_haproxy_crowdsec_ipv6 }}/128"]
 server.listener.submission.bind = "[::]:587"
 server.listener.submission.protocol = "smtp"
+[server.listener."submission".proxy]
+trusted-networks = ["{{ podman_haproxy_crowdsec_ipv4 }}/32", "{{ podman_haproxy_crowdsec_ipv6 }}/128"]
 server.listener.submissions.bind = "[::]:465"
 server.listener.submissions.protocol = "smtp"
 server.listener.submissions.tls.implicit = true
+[server.listener."submissions".proxy]
+trusted-networks = ["{{ podman_haproxy_crowdsec_ipv4 }}/32", "{{ podman_haproxy_crowdsec_ipv6 }}/128"]
 server.max-connections = 8192
 server.socket.backlog = 1024
 server.socket.nodelay = true

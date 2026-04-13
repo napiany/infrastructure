@@ -169,6 +169,36 @@ frontend local_https
 {% endif %}
     default_backend be_not_found
 
+{% if 'stalwart' in selected %}
+frontend stalwart_smtp
+    bind :25
+    mode tcp
+    option tcplog
+    timeout client 4h
+    default_backend be_stalwart_smtp
+
+frontend stalwart_submissions
+    bind :465
+    mode tcp
+    option tcplog
+    timeout client 4h
+    default_backend be_stalwart_submissions
+
+frontend stalwart_submission
+    bind :587
+    mode tcp
+    option tcplog
+    timeout client 4h
+    default_backend be_stalwart_submission
+
+frontend stalwart_imaptls
+    bind :993
+    mode tcp
+    option tcplog
+    timeout client 4h
+    default_backend be_stalwart_imaptls
+{% endif %}
+
 {% if 'kanidm' in selected %}
 backend be_kanidm
     server kanidm [{{ podman_haproxy_networks.kanidm.ipv6 }}]:8443 ssl alpn h2,http/1.1 verify required sni req.hdr(Host) ca-file /etc/ssl/cert.pem
@@ -228,6 +258,34 @@ backend be_ente_memories
 {% if 'stalwart' in selected %}
 backend be_stalwart
     server stalwart [{{ podman_haproxy_networks.stalwart.ipv6 }}]:443 ssl alpn h2,http/1.1 verify required sni req.hdr(Host) ca-file /etc/ssl/cert.pem
+
+backend be_stalwart_smtp
+    mode tcp
+    option tcplog
+    timeout connect 10s
+    timeout server 4h
+    server stalwart_smtp [{{ podman_haproxy_networks.stalwart.ipv6 }}]:25 send-proxy-v2
+
+backend be_stalwart_submissions
+    mode tcp
+    option tcplog
+    timeout connect 10s
+    timeout server 4h
+    server stalwart_submissions [{{ podman_haproxy_networks.stalwart.ipv6 }}]:465 send-proxy-v2
+
+backend be_stalwart_submission
+    mode tcp
+    option tcplog
+    timeout connect 10s
+    timeout server 4h
+    server stalwart_submission [{{ podman_haproxy_networks.stalwart.ipv6 }}]:587 send-proxy-v2
+
+backend be_stalwart_imaptls
+    mode tcp
+    option tcplog
+    timeout connect 10s
+    timeout server 4h
+    server stalwart_imaptls [{{ podman_haproxy_networks.stalwart.ipv6 }}]:993 send-proxy-v2
 {% endif %}
 
 {% if 'autopush' in selected %}

@@ -1,6 +1,3 @@
-{% set has_ipv6 = ansible_facts["default_ipv6"]["address"] | default("") | length > 0 %}
-{% set local_ports = [465, 587, 993] %}
-{% set wireguard_ports = [25, 465, 587, 993] %}
 [Unit]
 Description=Stalwart
 After=stalwart-postgres.service
@@ -10,19 +7,6 @@ Wants=stalwart-postgres.service
 ContainerName=stalwart
 Image=ghcr.io/stalwartlabs/stalwart:v0.15.5
 AutoUpdate=registry
-{% for port in local_ports %}
-PublishPort={{ ansible_facts["default_ipv4"]["address"] }}:{{ port }}:{{ port }}/tcp
-{% endfor %}
-{% if has_ipv6 %}
-{% for port in local_ports %}
-PublishPort=[{{ ansible_facts["default_ipv6"]["address"] }}]:{{ port }}:{{ port }}/tcp
-{% endfor %}
-{% endif %}
-{% if podman_wireguard_ip | default("") | length > 0 %}
-{% for port in wireguard_ports %}
-PublishPort={{ podman_wireguard_ip }}:{{ port }}:{{ port }}/tcp
-{% endfor %}
-{% endif %}
 
 Network=haproxy-stalwart.network:ip6={{ podman_haproxy_networks.stalwart.ipv6 }}
 Network=stalwart-postgres.network
