@@ -57,21 +57,22 @@ frontend local_https
     http-request set-header X-Forwarded-Port 443
     http-request set-header X-Forwarded-Host %[req.hdr(host)]
     http-request set-header X-Original-URL %[url]
+    acl local_src src {{ (podman_local_source_ipv4_cidrs_effective + podman_local_source_ipv6_cidrs_effective) | join(' ') }}
     filter spoe engine crowdsec config /usr/local/etc/haproxy/crowdsec.cfg
     acl crowdsec_bypass hdr(host) -i s3.ente.napiany.com seedvault.napiany.com
     acl body_within_limit req.body_size -m int le 51200
-    http-request send-spoe-group crowdsec crowdsec-http-body if !crowdsec_bypass body_within_limit || !{ req.body_size -m found }
-    http-request send-spoe-group crowdsec crowdsec-http-no-body if !crowdsec_bypass !body_within_limit { req.body_size -m found }
+    http-request send-spoe-group crowdsec crowdsec-http-body if !crowdsec_bypass !local_src body_within_limit
+    http-request send-spoe-group crowdsec crowdsec-http-body if !crowdsec_bypass !local_src !{ req.body_size -m found }
+    http-request send-spoe-group crowdsec crowdsec-http-no-body if !crowdsec_bypass !local_src !body_within_limit { req.body_size -m found }
     http-request set-header X-Crowdsec-Remediation %[var(txn.crowdsec.remediation)] if { var(txn.crowdsec.remediation) -m found }
     http-request set-header X-Crowdsec-IsoCode %[var(txn.crowdsec.isocode)] if { var(txn.crowdsec.isocode) -m found }
-    http-request redirect code 302 location %[url] if { var(txn.crowdsec.remediation) -m str allow } { var(txn.crowdsec.redirect) -m found }
-    http-request lua.crowdsec_handle if { var(txn.crowdsec.remediation) -m str captcha }
-    http-request lua.crowdsec_handle if { var(txn.crowdsec.remediation) -m str ban }
+    http-request redirect code 302 location %[url] if !local_src { var(txn.crowdsec.remediation) -m str allow } { var(txn.crowdsec.redirect) -m found }
+    http-request lua.crowdsec_handle if !local_src { var(txn.crowdsec.remediation) -m str captcha }
+    http-request lua.crowdsec_handle if !local_src { var(txn.crowdsec.remediation) -m str ban }
     http-after-response set-header Set-Cookie %[var(txn.crowdsec.captcha_cookie)] if { var(txn.crowdsec.captcha_status) -m found } { var(txn.crowdsec.captcha_cookie) -m found }
     http-after-response set-header Set-Cookie %[var(txn.crowdsec.captcha_cookie)] if { var(txn.crowdsec.captcha_cookie) -m found } !{ var(txn.crowdsec.captcha_status) -m found }
     http-response set-header Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
     http-response set-header X-Content-Type-Options "nosniff"
-    acl local_src src {{ (podman_local_source_ipv4_cidrs_effective + podman_local_source_ipv6_cidrs_effective) | join(' ') }}
 {% if kanidm_domain | length > 0 and 'kanidm' in selected %}
     acl host_kanidm hdr(host) -i {{ kanidm_domain }}
 {% endif %}

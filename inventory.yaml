@@ -8,7 +8,7 @@ all:
         miniserver:
           ansible_host: 'miniserver.internal'
           podman_wireguard_ip: '10.66.66.2'
-          podman_local_ingress_ipv6: 'fd6e:64e3:424d:3::8e7'
+          podman_local_ingress_ipv6: 'fd6e:64e3:424d:3::459'
           podman_local_source_ipv4_cidrs:
             - '127.0.0.0/8'
             - '10.66.66.0/24'

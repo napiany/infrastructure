@@ -183,6 +183,45 @@
     - "podman_service_task == 'certificate'"
     - 'not ansible_check_mode or certbot_mountpoint | default("") | trim | length > 0'
   block:
+    - name: 'Inspect shared certbot volume mount points'
+      ansible.builtin.command:
+        argv:
+          - 'podman'
+          - 'volume'
+          - 'inspect'
+          - '{{ item.name }}'
+          - '--format'
+          - '{{ "{{.Mountpoint}}" }}'
+      loop:
+        - name: 'certbot'
+          fact: 'certbot_mountpoint'
+        - name: 'certbot-config'
+          fact: 'certbot_config_mountpoint'
+        - name: 'certbot-webroot'
+          fact: 'certbot_webroot_mountpoint'
+      loop_control:
+        label: '{{ item.name }}'
+      register: 'podman_certificate_shared_volume_mountpoints'
+      changed_when: false
+      failed_when: false
+      when:
+        - '(certbot_mountpoint | default("") | trim | length) == 0 or (certbot_config_mountpoint | default("") | trim | length) == 0 or (certbot_webroot_mountpoint | default("") | trim | length) == 0'
+
+    - name: 'Set shared certbot mount point facts'
+      ansible.builtin.set_fact:
+        certbot_mountpoint: '{{ ((certbot_mountpoint | default("") | trim | length) > 0) | ternary(certbot_mountpoint, ((podman_certificate_shared_volume_mountpoints.results | default([]) | selectattr("item.name", "equalto", "certbot") | map(attribute="stdout") | first | default("")) | trim)) }}'
+        certbot_config_mountpoint: '{{ ((certbot_config_mountpoint | default("") | trim | length) > 0) | ternary(certbot_config_mountpoint, ((podman_certificate_shared_volume_mountpoints.results | default([]) | selectattr("item.name", "equalto", "certbot-config") | map(attribute="stdout") | first | default("")) | trim)) }}'
+        certbot_webroot_mountpoint: '{{ ((certbot_webroot_mountpoint | default("") | trim | length) > 0) | ternary(certbot_webroot_mountpoint, ((podman_certificate_shared_volume_mountpoints.results | default([]) | selectattr("item.name", "equalto", "certbot-webroot") | map(attribute="stdout") | first | default("")) | trim)) }}'
+      when: 'podman_certificate_shared_volume_mountpoints is defined'
+
+    - name: 'Validate shared certbot infrastructure for certificate issuance'
+      ansible.builtin.assert:
+        that:
+          - 'certbot_mountpoint | default("") | trim | length > 0'
+          - 'certbot_config_mountpoint | default("") | trim | length > 0'
+          - 'certbot_webroot_mountpoint | default("") | trim | length > 0'
+        fail_msg: 'Shared certbot volumes are unavailable. Run the HAProxy/certbot setup first or include the haproxy tag in this playbook run.'
+
     - name: 'Set certificate name'
       ansible.builtin.set_fact:
         podman_certificate_name: '{{ podman_certificate.domains | first }}'
@@ -258,6 +297,23 @@
       loop_control:
         loop_var: 'podman_certificate_domain'
         label: '{{ podman_certificate_domain }}'
+
+    - name: 'Start HAProxy for ACME HTTP-01 challenges'
+      ansible.builtin.systemd:
+        name: 'haproxy.service'
+        state: 'started'
+        enabled: true
+        daemon_reload: true
+      when: "'haproxy' in (podman_containers_selected | default(podman_containers | default([])))"
+
+    - name: 'Wait for HAProxy HTTP listener'
+      ansible.builtin.wait_for:
+        host: '{{ podman_wireguard_ip }}'
+        port: 80
+        timeout: 30
+      when:
+        - "'haproxy' in (podman_containers_selected | default(podman_containers | default([])))"
+        - 'podman_wireguard_ip | default("") | length > 0'
 
     - name: 'Issue certificate'
       ansible.builtin.command:

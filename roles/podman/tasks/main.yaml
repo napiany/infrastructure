@@ -30,12 +30,16 @@
 - name: 'Set effective podman container list'
   ansible.builtin.set_fact:
     podman_containers_selected: '{{ podman_containers | default(podman_available_containers) | unique | list }}'
+  tags:
+    - 'always'
 
 - name: 'Validate selected podman containers'
   ansible.builtin.assert:
     that:
       - '(podman_containers_selected | difference(podman_available_containers) | length) == 0'
     fail_msg: 'podman_containers contains unsupported services.'
+  tags:
+    - 'always'
 
 - name: 'Include HAProxy tasks'
   ansible.builtin.include_tasks:
