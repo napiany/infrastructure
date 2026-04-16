@@ -3,7 +3,7 @@ Description=kanidm identity management
 
 [Container]
 ContainerName=kanidm
-Image=docker.io/kanidm/server:1.9.2@sha256:29b7cb2811beb9f14189a915185c290e614f9e664a552c9dd13d61b70bb8b514
+Image=docker.io/kanidm/server:1.9.2@sha256:b2600b42dd4a91bcea66eb067b74a180b9ffaff322c3785ea0b411d12c51c7b2
 AutoUpdate=registry
 
 Network=haproxy-kanidm.network:ip6=fd89:100::2

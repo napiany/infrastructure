@@ -1,4 +1,4 @@
-FROM ghcr.io/ente-io/web:23d6963caebcf2353a8af83d75a3848ac6502a06@sha256:c74f9b7066db161f6b6fe5af6f6cd6e19d31f8324b57a2c7fee203a3fdebc451
+FROM ghcr.io/ente-io/web:04b7b48e3b92b159ceb32b2e899f65f3aac00d1c@sha256:80f1b2e6b60c1f48d5d24ae7a11738465486bf3f7345bfdaa972dc3f3152aa78
 
 USER root
 

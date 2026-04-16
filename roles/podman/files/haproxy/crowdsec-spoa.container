@@ -5,7 +5,7 @@ After=crowdsec.service
 
 [Container]
 ContainerName=crowdsec-spoa
-Image=docker.io/crowdsecurity/spoa-bouncer:v0.3.0@sha256:6bdc237067936978d45b3ead90cf211255dad1f3156366aa39703a54a6d2db5d
+Image=docker.io/crowdsecurity/spoa-bouncer:v0.3.0@sha256:9bdf80df34f7eb8d7150836d4ad6d247cd96bd51e2a979f1c7a1b61e2c1a475f
 AutoUpdate=registry
 
 Network=haproxy-crowdsec.network:ip=10.89.106.3,ip6=fd89:106::3

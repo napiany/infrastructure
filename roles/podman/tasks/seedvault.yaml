@@ -27,6 +27,9 @@
       - name: 'seedvault-config'
         uid: '300018'
         gid: '300018'
+      - name: 'seedvault-data'
+        uid: '300018'
+        gid: '300018'
 
 - name: 'Copy SeedVault Quadlets'
   ansible.builtin.include_tasks: 'service_task.yaml'
@@ -47,16 +50,8 @@
   ansible.builtin.set_fact:
     seedvault_htpasswd_content: '{{ lookup("vars", "vault_podman_secret_seedvault_htpasswd", default="") }}'
     seedvault_config_mountpoint: '{{ (podman_volume_mountpoints | default({})).get("seedvault-config", "") }}'
-    seedvault_data_mountpoint: '/data/seedvault'
+    seedvault_data_mountpoint: '{{ (podman_volume_mountpoints | default({})).get("seedvault-data", "") }}'
   no_log: true
-
-- name: 'Create SeedVault data root directory'
-  ansible.builtin.file:
-    path: '{{ seedvault_data_mountpoint }}'
-    state: 'directory'
-    owner: '300018'
-    group: '300018'
-    mode: '0700'
 
 - name: 'Create SeedVault data directories'
   ansible.builtin.file:
@@ -66,8 +61,9 @@
     group: '300018'
     mode: '0700'
   loop:
-    - 'user1'
-    - 'user2'
+    - 'pixel8a'
+    - 'pixel8pro'
+  when: 'seedvault_data_mountpoint | length > 0'
 
 - name: 'Validate SeedVault htpasswd value'
   ansible.builtin.assert:
