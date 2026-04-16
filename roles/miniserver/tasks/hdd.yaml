@@ -1,0 +1,136 @@
+---
+- name: 'Install hdparm'
+  community.general.zypper:
+    name: 'hdparm'
+    state: 'present'
+  notify:
+    - 'Reboot'
+
+- name: 'Apply pending reboot before continuing'
+  ansible.builtin.meta: 'flush_handlers'
+
+- name: 'Install HDD spindown systemd template'
+  ansible.builtin.template:
+    src: 'hdd-spindown@.service.j2'
+    dest: '/etc/systemd/system/hdd-spindown@.service'
+    owner: 'root'
+    group: 'root'
+    mode: '0644'
+  register: 'miniserver_hdd_spindown_service'
+
+- name: 'Install HDD spindown udev rule'
+  ansible.builtin.copy:
+    dest: '/etc/udev/rules.d/60-hdd-spindown.rules'
+    owner: 'root'
+    group: 'root'
+    mode: '0644'
+    content: '{{ [
+      "ACTION==\"add|change\", SUBSYSTEM==\"block\", ENV{DEVTYPE}==\"disk\", "
+      ~ "KERNEL==\"sd*[!0-9]\", ATTR{queue/rotational}==\"1\", "
+      ~ "ENV{ID_SERIAL}==\"?*\", TAG+=\"systemd\", "
+      ~ "ENV{SYSTEMD_WANTS}+=\"hdd-spindown@ata-$env{ID_SERIAL}.service\"",
+      "ACTION==\"add|change\", SUBSYSTEM==\"block\", ENV{DEVTYPE}==\"disk\", "
+      ~ "KERNEL==\"sd*[!0-9]\", ATTR{queue/rotational}==\"1\", "
+      ~ "ENV{ID_SERIAL}!=\"?*\", ENV{ID_WWN_WITH_EXTENSION}==\"?*\", "
+      ~ "TAG+=\"systemd\", "
+      ~ "ENV{SYSTEMD_WANTS}+=\"hdd-spindown@wwn-$env{ID_WWN_WITH_EXTENSION}.service\""
+      ] | join("\n") ~ "\n" }}'
+  register: 'miniserver_hdd_spindown_rule'
+
+- name: 'Reload systemd after HDD spindown unit changes'
+  ansible.builtin.systemd:
+    daemon_reload: true
+  when: 'miniserver_hdd_spindown_service.changed | default(false)'
+
+- name: 'Reload udev rules after HDD spindown rule changes'
+  ansible.builtin.command:
+    argv:
+      - 'udevadm'
+      - 'control'
+      - '--reload'
+  changed_when: false
+  when: 'miniserver_hdd_spindown_rule.changed | default(false)'
+
+- name: 'List currently attached HDD devices'
+  ansible.builtin.command:
+    argv:
+      - 'lsblk'
+      - '--nodeps'
+      - '--noheadings'
+      - '--raw'
+      - '--output'
+      - 'NAME,ROTA,TYPE'
+  register: 'miniserver_block_devices'
+  changed_when: false
+
+- name: 'Set currently attached HDD devices'
+  ansible.builtin.set_fact:
+    miniserver_hdd_devices: '{{ (miniserver_block_devices.stdout_lines | default([])) | select("match", "^sd[^ ]* 1 disk$") | map("regex_replace", " .*$", "") | list }}'
+
+- name: 'Resolve HDD by-id names'
+  ansible.builtin.command:
+    argv:
+      - 'find'
+      - '/dev/disk/by-id'
+      - '-maxdepth'
+      - '1'
+      - '-type'
+      - 'l'
+      - '('
+      - '-name'
+      - 'wwn-*'
+      - '-o'
+      - '-name'
+      - 'ata-*'
+      - ')'
+      - '-lname'
+      - '../../{{ item }}'
+      - '-printf'
+      - '%f\n'
+  loop: '{{ miniserver_hdd_devices }}'
+  loop_control:
+    label: '{{ item }}'
+  register: 'miniserver_hdd_byid_results'
+  changed_when: false
+  when: '(miniserver_hdd_devices | length) > 0'
+
+- name: 'Set currently attached HDD by-id names'
+  ansible.builtin.set_fact:
+    miniserver_hdd_byid_devices: []
+  when: '(miniserver_hdd_devices | length) > 0'
+
+- name: 'Set preferred currently attached HDD by-id names'
+  ansible.builtin.set_fact:
+    miniserver_hdd_byid_devices: '{{ miniserver_hdd_byid_devices + [miniserver_hdd_byid_name] }}'
+  vars:
+    miniserver_hdd_ata_name: '{{ (item.stdout_lines | default([]) | select("match", "^ata-") | list | first | default("")) }}'
+    miniserver_hdd_wwn_name: '{{ (item.stdout_lines | default([]) | select("match", "^wwn-") | list | first | default("")) }}'
+    miniserver_hdd_byid_name: '{{ miniserver_hdd_ata_name if (miniserver_hdd_ata_name | length) > 0 else miniserver_hdd_wwn_name }}'
+  loop: '{{ miniserver_hdd_byid_results.results | default([]) }}'
+  loop_control:
+    label: '{{ item.item | default("") }}'
+  when:
+    - '(miniserver_hdd_devices | length) > 0'
+    - 'miniserver_hdd_byid_name | length > 0'
+
+- name: 'Deduplicate currently attached HDD by-id names'
+  ansible.builtin.set_fact:
+    miniserver_hdd_byid_devices: '{{ miniserver_hdd_byid_devices | unique | list }}'
+  when: '(miniserver_hdd_devices | length) > 0'
+
+- name: 'Report currently attached HDD devices'
+  ansible.builtin.debug:
+    msg: 'Detected HDD devices for spindown: {{ miniserver_hdd_byid_devices | join(", ") }}'
+  when: '(miniserver_hdd_byid_devices | default([]) | length) > 0'
+
+- name: 'Apply HDD spindown to currently attached HDD devices'
+  ansible.builtin.command:
+    argv:
+      - 'systemctl'
+      - 'start'
+      - 'hdd-spindown@{{ item }}.service'
+  loop: '{{ miniserver_hdd_byid_devices | default([]) }}'
+  loop_control:
+    label: '{{ item }}'
+  changed_when: false
+  when: '(miniserver_hdd_byid_devices | default([]) | length) > 0'

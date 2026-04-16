@@ -68,6 +68,13 @@
         name: 'gateway'
       when: "inventory_hostname == 'gateway'"
 
+    - name: 'Run miniserver role'
+      ansible.builtin.import_role:
+        name: 'miniserver'
+      when: "inventory_hostname == 'miniserver'"
+      tags:
+        - 'miniserver'
+
     - name: 'Run podman role'
       ansible.builtin.import_role:
         name: 'podman'
