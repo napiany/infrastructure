@@ -69,6 +69,10 @@
         dest: 'autoendpoint.containerfile'
         restart_units:
           - 'autoendpoint.service'
+      - src: 'autopush/autoendpoint-sortkey-timestamp.patch'
+        dest: 'autoendpoint-sortkey-timestamp.patch'
+        restart_units:
+          - 'autoendpoint.service'
   no_log: true
 
 - name: 'Manage Autopush secrets'

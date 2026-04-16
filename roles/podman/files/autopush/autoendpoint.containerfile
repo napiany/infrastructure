@@ -1,21 +1,24 @@
-FROM docker.io/library/rust:1.94.0-alpine3.23@sha256:ff0adc35894eb79586ce752a1b5a9eadc88b938c56d8f2b4b537b6258ff3fa10 AS builder
+FROM docker.io/library/rust:1.94.1-alpine3.23@sha256:77237dd363a0b127bb5ef532c2d64c0deb380b738e43a9c4bdac73398d6d0a08 AS builder
 
-ARG AUTOPUSH_COMMIT=7979ff16ebebf05aae6e9e200a3f44a4064c558c
+ARG AUTOPUSH_COMMIT=d4557b6a7238dc11ab97b1cd8f6c65dc8eb4132e
 
 RUN apk -U upgrade \
-    && apk add build-base ca-certificates clang cmake curl openssl-dev openssl-libs-static pkgconf \
+    && apk add build-base ca-certificates clang cmake curl openssl-dev openssl-libs-static patch pkgconf \
     && rm -rf /var/cache/apk/*
+
+COPY autoendpoint-sortkey-timestamp.patch /tmp/autoendpoint-sortkey-timestamp.patch
 
 RUN curl --fail --location --silent --show-error "https://codeload.github.com/mozilla-services/autopush-rs/tar.gz/${AUTOPUSH_COMMIT}" --output /tmp/autopush-rs.tar.gz \
     && mkdir -p /src \
     && tar --extract --file /tmp/autopush-rs.tar.gz --gzip --directory /src \
-    && mv /src/autopush-rs-* /app
+    && mv /src/autopush-rs-* /app \
+    && patch -d /app -p1 < /tmp/autoendpoint-sortkey-timestamp.patch
 
 WORKDIR /app
 
 RUN cargo install --path autoendpoint --locked --root /app/out --no-default-features --features=redis
 
-FROM docker.io/library/alpine:3.23@sha256:25109184c71bdad752c8312a8623239686a9a2071e8825f20acb8f2198c3f659
+FROM docker.io/library/alpine:3.23.4@sha256:5b10f432ef3da1b8d4c7eb6c487f2f5a8f096bc91145e68878dd4a5019afde11
 
 RUN apk -U upgrade \
     && apk add ca-certificates libgcc libstdc++ openssl \
