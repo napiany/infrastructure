@@ -4,6 +4,7 @@ set -eu
 HAPROXY_UID='300019'
 KANIDM_UID='300002'
 STALWART_UID='300006'
+HAPROXY_CERT_DIR='/haproxy-config/certs'
 
 if [ -z "${RENEWED_LINEAGE:-}" ]; then
     echo "RENEWED_LINEAGE is not set" >&2
@@ -20,15 +21,22 @@ fi
 
 install -d -o root -g root -m 0755 /etc/letsencrypt/consumers
 
-install -d -o "${HAPROXY_UID}" -g "${HAPROXY_UID}" -m 0700     /etc/letsencrypt/consumers/haproxy
-tmp_pem="$(mktemp)"
-cat "${live_dir}/fullchain.pem" "${live_dir}/privkey.pem" > "${tmp_pem}"
-install -o "${HAPROXY_UID}" -g "${HAPROXY_UID}" -m 0400     "${tmp_pem}"     "/etc/letsencrypt/consumers/haproxy/${domain}.pem"
-rm -f "${tmp_pem}"
-
 {% set certbot_kanidm_domain = ((podman_services | default({})).get('kanidm', {})).get('domain', '') %}
 {% set certbot_stalwart_settings = (podman_services | default({})).get('stalwart', {}) %}
 {% set certbot_stalwart_certificate_blocks = certbot_stalwart_settings.get('certificate_blocks', [{'domains': certbot_stalwart_settings.get('domains', [])}] if certbot_stalwart_settings.get('domains', []) else []) %}
+{% set certbot_haproxy_passthrough_domains = ([certbot_kanidm_domain] if certbot_kanidm_domain | length > 0 else []) %}
+case "${domain}" in
+{% for certbot_passthrough_domain in certbot_haproxy_passthrough_domains %}
+    {{ certbot_passthrough_domain }}) ;;
+{% endfor %}
+    *)
+        install -d -o "${HAPROXY_UID}" -g "${HAPROXY_UID}" -m 0700 "${HAPROXY_CERT_DIR}"
+        tmp_pem="$(mktemp)"
+        cat "${live_dir}/fullchain.pem" "${live_dir}/privkey.pem" > "${tmp_pem}"
+        install -o "${HAPROXY_UID}" -g "${HAPROXY_UID}" -m 0400 "${tmp_pem}" "${HAPROXY_CERT_DIR}/${domain}.pem"
+        rm -f "${tmp_pem}"
+        ;;
+esac
 {% if certbot_kanidm_domain | length > 0 %}
 if [ "${domain}" = '{{ certbot_kanidm_domain }}' ]; then
     install -d -o "${KANIDM_UID}" -g "${KANIDM_UID}" -m 0700 /etc/letsencrypt/consumers/kanidm

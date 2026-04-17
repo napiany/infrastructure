@@ -30,6 +30,21 @@ defaults
     timeout queue 15s
     timeout tunnel 4h
 
+frontend local_https_tcp
+    bind :443
+    bind [::]:443 v6only
+    mode tcp
+    option tcplog
+    tcp-request inspect-delay 5s
+    tcp-request content accept if { req.ssl_hello_type 1 }
+{% if kanidm_domain | length > 0 and 'kanidm' in selected %}
+    acl sni_kanidm req.ssl_sni -i {{ kanidm_domain }}
+{% endif %}
+{% if kanidm_domain | length > 0 and 'kanidm' in selected %}
+    use_backend be_kanidm_passthrough if sni_kanidm
+{% endif %}
+    default_backend be_https_termination
+
 frontend local_http
     bind :80
     bind [::]:80 v6only
@@ -41,10 +56,10 @@ frontend local_http
     http-request redirect scheme https code 308
 
 frontend local_https
-    bind :443 ssl crt /etc/letsencrypt/consumers/haproxy tls-ticket-keys /etc/letsencrypt/consumers/haproxy/session-ticket-keys/keys alpn h2,http/1.1
-    bind [::]:443 ssl crt /etc/letsencrypt/consumers/haproxy tls-ticket-keys /etc/letsencrypt/consumers/haproxy/session-ticket-keys/keys alpn h2,http/1.1 v6only
-    bind quic4@:443 ssl crt /etc/letsencrypt/consumers/haproxy tls-ticket-keys /etc/letsencrypt/consumers/haproxy/session-ticket-keys/keys alpn h3
-    bind quic6@:443 ssl crt /etc/letsencrypt/consumers/haproxy tls-ticket-keys /etc/letsencrypt/consumers/haproxy/session-ticket-keys/keys alpn h3
+    bind 127.0.0.1:8444 accept-proxy ssl crt /usr/local/etc/haproxy/certs tls-ticket-keys /usr/local/etc/haproxy/session-ticket-keys/keys alpn h2,http/1.1
+    bind [::1]:8444 accept-proxy ssl crt /usr/local/etc/haproxy/certs tls-ticket-keys /usr/local/etc/haproxy/session-ticket-keys/keys alpn h2,http/1.1 v6only
+    bind quic4@:443 ssl crt /usr/local/etc/haproxy/certs tls-ticket-keys /usr/local/etc/haproxy/session-ticket-keys/keys alpn h3
+    bind quic6@:443 ssl crt /usr/local/etc/haproxy/certs tls-ticket-keys /usr/local/etc/haproxy/session-ticket-keys/keys alpn h3
     option forwardfor if-none
     stick-table type ip size 100k expire 30s store conn_cur,http_req_rate(1s)
     option httplog
@@ -73,9 +88,6 @@ frontend local_https
     http-after-response set-header Set-Cookie %[var(txn.crowdsec.captcha_cookie)] if { var(txn.crowdsec.captcha_cookie) -m found } !{ var(txn.crowdsec.captcha_status) -m found }
     http-response set-header Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
     http-response set-header X-Content-Type-Options "nosniff"
-{% if kanidm_domain | length > 0 and 'kanidm' in selected %}
-    acl host_kanidm hdr(host) -i {{ kanidm_domain }}
-{% endif %}
 {% if 'vaultwarden' in selected %}
     acl host_vaultwarden hdr(host) -i vault.napiany.com
     acl vaultwarden_admin path_beg /admin
@@ -104,11 +116,6 @@ frontend local_https
     acl host_ente_paste hdr(host) -i paste.ente.napiany.com
     acl host_ente_memories hdr(host) -i memories.ente.napiany.com
 {% endif %}
-{% if 'stalwart' in selected %}
-{% for block in stalwart_certificate_blocks if (block.domains | default([]) | length) > 0 %}
-    acl host_stalwart_{{ loop.index }} hdr(host) -i {{ block.domains | join(' ') }}
-{% endfor %}
-{% endif %}
 {% if 'autopush' in selected %}
     acl host_push hdr(host) -i push.napiany.com
     acl host_updates_push hdr(host) -i updates.push.napiany.com
@@ -121,6 +128,11 @@ frontend local_https
 {% endif %}
 {% if 'mollysocket' in selected %}
     acl host_mollysocket hdr(host) -i mollysocket.napiany.com
+{% endif %}
+{% if 'stalwart' in selected %}
+{% for block in stalwart_certificate_blocks if (block.domains | default([]) | length) > 0 %}
+    acl host_stalwart_{{ loop.index }} hdr(host) -i {{ block.domains | join(' ') }}
+{% endfor %}
 {% endif %}
 {% if 'vaultwarden' in selected %}
     http-request deny deny_status 403 if host_vaultwarden vaultwarden_admin !local_src
@@ -158,9 +170,6 @@ frontend local_https
     use_backend be_ente_memories if host_ente_paste
     use_backend be_ente_memories if host_ente_memories
 {% endif %}
-{% if kanidm_domain | length > 0 and 'kanidm' in selected %}
-    use_backend be_kanidm if host_kanidm
-{% endif %}
 {% if 'vaultwarden' in selected %}
     use_backend be_vaultwarden if host_vaultwarden
 {% endif %}
@@ -170,14 +179,14 @@ frontend local_https
 {% if 'mollysocket' in selected %}
     use_backend be_mollysocket if host_mollysocket
 {% endif %}
+{% if 'stalwart' in selected %}
+{% for block in stalwart_certificate_blocks if (block.domains | default([]) | length) > 0 %}
+    use_backend be_stalwart_https if host_stalwart_{{ loop.index }}
+{% endfor %}
+{% endif %}
 {% if 'autopush' in selected %}
     use_backend be_autoconnect if host_push
     use_backend be_autoendpoint if host_updates_push
-{% endif %}
-{% if 'stalwart' in selected %}
-{% for block in stalwart_certificate_blocks if (block.domains | default([]) | length) > 0 %}
-    use_backend be_stalwart if host_stalwart_{{ loop.index }}
-{% endfor %}
 {% endif %}
     default_backend be_not_found
 
@@ -211,9 +220,14 @@ frontend stalwart_imaptls
     default_backend be_stalwart_imaptls
 {% endif %}
 
+backend be_https_termination
+    mode tcp
+    server local_https_terminated 127.0.0.1:8444 send-proxy-v2
+
 {% if 'kanidm' in selected %}
-backend be_kanidm
-    server kanidm [{{ podman_haproxy_networks.kanidm.ipv6 }}]:8443 ssl alpn h2,http/1.1 verify required sni req.hdr(Host) ca-file /etc/ssl/cert.pem
+backend be_kanidm_passthrough
+    mode tcp
+    server kanidm [{{ podman_haproxy_networks.kanidm.ipv6 }}]:8443
 {% endif %}
 
 {% if 'vaultwarden' in selected %}
@@ -268,8 +282,8 @@ backend be_ente_memories
 {% endif %}
 
 {% if 'stalwart' in selected %}
-backend be_stalwart
-    server stalwart [{{ podman_haproxy_networks.stalwart.ipv6 }}]:443 ssl alpn h2,http/1.1 verify required sni req.hdr(Host) ca-file /etc/ssl/cert.pem
+backend be_stalwart_https
+    server stalwart [{{ podman_haproxy_networks.stalwart.ipv6 }}]:443 ssl verify none
 
 backend be_stalwart_smtp
     mode tcp

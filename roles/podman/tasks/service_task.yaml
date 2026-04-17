@@ -189,7 +189,7 @@
           - 'podman'
           - 'volume'
           - 'inspect'
-          - '{{ item.name }}'
+          - '{{ podman_certbot_volume.name }}'
           - '--format'
           - '{{ "{{.Mountpoint}}" }}'
       loop:
@@ -199,8 +199,11 @@
           fact: 'certbot_config_mountpoint'
         - name: 'certbot-webroot'
           fact: 'certbot_webroot_mountpoint'
+        - name: 'haproxy-config'
+          fact: 'haproxy_config_mountpoint'
       loop_control:
-        label: '{{ item.name }}'
+        loop_var: 'podman_certbot_volume'
+        label: '{{ podman_certbot_volume.name }}'
       register: 'podman_certificate_shared_volume_mountpoints'
       changed_when: false
       failed_when: false
@@ -209,9 +212,10 @@
 
     - name: 'Set shared certbot mount point facts'
       ansible.builtin.set_fact:
-        certbot_mountpoint: '{{ ((certbot_mountpoint | default("") | trim | length) > 0) | ternary(certbot_mountpoint, ((podman_certificate_shared_volume_mountpoints.results | default([]) | selectattr("item.name", "equalto", "certbot") | map(attribute="stdout") | first | default("")) | trim)) }}'
-        certbot_config_mountpoint: '{{ ((certbot_config_mountpoint | default("") | trim | length) > 0) | ternary(certbot_config_mountpoint, ((podman_certificate_shared_volume_mountpoints.results | default([]) | selectattr("item.name", "equalto", "certbot-config") | map(attribute="stdout") | first | default("")) | trim)) }}'
-        certbot_webroot_mountpoint: '{{ ((certbot_webroot_mountpoint | default("") | trim | length) > 0) | ternary(certbot_webroot_mountpoint, ((podman_certificate_shared_volume_mountpoints.results | default([]) | selectattr("item.name", "equalto", "certbot-webroot") | map(attribute="stdout") | first | default("")) | trim)) }}'
+        certbot_mountpoint: '{{ ((certbot_mountpoint | default("") | trim | length) > 0) | ternary(certbot_mountpoint, ((podman_certificate_shared_volume_mountpoints.results | default([]) | selectattr("podman_certbot_volume.name", "equalto", "certbot") | map(attribute="stdout") | first | default("")) | trim)) }}'
+        certbot_config_mountpoint: '{{ ((certbot_config_mountpoint | default("") | trim | length) > 0) | ternary(certbot_config_mountpoint, ((podman_certificate_shared_volume_mountpoints.results | default([]) | selectattr("podman_certbot_volume.name", "equalto", "certbot-config") | map(attribute="stdout") | first | default("")) | trim)) }}'
+        certbot_webroot_mountpoint: '{{ ((certbot_webroot_mountpoint | default("") | trim | length) > 0) | ternary(certbot_webroot_mountpoint, ((podman_certificate_shared_volume_mountpoints.results | default([]) | selectattr("podman_certbot_volume.name", "equalto", "certbot-webroot") | map(attribute="stdout") | first | default("")) | trim)) }}'
+        haproxy_config_mountpoint: '{{ ((haproxy_config_mountpoint | default("") | trim | length) > 0) | ternary(haproxy_config_mountpoint, ((podman_certificate_shared_volume_mountpoints.results | default([]) | selectattr("podman_certbot_volume.name", "equalto", "haproxy-config") | map(attribute="stdout") | first | default("")) | trim)) }}'
       when: 'podman_certificate_shared_volume_mountpoints is defined'
 
     - name: 'Validate shared certbot infrastructure for certificate issuance'
@@ -226,10 +230,23 @@
       ansible.builtin.set_fact:
         podman_certificate_name: '{{ podman_certificate.domains | first }}'
 
+    - name: 'Set passthrough certificate domains'
+      vars:
+        podman_certificate_kanidm_domain: '{{ ((podman_services | default({})).get("kanidm", {})).get("domain", "") }}'
+      ansible.builtin.set_fact:
+        podman_certificate_passthrough_domains: '{{ ([podman_certificate_kanidm_domain] if (podman_certificate_kanidm_domain | length > 0) else []) | unique }}'
+        podman_certificate_haproxy_consumer_enabled: '{{ podman_certificate_name not in (([podman_certificate_kanidm_domain] if (podman_certificate_kanidm_domain | length > 0) else []) | unique) }}'
+
+    - name: 'Validate HAProxy config volume for terminated certificates'
+      ansible.builtin.assert:
+        that:
+          - 'haproxy_config_mountpoint | default("") | trim | length > 0'
+        fail_msg: 'The HAProxy config volume is unavailable. Run the HAProxy setup first or include the haproxy tag in this playbook run.'
+      when: 'podman_certificate_haproxy_consumer_enabled | default(false)'
+
     - name: 'Set expected certificate consumer outputs'
       ansible.builtin.set_fact:
-        podman_certificate_consumer_outputs:
-          - '{{ certbot_mountpoint }}/consumers/haproxy/{{ podman_certificate_name }}.pem'
+        podman_certificate_consumer_outputs: '{{ ([haproxy_config_mountpoint ~ "/certs/" ~ podman_certificate_name ~ ".pem"] if (podman_certificate_haproxy_consumer_enabled | default(false)) else []) }}'
 
     - name: 'Add Kanidm certificate consumer outputs'
       vars:
@@ -335,7 +352,7 @@
           "--reuse-key",
           "--required-profile", "shortlived",
           "--cert-name", podman_certificate_name
-        ] + podman_certificate_domain_argv }}'
+        ] + (["-v", "haproxy-config:/haproxy-config:z"] if (podman_certificate_haproxy_consumer_enabled | default(false)) else []) + podman_certificate_domain_argv }}'
       register: 'podman_certificate_issue'
       when:
         - 'podman_certificate_missing or podman_certificate_current_manifest != podman_certificate_desired_manifest or podman_certificate_current_challenge_manifest != podman_certificate_desired_challenge_manifest'
@@ -360,19 +377,13 @@
 
     - name: 'Replay certbot deploy hook for the current lineage'
       ansible.builtin.command:
-        argv:
-          - 'podman'
-          - 'run'
-          - '--rm'
-          - '--entrypoint'
-          - '/hooks/certbot-deploy-hook.sh'
-          - '-e'
-          - 'RENEWED_LINEAGE=/etc/letsencrypt/live/{{ podman_certificate_name }}'
-          - '-v'
-          - 'certbot:/etc/letsencrypt:z'
-          - '-v'
-          - 'certbot-config:/hooks:ro,z'
-          - '{{ podman_certbot_image }}'
+        argv: '{{ [
+          "podman", "run", "--rm",
+          "--entrypoint", "/hooks/certbot-deploy-hook.sh",
+          "-e", "RENEWED_LINEAGE=/etc/letsencrypt/live/" ~ podman_certificate_name,
+          "-v", "certbot:/etc/letsencrypt:z",
+          "-v", "certbot-config:/hooks:ro,z"
+        ] + (["-v", "haproxy-config:/haproxy-config:z"] if (podman_certificate_haproxy_consumer_enabled | default(false)) else []) + [podman_certbot_image] }}'
       register: 'podman_certificate_replay'
       changed_when: 'podman_certificate_replay_needed'
       when: 'podman_certificate_replay_needed'
@@ -397,7 +408,7 @@
 
     - name: 'Track service restarts after certificate changes'
       ansible.builtin.set_fact:
-        podman_units_to_restart: '{{ ((podman_units_to_restart | default([])) + ["haproxy.service"] + (podman_certificate.restart_units | default([]))) | unique }}'
+        podman_units_to_restart: '{{ ((podman_units_to_restart | default([])) + ((["haproxy.service"] if (podman_certificate_haproxy_consumer_enabled | default(false)) else [])) + (podman_certificate.restart_units | default([]))) | unique }}'
       when:
         - 'podman_certificate_replay is defined'
         - 'podman_certificate_replay.changed | default(false)'

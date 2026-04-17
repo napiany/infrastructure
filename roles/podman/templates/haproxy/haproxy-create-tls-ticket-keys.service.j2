@@ -1,6 +1,6 @@
 [Unit]
 Description=Create initial HAProxy TLS ticket keys
-ConditionPathExists=!{{ certbot_mountpoint }}/consumers/haproxy/session-ticket-keys/keys
+ConditionPathExists=!{{ haproxy_config_mountpoint }}/session-ticket-keys/keys
 
 [Service]
 Type=oneshot

@@ -5,10 +5,11 @@ Wants=stalwart-postgres.service
 
 [Container]
 ContainerName=stalwart
-Image=ghcr.io/stalwartlabs/stalwart:v0.15.5@sha256:dcf575db2d53d9ef86d6ced8abe4ba491984659a0f8862cc6079ee7b41c3c568
+Image=ghcr.io/stalwartlabs/stalwart:v0.15.5-alpine@sha256:0620ceba9165c104789d5cacb0aa209e7f16295f54edead631b1925b1ccc1ccf
 AutoUpdate=registry
 
 Network=haproxy-stalwart.network:ip6={{ podman_haproxy_networks.stalwart.ipv6 }}
+Network=stalwart-egress.network:ip={{ podman_stalwart_egress_ipv4 }},ip6={{ podman_stalwart_egress_ipv6 }}
 Network=stalwart-postgres.network
 NetworkAlias=stalwart
 

@@ -117,6 +117,9 @@
     podman_service_task: 'quadlets'
     podman_quadlet_files: '{{ haproxy_service_networks | selectattr("service", "in", podman_containers_selected | difference(["haproxy"])) | list }}'
 
+- name: 'Apply pending Podman network changes before starting HAProxy dependencies'
+  ansible.builtin.meta: 'flush_handlers'
+
 - name: 'Create /etc/wireguard'
   ansible.builtin.file:
     path: '/etc/wireguard'
@@ -258,7 +261,7 @@
 
 - name: 'Create certbot directories'
   ansible.builtin.file:
-    path: '{{ certbot_mountpoint }}/{{ item.path }}'
+    path: '{{ item.base }}/{{ item.path }}'
     state: 'directory'
     owner: '{{ item.owner }}'
     group: '{{ item.group }}'
@@ -268,38 +271,44 @@
       owner: 'root'
       group: 'root'
       mode: '0700'
+      base: '{{ certbot_mountpoint }}'
     - path: 'consumers'
       owner: 'root'
       group: 'root'
       mode: '0755'
-    - path: 'consumers/haproxy'
+      base: '{{ certbot_mountpoint }}'
+    - path: 'certs'
       owner: '300019'
       group: '300019'
       mode: '0700'
-    - path: 'consumers/haproxy/session-ticket-keys'
+      base: '{{ haproxy_config_mountpoint }}'
+    - path: 'session-ticket-keys'
       owner: '300019'
       group: '300019'
       mode: '0700'
-  when: 'certbot_mountpoint | length > 0'
+      base: '{{ haproxy_config_mountpoint }}'
+  when:
+    - 'certbot_mountpoint | length > 0'
+    - 'haproxy_config_mountpoint | length > 0'
 
 - name: 'Check for existing HAProxy certificate bundles'
   ansible.builtin.find:
-    paths: '{{ certbot_mountpoint }}/consumers/haproxy'
+    paths: '{{ haproxy_config_mountpoint }}/certs'
     patterns: '*.pem'
     file_type: 'file'
     recurse: false
   register: 'haproxy_certificate_bundle_files'
-  when: 'certbot_mountpoint | length > 0'
+  when: 'haproxy_config_mountpoint | length > 0'
 
 - name: 'Create HAProxy bootstrap certificate fragment directory'
   ansible.builtin.file:
-    path: '{{ certbot_mountpoint }}/consumers/haproxy/bootstrap.d'
+    path: '{{ haproxy_config_mountpoint }}/certs/bootstrap.d'
     state: 'directory'
     owner: 'root'
     group: 'root'
     mode: '0700'
   when:
-    - 'certbot_mountpoint | length > 0'
+    - 'haproxy_config_mountpoint | length > 0'
     - '(haproxy_certificate_bundle_files.matched | default(0) | int) == 0'
 
 - name: 'Generate HAProxy bootstrap certificate'
@@ -321,24 +330,24 @@
       - '-addext'
       - 'subjectAltName=DNS:bootstrap.invalid'
       - '-keyout'
-      - '{{ certbot_mountpoint }}/consumers/haproxy/bootstrap.d/20-key.pem'
+      - '{{ haproxy_config_mountpoint }}/certs/bootstrap.d/20-key.pem'
       - '-out'
-      - '{{ certbot_mountpoint }}/consumers/haproxy/bootstrap.d/10-cert.pem'
+      - '{{ haproxy_config_mountpoint }}/certs/bootstrap.d/10-cert.pem'
   args:
-    creates: '{{ certbot_mountpoint }}/consumers/haproxy/bootstrap.d/10-cert.pem'
+    creates: '{{ haproxy_config_mountpoint }}/certs/bootstrap.d/10-cert.pem'
   when:
-    - 'certbot_mountpoint | length > 0'
+    - 'haproxy_config_mountpoint | length > 0'
     - '(haproxy_certificate_bundle_files.matched | default(0) | int) == 0'
 
 - name: 'Assemble HAProxy bootstrap certificate bundle'
   ansible.builtin.assemble:
-    src: '{{ certbot_mountpoint }}/consumers/haproxy/bootstrap.d'
-    dest: '{{ certbot_mountpoint }}/consumers/haproxy/000-bootstrap.pem'
+    src: '{{ haproxy_config_mountpoint }}/certs/bootstrap.d'
+    dest: '{{ haproxy_config_mountpoint }}/certs/000-bootstrap.pem'
     owner: '300019'
     group: '300019'
     mode: '0400'
   when:
-    - 'certbot_mountpoint | length > 0'
+    - 'haproxy_config_mountpoint | length > 0'
     - '(haproxy_certificate_bundle_files.matched | default(0) | int) == 0'
 
 - name: 'Create certbot ACME webroot directories'
@@ -368,7 +377,7 @@
     owner: 'root'
     group: 'root'
     mode: '0755'
-  when: 'certbot_mountpoint | length > 0'
+  when: 'haproxy_config_mountpoint | length > 0'
 
 - name: 'Render HAProxy TLS ticket rotate script'
   ansible.builtin.template:
@@ -377,7 +386,7 @@
     owner: 'root'
     group: 'root'
     mode: '0755'
-  when: 'certbot_mountpoint | length > 0'
+  when: 'haproxy_config_mountpoint | length > 0'
 
 - name: 'Render HAProxy TLS ticket key creation service'
   ansible.builtin.template:
@@ -392,9 +401,9 @@
 
 - name: 'Check current HAProxy TLS ticket key file'
   ansible.builtin.stat:
-    path: '{{ certbot_mountpoint }}/consumers/haproxy/session-ticket-keys/keys'
+    path: '{{ haproxy_config_mountpoint }}/session-ticket-keys/keys'
   register: 'haproxy_tls_ticket_key_file'
-  when: 'certbot_mountpoint | length > 0'
+  when: 'haproxy_config_mountpoint | length > 0'
 
 - name: 'Initialize HAProxy TLS ticket keys'
   ansible.builtin.systemd:
@@ -402,7 +411,7 @@
     state: 'started'
     daemon_reload: true
   when:
-    - 'certbot_mountpoint | length > 0'
+    - 'haproxy_config_mountpoint | length > 0'
     - 'not (haproxy_tls_ticket_key_file.stat.exists | default(false))'
 
 - name: 'Render HAProxy TLS ticket rotation service'

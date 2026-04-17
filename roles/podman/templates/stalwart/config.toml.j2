@@ -1,62 +1,115 @@
-authentication.fallback-admin.secret = "%{env:ADMIN_SECRET}%"
-authentication.fallback-admin.user = "admin"
-config.local-keys = "*"
-directory.internal.store = "postgresql"
-directory.internal.type = "internal"
-http.use-x-forwarded = true
-server.hostname = "{{ stalwart_primary_domain }}"
-server.listener.https.bind = "[::]:443"
-server.listener.https.protocol = "http"
-server.listener.https.tls.implicit = true
-server.listener.imaptls.bind = "[::]:993"
-server.listener.imaptls.protocol = "imap"
-server.listener.imaptls.tls.implicit = true
+[authentication.fallback-admin]
+secret = "%{env:ADMIN_SECRET}%"
+user = "admin"
+
+[config]
+local-keys = ["*"]
+
+[directory."internal"]
+store = "postgresql"
+type = "internal"
+
+[http]
+use-x-forwarded = true
+
+[spam-filter.classifier]
+model = "disabled"
+
+[server]
+hostname = "{{ stalwart_primary_domain }}"
+max-connections = 8192
+
+[server.socket]
+backlog = 1024
+nodelay = true
+reuse-addr = true
+reuse-port = true
+
+[server.listener."https"]
+bind = "[::]:443"
+protocol = "http"
+
+[server.listener."https".tls]
+implicit = true
+
+[server.listener."imaptls"]
+bind = "[::]:993"
+protocol = "imap"
+
+[server.listener."imaptls".tls]
+implicit = true
+
 [server.listener."imaptls".proxy]
-trusted-networks = ["{{ podman_haproxy_crowdsec_ipv4 }}/32", "{{ podman_haproxy_crowdsec_ipv6 }}/128"]
-server.listener.smtp.bind = "[::]:25"
-server.listener.smtp.protocol = "smtp"
+trusted-networks = ["{{ podman_haproxy_networks.stalwart.proxy_ipv6 }}/128"]
+
+[server.listener."smtp"]
+bind = "[::]:25"
+protocol = "smtp"
+
 [server.listener."smtp".proxy]
-trusted-networks = ["{{ podman_haproxy_crowdsec_ipv4 }}/32", "{{ podman_haproxy_crowdsec_ipv6 }}/128"]
-server.listener.submission.bind = "[::]:587"
-server.listener.submission.protocol = "smtp"
+trusted-networks = ["{{ podman_haproxy_networks.stalwart.proxy_ipv6 }}/128"]
+
+[server.listener."submission"]
+bind = "[::]:587"
+protocol = "smtp"
+
 [server.listener."submission".proxy]
-trusted-networks = ["{{ podman_haproxy_crowdsec_ipv4 }}/32", "{{ podman_haproxy_crowdsec_ipv6 }}/128"]
-server.listener.submissions.bind = "[::]:465"
-server.listener.submissions.protocol = "smtp"
-server.listener.submissions.tls.implicit = true
+trusted-networks = ["{{ podman_haproxy_networks.stalwart.proxy_ipv6 }}/128"]
+
+[server.listener."submissions"]
+bind = "[::]:465"
+protocol = "smtp"
+
+[server.listener."submissions".tls]
+implicit = true
+
 [server.listener."submissions".proxy]
-trusted-networks = ["{{ podman_haproxy_crowdsec_ipv4 }}/32", "{{ podman_haproxy_crowdsec_ipv6 }}/128"]
-server.max-connections = 8192
-server.socket.backlog = 1024
-server.socket.nodelay = true
-server.socket.reuse-addr = true
-server.socket.reuse-port = true
-queue.outbound.ip-strategy = "ipv6_then_ipv4"
-storage.blob = "postgresql"
-storage.data = "postgresql"
-storage.directory = "internal"
-storage.fts = "postgresql"
-storage.lookup = "postgresql"
-store.postgresql.compression = "lz4"
-store.postgresql.database = "stalwart"
-store.postgresql.host = "stalwart-postgres"
-store.postgresql.password = "%{env:STALWART_POSTGRES_PASSWORD}%"
-store.postgresql.pool.max-connections = 10
-store.postgresql.port = 5432
-store.postgresql.timeout = "15s"
-store.postgresql.tls.enable = false
-store.postgresql.type = "postgresql"
-store.postgresql.user = "stalwart"
-tracer.log.ansi = false
-tracer.log.enable = true
-tracer.log.level = "info"
-tracer.log.path = "/opt/stalwart/logs"
-tracer.log.prefix = "stalwart.log"
-tracer.log.rotate = "daily"
-tracer.log.type = "log"
+trusted-networks = ["{{ podman_haproxy_networks.stalwart.proxy_ipv6 }}/128"]
+
+[queue.outbound]
+ip-strategy = "ipv6_then_ipv4"
+
 [queue.outbound.source-ip]
-v4 = "['{{ podman_stalwart_ipv4 }}']"
-v6 = "['{{ podman_stalwart_ipv6 }}']"
+v4 = ["{{ podman_stalwart_egress_ipv4 }}"]
+v6 = ["{{ podman_stalwart_egress_ipv6 }}"]
+
+[storage]
+blob = "postgresql"
+data = "postgresql"
+directory = "internal"
+fts = "postgresql"
+lookup = "postgresql"
+
+[store."postgresql"]
+compression = "lz4"
+database = "stalwart"
+host = "stalwart-postgres"
+password = "%{env:STALWART_POSTGRES_PASSWORD}%"
+port = 5432
+timeout = "15s"
+type = "postgresql"
+user = "stalwart"
+
+[store."postgresql".pool]
+max-connections = 10
+
+[store."postgresql".tls]
+enable = false
+
+[tracer."log"]
+ansi = false
+enable = true
+level = "info"
+path = "/opt/stalwart/logs"
+prefix = "stalwart.log"
+rotate = "daily"
+type = "log"
+
+[tracer."stdout"]
+ansi = false
+enable = true
+level = "debug"
+type = "stdout"
 
 {% for block in stalwart_certificate_blocks %}
 [certificate."{{ (block.domains | first) }}"]

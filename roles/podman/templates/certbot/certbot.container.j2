@@ -8,6 +8,7 @@ Image={{ podman_certbot_image }}
 Volume=certbot:/etc/letsencrypt:z,noexec
 Volume=certbot-config:/hooks:ro,z
 Volume=certbot-webroot:/var/www/certbot:z,noexec
+Volume=haproxy-config:/haproxy-config:Z,noexec
 ReadOnly=true
 Mount=type=tmpfs,tmpfs-size=32M,tmpfs-mode=1777,U,noexec,nosuid,nodev,destination=/tmp
 Mount=type=tmpfs,tmpfs-size=128M,tmpfs-mode=0755,U,noexec,nosuid,nodev,destination=/var/lib/letsencrypt

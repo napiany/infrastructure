@@ -2,7 +2,7 @@
 
 set -o errexit -o nounset -o pipefail
 
-cd '{{ certbot_mountpoint }}/consumers/haproxy/session-ticket-keys'
+cd '{{ haproxy_config_mountpoint }}/session-ticket-keys'
 
 for i in next.key {1..4}.key; do
     /usr/bin/head -c 80 </dev/random | /usr/bin/openssl base64 -A > "${i}"

@@ -21,7 +21,15 @@
 - name: 'Set changed Podman network units'
   ansible.builtin.set_fact:
     podman_installed_unit_names: '{{ podman_installed_units.stdout_lines | map("regex_replace", "^([^ ]+).*$", "\\1") | list }}'
-    podman_existing_network_basenames: '{{ podman_changed_networks | default([]) | unique | map("regex_replace", "(\\.network|-network\\.service)$", "") | list }}'
+  listen: 'Recreate changed Podman networks'
+
+- name: 'Set changed Podman network basenames'
+  ansible.builtin.set_fact:
+    podman_existing_network_basenames: '{{ podman_changed_networks | default([]) | unique | map("regex_replace", "((\\.network)?-network\\.service|\\.network)$", "") | list }}'
+  listen: 'Recreate changed Podman networks'
+
+- name: 'Set changed PodMan network unit names'
+  ansible.builtin.set_fact:
     podman_existing_network_units: '{{ podman_existing_network_basenames | map("regex_replace", "$", "-network.service") | list }}'
   listen: 'Recreate changed Podman networks'
 
@@ -74,6 +82,28 @@
       - '{{ item }}'
   loop: '{{ podman_attached_network_container_ids | default([]) }}'
   when: '(podman_attached_network_container_ids | default([]) | length) > 0'
+  changed_when: false
+  failed_when: false
+  listen: 'Recreate changed Podman networks'
+
+- name: 'Stop changed Podman network units'
+  ansible.builtin.systemd:
+    name: '{{ item }}'
+    state: 'stopped'
+  loop: '{{ podman_existing_network_units | default([]) }}'
+  when: '(podman_existing_network_units | default([]) | length) > 0'
+  listen: 'Recreate changed Podman networks'
+
+- name: 'Remove changed Podman network objects'
+  ansible.builtin.command:
+    argv:
+      - 'podman'
+      - 'network'
+      - 'rm'
+      - '-f'
+      - '{{ item }}'
+  loop: '{{ podman_existing_network_names | default([]) }}'
+  when: '(podman_existing_network_names | default([]) | length) > 0'
   changed_when: false
   failed_when: false
   listen: 'Recreate changed Podman networks'

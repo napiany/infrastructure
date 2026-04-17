@@ -10,6 +10,9 @@ After=wg-quick@wg0.service crowdsec.service crowdsec-spoa.service
 ContainerName=haproxy
 Image=haproxy.build
 Network=haproxy-crowdsec.network:ip={{ podman_haproxy_crowdsec_ipv4 }},ip6={{ podman_haproxy_crowdsec_ipv6 }}
+{% if 'stalwart' in podman_containers_selected %}
+Network=haproxy-stalwart.network:ip6={{ podman_haproxy_networks.stalwart.proxy_ipv6 }},no_default_route=1
+{% endif %}
 PublishPort={{ podman_wireguard_ip }}:80:80/tcp
 PublishPort=[{{ podman_local_wireguard_ipv6 }}]:80:80/tcp
 PublishPort={{ podman_wireguard_ip }}:443:443/tcp
@@ -41,7 +44,6 @@ PublishPort={{ podman_wireguard_ip }}:{{ port }}:{{ port }}/tcp
 {% endif %}
 
 Volume=haproxy-config:/usr/local/etc/haproxy:ro,U,z,noexec
-Volume=certbot:/etc/letsencrypt:ro,z,noexec
 Volume=certbot-webroot:/var/www/certbot:ro,z,noexec
 ReadOnly=true
 Mount=type=tmpfs,tmpfs-size=4M,tmpfs-mode=0770,U,noexec,nosuid,nodev,destination=/run

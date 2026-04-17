@@ -11,6 +11,10 @@
         restart_units:
           - 'haproxy.service'
           - 'stalwart.service'
+      - src: 'stalwart/stalwart-egress.network'
+        dest: 'stalwart-egress.network'
+        restart_units:
+          - 'stalwart.service'
       - src: 'stalwart/stalwart-postgres.network'
         dest: 'stalwart-postgres.network'
         restart_units:
@@ -52,6 +56,9 @@
   vars:
     podman_service_task: 'quadlets'
     podman_quadlet_files: '{{ stalwart_quadlets }}'
+
+- name: 'Apply pending Podman network changes before starting Stalwart services'
+  ansible.builtin.meta: 'flush_handlers'
 
 - name: 'Render stalwart.container'
   ansible.builtin.template:

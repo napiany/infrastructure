@@ -45,6 +45,9 @@
     podman_service_task: 'quadlets'
     podman_quadlet_files: '{{ crowdsec_quadlets }}'
 
+- name: 'Apply pending Podman network changes before starting CrowdSec services'
+  ansible.builtin.meta: 'flush_handlers'
+
 - name: 'Manage the CrowdSec SPOA secret'
   ansible.builtin.include_tasks: 'service_task.yaml'
   vars:

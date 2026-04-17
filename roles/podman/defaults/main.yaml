@@ -12,6 +12,8 @@ podman_available_containers:
 
 podman_stalwart_ipv4: '10.89.103.2'
 podman_stalwart_ipv6: 'fd89:103::2'
+podman_stalwart_egress_ipv4: '10.89.111.2'
+podman_stalwart_egress_ipv6: 'fd89:111::2'
 podman_stalwart_gateway_egress_table: '252'
 podman_wireguard_ipv6_prefix: 'fd66:66::'
 podman_wireguard_gateway_ipv6: 'fd66:66::1'
