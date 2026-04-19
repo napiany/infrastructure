@@ -1,0 +1,166 @@
+---
+- name: 'Set service cleanup file lists'
+  ansible.builtin.set_fact:
+    podman_cleanup_managed_files: '{{ ((podman_service_manifest.quadlet_files | default([]) | map(attribute=''dest'') | list) + (podman_service_manifest.managed_files_extra | default([]))) | unique }}'
+    podman_cleanup_secret_names: '{{ podman_service_manifest.secrets | default([]) | map(attribute=''name'') | list }}'
+    podman_cleanup_local_images: '{{ podman_service_manifest.local_images | default([]) | unique | list }}'
+    podman_cleanup_config_only_volumes: '{{ podman_service_manifest.volumes | default([]) | selectattr(''cleanup'', ''defined'') | selectattr(''cleanup'', ''equalto'', ''remove'') | map(attribute=''name'') | list }}'
+
+- name: 'Set service cleanup unit and network lists'
+  ansible.builtin.set_fact:
+    podman_cleanup_owned_network_basenames: '{{ podman_cleanup_managed_files | select(''match'', ''.*\.network$'') | map(''regex_replace'', ''\.network$'', '''') | list }}'
+    podman_cleanup_owned_units: '{{ ((podman_cleanup_managed_files | select(''match'', ''.*\.container$'') | map(''regex_replace'', ''\.container$'', ''.service'') | list) + (podman_cleanup_managed_files | select(''match'', ''.*\.build$'') | map(''regex_replace'', ''\.build$'', ''-build.service'') | list) + (podman_cleanup_managed_files | select(''match'', ''.*\.network$'') | map(''regex_replace'', ''\.network$'', ''-network.service'') | list)) | unique }}'
+    podman_cleanup_owned_network_names: '{{ (podman_cleanup_managed_files | select(''match'', ''.*\.network$'') | map(''regex_replace'', ''\.network$'', '''') | map(''regex_replace'', ''^'', ''systemd-'') | list) | unique }}'
+
+- name: 'Set service cleanup external restart units'
+  ansible.builtin.set_fact:
+    podman_cleanup_external_restart_units_requested: '{{ (podman_service_manifest.quadlet_files | default([]) | selectattr(''dest'', ''match'', ''.*\.network$'') | map(attribute=''restart_units'') | flatten | list) | difference(podman_cleanup_owned_units | default([])) | unique }}'
+
+- name: 'List installed systemd service units for cleanup'
+  ansible.builtin.command:
+    argv:
+      - 'systemctl'
+      - 'list-unit-files'
+      - '--type=service'
+      - '--no-legend'
+      - '--plain'
+  register: 'podman_cleanup_installed_units'
+  changed_when: false
+
+- name: 'Set existing service cleanup units'
+  ansible.builtin.set_fact:
+    podman_cleanup_installed_unit_names: '{{ podman_cleanup_installed_units.stdout_lines | map(''regex_replace'', ''^([^ ]+).*$'', ''\1'') | list }}'
+    podman_cleanup_existing_owned_units: '{{ (podman_cleanup_owned_units | default([]) | unique) | intersect(podman_cleanup_installed_units.stdout_lines | map(''regex_replace'', ''^([^ ]+).*$'', ''\1'') | list) }}'
+    podman_cleanup_existing_external_restart_units: '{{ ((podman_cleanup_external_restart_units_requested | default([]) | unique) | intersect(podman_cleanup_restartable_units | default([]))) | intersect(podman_cleanup_installed_units.stdout_lines | map(''regex_replace'', ''^([^ ]+).*$'', ''\1'') | list) }}'
+
+- name: 'Stop dependent services before cleanup'
+  ansible.builtin.systemd:
+    name: '{{ item }}'
+    state: 'stopped'
+  loop: '{{ podman_cleanup_existing_external_restart_units | default([]) | reverse }}'
+  when: '(podman_cleanup_existing_external_restart_units | default([]) | length) > 0'
+
+- name: 'Stop and disable owned service units'
+  ansible.builtin.systemd:
+    name: '{{ item }}'
+    state: 'stopped'
+    enabled: false
+  loop: '{{ podman_cleanup_existing_owned_units | default([]) | reverse }}'
+  when: '(podman_cleanup_existing_owned_units | default([]) | length) > 0'
+
+- name: 'List containers attached to service networks'
+  ansible.builtin.command:
+    argv:
+      - 'podman'
+      - 'ps'
+      - '-aq'
+      - '--filter'
+      - 'network={{ item }}'
+  loop: '{{ podman_cleanup_owned_network_names | default([]) }}'
+  register: 'podman_cleanup_network_container_query'
+  changed_when: false
+  failed_when: false
+  when: '(podman_cleanup_owned_network_names | default([]) | length) > 0'
+
+- name: 'Set containers attached to service networks'
+  ansible.builtin.set_fact:
+    podman_cleanup_attached_container_ids: '{{ podman_cleanup_network_container_query.results | default([]) | map(attribute=''stdout_lines'') | flatten | reject(''equalto'', '''') | unique | list }}'
+  when: 'podman_cleanup_network_container_query is defined'
+
+- name: 'Remove containers attached to service networks'
+  ansible.builtin.command:
+    argv:
+      - 'podman'
+      - 'rm'
+      - '-f'
+      - '-i'
+      - '{{ item }}'
+  loop: '{{ podman_cleanup_attached_container_ids | default([]) }}'
+  register: 'podman_cleanup_container_remove'
+  changed_when: 'podman_cleanup_container_remove.rc == 0'
+  failed_when: false
+  when: '(podman_cleanup_attached_container_ids | default([]) | length) > 0'
+
+- name: 'Remove service network objects'
+  ansible.builtin.command:
+    argv:
+      - 'podman'
+      - 'network'
+      - 'rm'
+      - '-f'
+      - '{{ item }}'
+  loop: '{{ podman_cleanup_owned_network_names | default([]) }}'
+  register: 'podman_cleanup_network_remove'
+  changed_when: 'podman_cleanup_network_remove.rc == 0'
+  failed_when: false
+  when: '(podman_cleanup_owned_network_names | default([]) | length) > 0'
+
+- name: 'Remove service Podman secrets'
+  ansible.builtin.command:
+    argv:
+      - 'podman'
+      - 'secret'
+      - 'rm'
+      - '{{ item }}'
+  loop: '{{ podman_cleanup_secret_names | default([]) }}'
+  register: 'podman_cleanup_secret_remove'
+  changed_when: 'podman_cleanup_secret_remove.rc == 0'
+  failed_when: false
+  no_log: true
+  when: '(podman_cleanup_secret_names | default([]) | length) > 0'
+
+- name: 'Remove service certificates'
+  ansible.builtin.include_tasks: 'certificate_remove.yaml'
+  vars:
+    podman_certificate: '{{ podman_service_certificate }}'
+  loop: '{{ podman_service_manifest.certificates | default([]) }}'
+  loop_control:
+    loop_var: 'podman_service_certificate'
+    label: '{{ podman_service_certificate.domains | first }}'
+  when: '(podman_service_manifest.certificates | default([]) | length) > 0'
+
+- name: 'Remove local build images for the service'
+  ansible.builtin.command:
+    argv:
+      - 'podman'
+      - 'image'
+      - 'rm'
+      - '-f'
+      - '{{ item }}'
+  loop: '{{ podman_cleanup_local_images | default([]) }}'
+  register: 'podman_cleanup_image_remove'
+  changed_when: 'podman_cleanup_image_remove.rc == 0'
+  failed_when: false
+  when: '(podman_cleanup_local_images | default([]) | length) > 0'
+
+- name: 'Remove config-only Podman volumes for the service'
+  ansible.builtin.command:
+    argv:
+      - 'podman'
+      - 'volume'
+      - 'rm'
+      - '-f'
+      - '{{ item }}'
+  loop: '{{ podman_cleanup_config_only_volumes | default([]) }}'
+  register: 'podman_cleanup_volume_remove'
+  changed_when: 'podman_cleanup_volume_remove.rc == 0'
+  failed_when: false
+  when: '(podman_cleanup_config_only_volumes | default([]) | length) > 0'
+
+- name: 'Remove managed systemd files for the service'
+  ansible.builtin.file:
+    path: '/etc/containers/systemd/{{ item }}'
+    state: 'absent'
+  loop: '{{ podman_cleanup_managed_files | default([]) }}'
+  when: '(podman_cleanup_managed_files | default([]) | length) > 0'
+
+- name: 'Reload systemd after removing service files'
+  ansible.builtin.systemd:
+    daemon_reload: true
+
+- name: 'Start dependent services after cleanup'
+  ansible.builtin.systemd:
+    name: '{{ item }}'
+    state: 'started'
+  loop: '{{ podman_cleanup_existing_external_restart_units | default([]) }}'
+  when: '(podman_cleanup_existing_external_restart_units | default([]) | length) > 0'

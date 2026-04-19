@@ -34,6 +34,112 @@
   tags:
     - 'always'
 
+- name: 'Initialize Podman service manifests'
+  ansible.builtin.set_fact:
+    podman_service_manifests: {}
+    podman_cleanup_restartable_units: '{{ [''haproxy.service''] if (''haproxy'' in podman_containers_selected) else [] }}'
+  tags:
+    - 'always'
+
+- name: 'Include Kanidm manifest tasks'
+  ansible.builtin.include_tasks:
+    file: 'kanidm/manifest.yaml'
+    apply:
+      tags:
+        - 'podman'
+        - 'kanidm'
+  tags:
+    - 'podman'
+    - 'kanidm'
+
+- name: 'Include Grid manifest tasks'
+  ansible.builtin.include_tasks:
+    file: 'grid/manifest.yaml'
+    apply:
+      tags:
+        - 'podman'
+        - 'grid'
+  tags:
+    - 'podman'
+    - 'grid'
+
+- name: 'Include Ente manifest tasks'
+  ansible.builtin.include_tasks:
+    file: 'ente/manifest.yaml'
+    apply:
+      tags:
+        - 'podman'
+        - 'ente'
+  tags:
+    - 'podman'
+    - 'ente'
+
+- name: 'Include Vaultwarden manifest tasks'
+  ansible.builtin.include_tasks:
+    file: 'vaultwarden/manifest.yaml'
+    apply:
+      tags:
+        - 'podman'
+        - 'vaultwarden'
+  tags:
+    - 'podman'
+    - 'vaultwarden'
+
+- name: 'Include SeedVault manifest tasks'
+  ansible.builtin.include_tasks:
+    file: 'seedvault/manifest.yaml'
+    apply:
+      tags:
+        - 'podman'
+        - 'seedvault'
+  tags:
+    - 'podman'
+    - 'seedvault'
+
+- name: 'Include Stalwart manifest tasks'
+  ansible.builtin.include_tasks:
+    file: 'stalwart/manifest.yaml'
+    apply:
+      tags:
+        - 'podman'
+        - 'stalwart'
+  tags:
+    - 'podman'
+    - 'stalwart'
+
+- name: 'Include Autopush manifest tasks'
+  ansible.builtin.include_tasks:
+    file: 'autopush/manifest.yaml'
+    apply:
+      tags:
+        - 'podman'
+        - 'autopush'
+  tags:
+    - 'podman'
+    - 'autopush'
+
+- name: 'Include MollySocket manifest tasks'
+  ansible.builtin.include_tasks:
+    file: 'mollysocket/manifest.yaml'
+    apply:
+      tags:
+        - 'podman'
+        - 'mollysocket'
+  tags:
+    - 'podman'
+    - 'mollysocket'
+
+- name: 'Remove deselected Podman services'
+  ansible.builtin.include_tasks: 'helpers/service_cleanup.yaml'
+  vars:
+    podman_service_manifest: '{{ podman_service_manifests[podman_deselected_service] }}'
+  loop: '{{ podman_service_manifests.keys() | list | difference(podman_containers_selected) | sort }}'
+  loop_control:
+    loop_var: 'podman_deselected_service'
+    label: '{{ podman_deselected_service }}'
+  tags:
+    - 'podman'
+
 - name: 'Include HAProxy tasks'
   ansible.builtin.include_tasks:
     file: 'haproxy/main.yaml'

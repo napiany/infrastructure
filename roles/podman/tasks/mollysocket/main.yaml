@@ -1,46 +1,21 @@
 ---
-- name: 'Set MollySocket values'
-  ansible.builtin.set_fact:
-    mollysocket_secrets:
-      - name: 'mollysocket_vapid_privkey'
-        value_var: 'vault_podman_secret_mollysocket_vapid_privkey'
-        restart_units:
-          - 'mollysocket.service'
-      - name: 'mollysocket_allowed_uuids'
-        value_var: 'vault_podman_secret_mollysocket_allowed_uuids'
-        restart_units:
-          - 'mollysocket.service'
-    mollysocket_quadlets:
-      - src: 'mollysocket/haproxy-mollysocket.network'
-        dest: 'haproxy-mollysocket.network'
-        restart_units:
-          - 'haproxy.service'
-          - 'mollysocket.service'
-      - src: 'mollysocket/mollysocket.container'
-        dest: 'mollysocket.container'
-        restart_units:
-          - 'mollysocket.service'
-
 - name: 'Manage MollySocket secrets'
   ansible.builtin.include_tasks: 'helpers/secret.yaml'
   vars:
     podman_secret: '{{ item }}'
-  loop: '{{ mollysocket_secrets }}'
+  loop: '{{ (podman_service_manifests.mollysocket | default({})).secrets | default([]) }}'
   loop_control:
     label: '{{ item.name }}'
 
 - name: 'Copy MollySocket Quadlets'
   ansible.builtin.include_tasks: 'helpers/quadlets.yaml'
   vars:
-    podman_quadlet_files: '{{ mollysocket_quadlets }}'
+    podman_quadlet_files: '{{ (podman_service_manifests.mollysocket | default({})).quadlet_files | default([]) }}'
 
 - name: 'Create the MollySocket volume'
   ansible.builtin.include_tasks: 'helpers/volume.yaml'
   vars:
-    podman_volume:
-      name: 'mollysocket'
-      uid: '300009'
-      gid: '300009'
+    podman_volume: '{{ ((podman_service_manifests.mollysocket | default({})).volumes | default([]) | first) }}'
 
 - name: 'Copy the MollySocket config'
   ansible.builtin.copy:
@@ -64,9 +39,8 @@
 - name: 'Issue the MollySocket certificate'
   ansible.builtin.include_tasks: 'helpers/certificate.yaml'
   vars:
-    podman_certificate:
-      domains:
-        - 'mollysocket.napiany.com'
+    podman_certificate: '{{ ((podman_service_manifests.mollysocket | default({})).certificates | default([]) | first) }}'
+  when: '((podman_service_manifests.mollysocket | default({})).certificates | default([]) | length) > 0'
 
 - name: 'Start MollySocket'
   ansible.builtin.systemd:

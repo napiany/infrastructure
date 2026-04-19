@@ -18,61 +18,8 @@
 - name: 'Set Autopush service values'
   ansible.builtin.set_fact:
     autopush_secrets:
-      - name: 'autopush_crypto_keys'
-        value: '{{ autopush_crypto_keys_value }}'
-        restart_units:
-          - 'autoconnect.service'
-          - 'autoendpoint.service'
-      - name: 'autopush_auth_keys'
-        value: '{{ autopush_auth_keys_value }}'
-        restart_units:
-          - 'autoconnect.service'
-          - 'autoendpoint.service'
-    autopush_quadlets:
-      - src: 'autopush/haproxy-autopush.network'
-        dest: 'haproxy-autopush.network'
-        restart_units:
-          - 'haproxy.service'
-          - 'autoconnect.service'
-          - 'autoendpoint.service'
-      - src: 'autopush/autopush-valkey.network'
-        dest: 'autopush-valkey.network'
-        restart_units:
-          - 'autopush-valkey.service'
-          - 'autoconnect.service'
-          - 'autoendpoint.service'
-      - src: 'autopush/autopush-valkey.container'
-        dest: 'autopush-valkey.container'
-        restart_units:
-          - 'autopush-valkey.service'
-      - src: 'autopush/autoconnect.container'
-        dest: 'autoconnect.container'
-        restart_units:
-          - 'autoconnect.service'
-      - src: 'autopush/autoconnect.build'
-        dest: 'autoconnect.build'
-        restart_units:
-          - 'autoconnect.service'
-      - src: 'autopush/autoconnect.containerfile'
-        dest: 'autoconnect.containerfile'
-        restart_units:
-          - 'autoconnect.service'
-      - src: 'autopush/autoendpoint.container'
-        dest: 'autoendpoint.container'
-        restart_units:
-          - 'autoendpoint.service'
-      - src: 'autopush/autoendpoint.build'
-        dest: 'autoendpoint.build'
-        restart_units:
-          - 'autoendpoint.service'
-      - src: 'autopush/autoendpoint.containerfile'
-        dest: 'autoendpoint.containerfile'
-        restart_units:
-          - 'autoendpoint.service'
-      - src: 'autopush/autoendpoint-sortkey-timestamp.patch'
-        dest: 'autoendpoint-sortkey-timestamp.patch'
-        restart_units:
-          - 'autoendpoint.service'
+      - '{{ ((podman_service_manifests.autopush | default({})).secrets | default([]) | selectattr(''name'', ''equalto'', ''autopush_crypto_keys'') | first) | combine({''value'': autopush_crypto_keys_value}, recursive=true) }}'
+      - '{{ ((podman_service_manifests.autopush | default({})).secrets | default([]) | selectattr(''name'', ''equalto'', ''autopush_auth_keys'') | first) | combine({''value'': autopush_auth_keys_value}, recursive=true) }}'
   no_log: true
 
 - name: 'Manage Autopush secrets'
@@ -87,15 +34,12 @@
 - name: 'Copy Autopush Quadlets'
   ansible.builtin.include_tasks: 'helpers/quadlets.yaml'
   vars:
-    podman_quadlet_files: '{{ autopush_quadlets }}'
+    podman_quadlet_files: '{{ (podman_service_manifests.autopush | default({})).quadlet_files | default([]) }}'
 
 - name: 'Create the Autopush Valkey volume'
   ansible.builtin.include_tasks: 'helpers/volume.yaml'
   vars:
-    podman_volume:
-      name: 'autopush-valkey'
-      uid: '300012'
-      gid: '300012'
+    podman_volume: '{{ ((podman_service_manifests.autopush | default({})).volumes | default([]) | first) }}'
 
 - name: 'Start Autopush Valkey'
   ansible.builtin.systemd:
@@ -107,10 +51,8 @@
 - name: 'Issue the Autopush certificate'
   ansible.builtin.include_tasks: 'helpers/certificate.yaml'
   vars:
-    podman_certificate:
-      domains:
-        - 'push.napiany.com'
-        - 'updates.push.napiany.com'
+    podman_certificate: '{{ ((podman_service_manifests.autopush | default({})).certificates | default([]) | first) }}'
+  when: '((podman_service_manifests.autopush | default({})).certificates | default([]) | length) > 0'
 
 - name: 'Start Autopush application units'
   ansible.builtin.systemd:

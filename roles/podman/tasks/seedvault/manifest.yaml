@@ -1,0 +1,43 @@
+---
+- name: 'Register SeedVault service manifest'
+  vars:
+    seedvault_manifest:
+      quadlet_files:
+        - src: 'seedvault/haproxy-seedvault.network'
+          dest: 'haproxy-seedvault.network'
+          restart_units:
+            - 'haproxy.service'
+            - 'seedvault.service'
+        - src: 'seedvault/seedvault.build'
+          dest: 'seedvault.build'
+          restart_units:
+            - 'seedvault.service'
+        - src: 'seedvault/seedvault.containerfile'
+          dest: 'seedvault.containerfile'
+          restart_units:
+            - 'seedvault.service'
+        - src: 'seedvault/seedvault-extra.conf'
+          dest: 'seedvault-extra.conf'
+          restart_units:
+            - 'seedvault.service'
+        - src: 'seedvault/seedvault.container'
+          dest: 'seedvault.container'
+          restart_units:
+            - 'seedvault.service'
+      managed_files_extra: []
+      secrets: []
+      volumes:
+        - name: 'seedvault-config'
+          uid: '300018'
+          gid: '300018'
+          cleanup: 'remove'
+        - name: 'seedvault-data'
+          uid: '300018'
+          gid: '300018'
+      local_images:
+        - 'localhost/seedvault:latest'
+      certificates:
+        - domains:
+            - 'seedvault.napiany.com'
+  ansible.builtin.set_fact:
+    podman_service_manifests: '{{ (podman_service_manifests | default({})) | combine({''seedvault'': seedvault_manifest}, recursive=true) }}'

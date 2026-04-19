@@ -1,0 +1,126 @@
+---
+- name: 'Validate certificate removal request'
+  ansible.builtin.assert:
+    that:
+      - '(podman_certificate.domains | default([]) | length) > 0'
+      - '((podman_certificate.domains | first | default('''')) | length) > 0'
+    fail_msg: 'Certificate removals need at least one domain.'
+
+- name: 'Inspect shared certbot volume mount points for certificate removal'
+  ansible.builtin.command:
+    argv:
+      - 'podman'
+      - 'volume'
+      - 'inspect'
+      - '{{ podman_certificate_remove_volume.name }}'
+      - '--format'
+      - '{{ ''{{.Mountpoint}}'' }}'
+  loop:
+    - name: 'certbot'
+      fact: 'certbot_mountpoint'
+    - name: 'haproxy-config'
+      fact: 'haproxy_config_mountpoint'
+  loop_control:
+    loop_var: 'podman_certificate_remove_volume'
+    label: '{{ podman_certificate_remove_volume.name }}'
+  register: 'podman_certificate_remove_shared_volume_mountpoints'
+  changed_when: false
+  failed_when: false
+  when:
+    - 'not ansible_check_mode or certbot_mountpoint | default('''') | trim | length > 0'
+    - '(certbot_mountpoint | default('''') | trim | length) == 0 or (haproxy_config_mountpoint | default('''') | trim | length) == 0'
+
+- name: 'Set shared certbot mount point facts for certificate removal'
+  ansible.builtin.set_fact:
+    certbot_mountpoint: '{{ ((certbot_mountpoint | default('''') | trim | length) > 0) | ternary(certbot_mountpoint, ((podman_certificate_remove_shared_volume_mountpoints.results | default([]) | selectattr(''podman_certificate_remove_volume.name'', ''equalto'', ''certbot'') | map(attribute=''stdout'') | first | default('''')) | trim)) }}'
+    haproxy_config_mountpoint: '{{ ((haproxy_config_mountpoint | default('''') | trim | length) > 0) | ternary(haproxy_config_mountpoint, ((podman_certificate_remove_shared_volume_mountpoints.results | default([]) | selectattr(''podman_certificate_remove_volume.name'', ''equalto'', ''haproxy-config'') | map(attribute=''stdout'') | first | default('''')) | trim)) }}'
+  when: 'podman_certificate_remove_shared_volume_mountpoints is defined'
+
+- name: 'Set certificate removal facts'
+  vars:
+    podman_certificate_kanidm_domain: '{{ ((podman_services | default({})).get(''kanidm'', {})).get(''domain'', '''') }}'
+    podman_certificate_stalwart_settings: '{{ (podman_services | default({})).get(''stalwart'', {}) }}'
+    podman_certificate_stalwart_blocks: '{{ podman_certificate_stalwart_settings.get(''certificate_blocks'', [{''domains'': podman_certificate_stalwart_settings.get(''domains'', [])}] if podman_certificate_stalwart_settings.get(''domains'', []) else []) }}'
+  ansible.builtin.set_fact:
+    podman_certificate_name: '{{ podman_certificate.domains | first }}'
+    podman_certificate_haproxy_consumer_enabled: '{{ (podman_certificate.domains | first) != podman_certificate_kanidm_domain }}'
+    podman_certificate_consumer_outputs: '{{ ([haproxy_config_mountpoint ~ ''/certs/'' ~ (podman_certificate.domains | first) ~ ''.pem''] if ((haproxy_config_mountpoint | default('''') | trim | length) > 0 and ((podman_certificate.domains | first) != podman_certificate_kanidm_domain)) else []) }}'
+    podman_certificate_consumer_directories: []
+    podman_certificate_stalwart_blocks: '{{ podman_certificate_stalwart_blocks }}'
+
+- name: 'Add Kanidm certificate outputs for removal'
+  vars:
+    podman_certificate_kanidm_domain: '{{ ((podman_services | default({})).get(''kanidm'', {})).get(''domain'', '''') }}'
+  ansible.builtin.set_fact:
+    podman_certificate_consumer_outputs: '{{ podman_certificate_consumer_outputs + [certbot_mountpoint ~ ''/consumers/kanidm/fullchain.pem'', certbot_mountpoint ~ ''/consumers/kanidm/privkey.pem''] }}'
+  when:
+    - 'certbot_mountpoint | default('''') | trim | length > 0'
+    - 'podman_certificate_name == podman_certificate_kanidm_domain'
+
+- name: 'Add Stalwart certificate outputs for removal'
+  ansible.builtin.set_fact:
+    podman_certificate_consumer_directories: '{{ podman_certificate_consumer_directories + [certbot_mountpoint ~ ''/consumers/stalwart/'' ~ podman_certificate_name] }}'
+  loop: '{{ podman_certificate_stalwart_blocks | default([]) }}'
+  loop_control:
+    loop_var: 'podman_certificate_stalwart_block'
+  when:
+    - 'certbot_mountpoint | default('''') | trim | length > 0'
+    - '(podman_certificate_stalwart_block.domains | default([]) | length) > 0'
+    - 'podman_certificate_name == (podman_certificate_stalwart_block.domains | first)'
+
+- name: 'Check current certificate lineage'
+  ansible.builtin.stat:
+    path: '{{ certbot_mountpoint }}/live/{{ podman_certificate_name }}'
+  register: 'podman_certificate_lineage'
+  when: 'certbot_mountpoint | default('''') | trim | length > 0'
+
+- name: 'Revoke and delete certificate lineage'
+  ansible.builtin.command:
+    argv:
+      - 'podman'
+      - 'run'
+      - '--rm'
+      - '-v'
+      - 'certbot:/etc/letsencrypt:z'
+      - '{{ podman_certbot_image }}'
+      - 'revoke'
+      - '--non-interactive'
+      - '--cert-name'
+      - '{{ podman_certificate_name }}'
+      - '--reason'
+      - 'cessationOfOperation'
+      - '--delete-after-revoke'
+  register: 'podman_certificate_revoke'
+  changed_when: 'podman_certificate_revoke.rc == 0'
+  when:
+    - 'certbot_mountpoint | default('''') | trim | length > 0'
+    - 'podman_certificate_lineage.stat.exists | default(false)'
+
+- name: 'Remove certificate manifests'
+  ansible.builtin.file:
+    path: '{{ podman_certificate_manifest_path }}'
+    state: 'absent'
+  loop:
+    - '{{ certbot_mountpoint }}/ansible/{{ podman_certificate_name }}.domains'
+    - '{{ certbot_mountpoint }}/ansible/{{ podman_certificate_name }}.challenge'
+  loop_control:
+    loop_var: 'podman_certificate_manifest_path'
+  when: 'certbot_mountpoint | default('''') | trim | length > 0'
+
+- name: 'Remove certificate consumer files'
+  ansible.builtin.file:
+    path: '{{ podman_certificate_consumer_output }}'
+    state: 'absent'
+  loop: '{{ podman_certificate_consumer_outputs | default([]) | unique }}'
+  loop_control:
+    loop_var: 'podman_certificate_consumer_output'
+  when: '(podman_certificate_consumer_outputs | default([]) | length) > 0'
+
+- name: 'Remove certificate consumer directories'
+  ansible.builtin.file:
+    path: '{{ podman_certificate_consumer_directory }}'
+    state: 'absent'
+  loop: '{{ podman_certificate_consumer_directories | default([]) | unique }}'
+  loop_control:
+    loop_var: 'podman_certificate_consumer_directory'
+  when: '(podman_certificate_consumer_directories | default([]) | length) > 0'

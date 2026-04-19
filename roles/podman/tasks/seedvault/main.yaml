@@ -1,46 +1,14 @@
 ---
-- name: 'Set SeedVault values'
-  ansible.builtin.set_fact:
-    seedvault_quadlets:
-      - src: 'seedvault/haproxy-seedvault.network'
-        dest: 'haproxy-seedvault.network'
-        restart_units:
-          - 'haproxy.service'
-          - 'seedvault.service'
-      - src: 'seedvault/seedvault.build'
-        dest: 'seedvault.build'
-        restart_units:
-          - 'seedvault.service'
-      - src: 'seedvault/seedvault.containerfile'
-        dest: 'seedvault.containerfile'
-        restart_units:
-          - 'seedvault.service'
-      - src: 'seedvault/seedvault-extra.conf'
-        dest: 'seedvault-extra.conf'
-        restart_units:
-          - 'seedvault.service'
-      - src: 'seedvault/seedvault.container'
-        dest: 'seedvault.container'
-        restart_units:
-          - 'seedvault.service'
-    seedvault_volumes:
-      - name: 'seedvault-config'
-        uid: '300018'
-        gid: '300018'
-      - name: 'seedvault-data'
-        uid: '300018'
-        gid: '300018'
-
 - name: 'Copy SeedVault Quadlets'
   ansible.builtin.include_tasks: 'helpers/quadlets.yaml'
   vars:
-    podman_quadlet_files: '{{ seedvault_quadlets }}'
+    podman_quadlet_files: '{{ (podman_service_manifests.seedvault | default({})).quadlet_files | default([]) }}'
 
 - name: 'Create SeedVault volumes'
   ansible.builtin.include_tasks: 'helpers/volume.yaml'
   vars:
     podman_volume: '{{ item }}'
-  loop: '{{ seedvault_volumes }}'
+  loop: '{{ (podman_service_manifests.seedvault | default({})).volumes | default([]) }}'
   loop_control:
     label: '{{ item.name }}'
 
@@ -131,6 +99,5 @@
 - name: 'Issue the SeedVault certificate'
   ansible.builtin.include_tasks: 'helpers/certificate.yaml'
   vars:
-    podman_certificate:
-      domains:
-        - 'seedvault.napiany.com'
+    podman_certificate: '{{ ((podman_service_manifests.seedvault | default({})).certificates | default([]) | first) }}'
+  when: '((podman_service_manifests.seedvault | default({})).certificates | default([]) | length) > 0'

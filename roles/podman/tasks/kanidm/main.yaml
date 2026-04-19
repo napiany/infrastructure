@@ -1,32 +1,17 @@
 ---
 - name: 'Set Kanidm values'
-  vars:
-    kanidm_settings: '{{ (podman_services | default({})).get(''kanidm'', {}) }}'
   ansible.builtin.set_fact:
-    kanidm_domain: '{{ kanidm_settings.domain | default('''') }}'
-    kanidm_quadlets:
-      - src: 'kanidm/haproxy-kanidm.network'
-        dest: 'haproxy-kanidm.network'
-        restart_units:
-          - 'haproxy.service'
-          - 'kanidm.service'
-      - src: 'kanidm/kanidm.container'
-        dest: 'kanidm.container'
-        restart_units:
-          - 'kanidm.service'
+    kanidm_domain: '{{ (podman_service_manifests.kanidm | default({})).domain | default('''') }}'
 
 - name: 'Copy Kanidm Quadlets'
   ansible.builtin.include_tasks: 'helpers/quadlets.yaml'
   vars:
-    podman_quadlet_files: '{{ kanidm_quadlets }}'
+    podman_quadlet_files: '{{ (podman_service_manifests.kanidm | default({})).quadlet_files | default([]) }}'
 
 - name: 'Create the Kanidm volume'
   ansible.builtin.include_tasks: 'helpers/volume.yaml'
   vars:
-    podman_volume:
-      name: 'kanidm'
-      uid: '300002'
-      gid: '300002'
+    podman_volume: '{{ ((podman_service_manifests.kanidm | default({})).volumes | default([]) | first) }}'
 
 - name: 'Render the Kanidm config'
   ansible.builtin.template:
@@ -50,12 +35,8 @@
 - name: 'Issue the Kanidm certificate'
   ansible.builtin.include_tasks: 'helpers/certificate.yaml'
   vars:
-    podman_certificate:
-      domains:
-        - '{{ kanidm_domain }}'
-      restart_units:
-        - 'kanidm.service'
-  when: 'kanidm_domain | length > 0'
+    podman_certificate: '{{ ((podman_service_manifests.kanidm | default({})).certificates | default([]) | first) }}'
+  when: '((podman_service_manifests.kanidm | default({})).certificates | default([]) | length) > 0'
 
 - name: 'Start Kanidm'
   ansible.builtin.systemd:

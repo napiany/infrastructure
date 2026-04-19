@@ -2,18 +2,12 @@
 - name: 'Prepare Ente Postgres volume'
   ansible.builtin.include_tasks: 'helpers/volume.yaml'
   vars:
-    podman_volume:
-      name: 'ente-postgres'
-      uid: '300016'
-      gid: '300016'
+    podman_volume: '{{ ((podman_service_manifests.ente | default({})).volumes | default([]) | selectattr(''name'', ''equalto'', ''ente-postgres'') | first) }}'
 
 - name: 'Prepare Ente config volume'
   ansible.builtin.include_tasks: 'helpers/volume.yaml'
   vars:
-    podman_volume:
-      name: 'ente-config'
-      uid: '300015'
-      gid: '300015'
+    podman_volume: '{{ ((podman_service_manifests.ente | default({})).volumes | default([]) | selectattr(''name'', ''equalto'', ''ente-config'') | first) }}'
 
 - name: 'Set Ente config volume mount point'
   ansible.builtin.set_fact:
@@ -22,10 +16,7 @@
 - name: 'Prepare Ente Garage config volume'
   ansible.builtin.include_tasks: 'helpers/volume.yaml'
   vars:
-    podman_volume:
-      name: 'ente-garage-config'
-      uid: '300017'
-      gid: '300017'
+    podman_volume: '{{ ((podman_service_manifests.ente | default({})).volumes | default([]) | selectattr(''name'', ''equalto'', ''ente-garage-config'') | first) }}'
 
 - name: 'Set Ente Garage config volume mount point'
   ansible.builtin.set_fact:
@@ -34,7 +25,4 @@
 - name: 'Prepare Ente Garage metadata volume'
   ansible.builtin.include_tasks: 'helpers/volume.yaml'
   vars:
-    podman_volume:
-      name: 'ente-garage-meta'
-      uid: '300017'
-      gid: '300017'
+    podman_volume: '{{ ((podman_service_manifests.ente | default({})).volumes | default([]) | selectattr(''name'', ''equalto'', ''ente-garage-meta'') | first) }}'

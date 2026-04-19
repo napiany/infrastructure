@@ -3,7 +3,7 @@
   ansible.builtin.include_tasks: 'helpers/certificate.yaml'
   vars:
     podman_certificate: '{{ item | combine({''restart_units'': [''stalwart.service'']}, recursive=true) }}'
-  loop: '{{ stalwart_certificate_blocks }}'
+  loop: '{{ (podman_service_manifests.stalwart | default({})).certificates | default([]) }}'
   loop_control:
     label: '{{ item.domains | first }}'
   when: '(item.domains | default([]) | length) > 0'

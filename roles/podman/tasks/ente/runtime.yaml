@@ -9,22 +9,10 @@
 - name: 'Issue the Ente certificate'
   ansible.builtin.include_tasks: 'helpers/certificate.yaml'
   vars:
-    podman_certificate:
-      domains:
-        - 'api.ente.napiany.com'
-        - 's3.ente.napiany.com'
-        - 'ente.napiany.com'
-        - 'web.ente.napiany.com'
-        - 'albums.ente.napiany.com'
-        - 'accounts.ente.napiany.com'
-        - 'auth.ente.napiany.com'
-        - 'cast.ente.napiany.com'
-        - 'locker.ente.napiany.com'
-        - 'embed.ente.napiany.com'
-        - 'paste.ente.napiany.com'
-        - 'memories.ente.napiany.com'
+    podman_certificate: '{{ ((podman_service_manifests.ente | default({})).certificates | default([]) | first) }}'
   when:
     - 'not ansible_check_mode or certbot_mountpoint | default('''') | trim | length > 0'
+    - '((podman_service_manifests.ente | default({})).certificates | default([]) | length) > 0'
 
 - name: 'Enable and start ente-museum.service'
   ansible.builtin.systemd:

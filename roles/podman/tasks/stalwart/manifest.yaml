@@ -1,0 +1,52 @@
+---
+- name: 'Register Stalwart service manifest'
+  vars:
+    stalwart_settings: '{{ (podman_services | default({})).get(''stalwart'', {}) }}'
+    stalwart_certificate_blocks: '{{ stalwart_settings.certificate_blocks | default(([{''domains'': stalwart_settings.domains}] if (stalwart_settings.domains | default([]) | length > 0) else [])) }}'
+    stalwart_primary_domain: '{{ (((stalwart_certificate_blocks | first | default({})).domains | default([]) | first) | default('''')) }}'
+    stalwart_certificates: '{{ stalwart_certificate_blocks | map(''combine'', {''restart_units'': [''stalwart.service'']}, recursive=true) | list }}'
+    stalwart_manifest:
+      primary_domain: '{{ stalwart_primary_domain }}'
+      certificate_blocks: '{{ stalwart_certificate_blocks }}'
+      quadlet_files:
+        - src: 'stalwart/haproxy-stalwart.network'
+          dest: 'haproxy-stalwart.network'
+          restart_units:
+            - 'haproxy.service'
+            - 'stalwart.service'
+        - src: 'stalwart/stalwart-egress.network'
+          dest: 'stalwart-egress.network'
+          restart_units:
+            - 'stalwart.service'
+        - src: 'stalwart/stalwart-postgres.network'
+          dest: 'stalwart-postgres.network'
+          restart_units:
+            - 'stalwart-postgres.service'
+            - 'stalwart.service'
+        - src: 'stalwart/stalwart-postgres.container'
+          dest: 'stalwart-postgres.container'
+          restart_units:
+            - 'stalwart-postgres.service'
+      managed_files_extra:
+        - 'stalwart.container'
+      secrets:
+        - name: 'stalwart-postgres_password'
+          value_var: 'vault_podman_secret_stalwart_postgres_password'
+          restart_units:
+            - 'stalwart-postgres.service'
+            - 'stalwart.service'
+        - name: 'stalwart_adminsecret'
+          value_var: 'vault_podman_secret_stalwart_adminsecret'
+          restart_units:
+            - 'stalwart.service'
+      volumes:
+        - name: 'stalwart-postgres'
+          uid: '300007'
+          gid: '300007'
+        - name: 'stalwart'
+          uid: '300006'
+          gid: '300006'
+      local_images: []
+      certificates: '{{ stalwart_certificates }}'
+  ansible.builtin.set_fact:
+    podman_service_manifests: '{{ (podman_service_manifests | default({})) | combine({''stalwart'': stalwart_manifest}, recursive=true) }}'

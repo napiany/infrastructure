@@ -20,7 +20,6 @@ all:
           podman_containers:
             - 'haproxy'
             - 'kanidm'
-            - 'grid'
             - 'ente'
             - 'vaultwarden'
             - 'seedvault'

@@ -1,0 +1,81 @@
+---
+- name: 'Register Ente service manifest'
+  vars:
+    ente_manifest:
+      quadlet_files:
+        - src: 'ente/haproxy-ente.network'
+          dest: 'haproxy-ente.network'
+          restart_units:
+            - 'haproxy.service'
+            - 'ente-garage.service'
+            - 'ente-museum.service'
+            - 'ente-web.service'
+        - src: 'ente/ente-backend.network'
+          dest: 'ente-backend.network'
+          restart_units:
+            - 'ente-postgres.service'
+            - 'ente-garage.service'
+            - 'ente-museum.service'
+        - src: 'ente/ente-postgres.container'
+          dest: 'ente-postgres.container'
+          restart_units:
+            - 'ente-postgres.service'
+        - src: 'ente/ente-garage.container'
+          dest: 'ente-garage.container'
+          restart_units:
+            - 'ente-garage.service'
+        - src: 'ente/ente-museum.container'
+          dest: 'ente-museum.container'
+          restart_units:
+            - 'ente-museum.service'
+        - src: 'ente/ente-web.build'
+          dest: 'ente-web.build'
+          restart_units:
+            - 'ente-web.service'
+        - src: 'ente/ente-web.containerfile'
+          dest: 'ente-web.containerfile'
+          restart_units:
+            - 'ente-web.service'
+        - src: 'ente/ente-web.container'
+          dest: 'ente-web.container'
+          restart_units:
+            - 'ente-web.service'
+      managed_files_extra: []
+      secrets:
+        - name: 'ente-postgres_password'
+          value_var: 'vault_podman_secret_ente_postgres_password'
+          restart_units:
+            - 'ente-postgres.service'
+      volumes:
+        - name: 'ente-postgres'
+          uid: '300016'
+          gid: '300016'
+        - name: 'ente-config'
+          uid: '300015'
+          gid: '300015'
+          cleanup: 'remove'
+        - name: 'ente-garage-config'
+          uid: '300017'
+          gid: '300017'
+          cleanup: 'remove'
+        - name: 'ente-garage-meta'
+          uid: '300017'
+          gid: '300017'
+      local_images:
+        - 'localhost/ente-web:latest'
+      certificates:
+        - domains:
+            - 'api.ente.napiany.com'
+            - 's3.ente.napiany.com'
+            - 'ente.napiany.com'
+            - 'web.ente.napiany.com'
+            - 'albums.ente.napiany.com'
+            - 'accounts.ente.napiany.com'
+            - 'auth.ente.napiany.com'
+            - 'cast.ente.napiany.com'
+            - 'locker.ente.napiany.com'
+            - 'embed.ente.napiany.com'
+            - 'paste.ente.napiany.com'
+            - 'memories.ente.napiany.com'
+  ansible.builtin.set_fact:
+    podman_service_manifests: '{{ (podman_service_manifests | default({})) | combine({''ente'': ente_manifest}, recursive=true) }}'

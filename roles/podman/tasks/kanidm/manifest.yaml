@@ -1,0 +1,27 @@
+---
+- name: 'Register Kanidm service manifest'
+  vars:
+    kanidm_settings: '{{ (podman_services | default({})).get(''kanidm'', {}) }}'
+    kanidm_domain: '{{ kanidm_settings.domain | default('''') }}'
+    kanidm_manifest:
+      domain: '{{ kanidm_domain }}'
+      quadlet_files:
+        - src: 'kanidm/haproxy-kanidm.network'
+          dest: 'haproxy-kanidm.network'
+          restart_units:
+            - 'haproxy.service'
+            - 'kanidm.service'
+        - src: 'kanidm/kanidm.container'
+          dest: 'kanidm.container'
+          restart_units:
+            - 'kanidm.service'
+      managed_files_extra: []
+      secrets: []
+      volumes:
+        - name: 'kanidm'
+          uid: '300002'
+          gid: '300002'
+      local_images: []
+      certificates: '{{ [{''domains'': [kanidm_domain], ''restart_units'': [''kanidm.service'']}] if (kanidm_domain | length > 0) else [] }}'
+  ansible.builtin.set_fact:
+    podman_service_manifests: '{{ (podman_service_manifests | default({})) | combine({''kanidm'': kanidm_manifest}, recursive=true) }}'
