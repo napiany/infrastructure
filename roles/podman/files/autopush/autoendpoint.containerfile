@@ -1,6 +1,6 @@
 FROM docker.io/library/rust:1.94.1-alpine3.23@sha256:77237dd363a0b127bb5ef532c2d64c0deb380b738e43a9c4bdac73398d6d0a08 AS builder
 
-ARG AUTOPUSH_COMMIT=d4557b6a7238dc11ab97b1cd8f6c65dc8eb4132e
+ARG AUTOPUSH_VERSION=1.81.3
 
 RUN apk -U upgrade \
     && apk add build-base ca-certificates clang cmake curl openssl-dev openssl-libs-static patch pkgconf \
@@ -8,7 +8,7 @@ RUN apk -U upgrade \
 
 COPY autoendpoint-sortkey-timestamp.patch /tmp/autoendpoint-sortkey-timestamp.patch
 
-RUN curl --fail --location --silent --show-error "https://codeload.github.com/mozilla-services/autopush-rs/tar.gz/${AUTOPUSH_COMMIT}" --output /tmp/autopush-rs.tar.gz \
+RUN curl --fail --location --silent --show-error "https://codeload.github.com/mozilla-services/autopush-rs/tar.gz/${AUTOPUSH_VERSION}" --output /tmp/autopush-rs.tar.gz \
     && mkdir -p /src \
     && tar --extract --file /tmp/autopush-rs.tar.gz --gzip --directory /src \
     && mv /src/autopush-rs-* /app \

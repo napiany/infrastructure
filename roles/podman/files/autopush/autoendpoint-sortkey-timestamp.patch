@@ -1,21 +1,21 @@
-diff --git a/autoendpoint/src/extractors/notification.rs b/autoendpoint/src/extractors/notification.rs
-index 8a6add2..67f0a39 100644
---- a/autoendpoint/src/extractors/notification.rs
-+++ b/autoendpoint/src/extractors/notification.rs
-@@ -26,6 +26,8 @@ pub struct TransportNotification<'a> {
-     pub version: &'a str,
-     pub ttl: i64,
-     pub topic: Option<&'a str>,
-+    #[serde(skip_serializing_if = "Option::is_none")]
-+    pub sortkey_timestamp: Option<u64>,
+diff --git a/autopush-common/src/db/redis/mod.rs b/autopush-common/src/db/redis/mod.rs
+--- a/autopush-common/src/db/redis/mod.rs
++++ b/autopush-common/src/db/redis/mod.rs
+@@ -88,14 +88,14 @@
+     pub version: String,
      pub timestamp: u64,
-     #[cfg(feature = "reliable_report")]
+     // Possibly stored values, provided with a default.
+-    #[serde(default = "default_ttl", skip_serializing)]
++    #[serde(default = "default_ttl")]
+     pub ttl: u64,
+     // Optional values, which imply a "None" default.
+-    #[serde(skip_serializing)]
++    #[serde(skip_serializing_if = "Option::is_none")]
+     pub topic: Option<String>,
      #[serde(skip_serializing_if = "Option::is_none")]
-@@ -205,6 +207,7 @@ impl Notification {
-         Ok(TransportNotification {
-             channel_id: self.subscription.channel_id,
-             version: &self.message_id,
-+            sortkey_timestamp: self.headers.topic.is_none().then_some(self.sort_key_timestamp),
-             ttl: self.headers.ttl,
-             topic: self.headers.topic.as_deref(),
-             timestamp: self.timestamp,
+     pub data: Option<String>,
+-    #[serde(skip_serializing)]
++    #[serde(skip_serializing_if = "Option::is_none")]
+     pub sortkey_timestamp: Option<u64>,
+     #[serde(skip_serializing_if = "Option::is_none")]
+     pub headers: Option<HashMap<String, String>>,
