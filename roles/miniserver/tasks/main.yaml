@@ -1,11 +1,11 @@
 ---
-- name: 'Include HDD tasks'
+- name: 'Include storage tasks'
   ansible.builtin.include_tasks:
-    file: 'hdd.yaml'
+    file: 'storage.yaml'
     apply:
       tags:
         - 'miniserver'
-        - 'hdd'
+        - 'storage'
   tags:
     - 'miniserver'
-    - 'hdd'
+    - 'storage'

@@ -17,8 +17,8 @@
 
     - name: 'Disable XWayland'
       ansible.builtin.copy:
+        src: 'files/aeon/gnome-shell-wayland.override.conf'
         dest: '/etc/systemd/user/org.gnome.Shell@wayland.service.d/override.conf'
-        content: "[Service]\nExecStart=\nExecStart=/usr/bin/gnome-shell --no-x11\n"
         owner: 'root'
         group: 'root'
         mode: '0644'

@@ -1,0 +1,14 @@
+---
+- name: 'Install gateway packages'
+  community.general.zypper:
+    name:
+      - 'wireguard-tools'
+      - 'nftables'
+      - 'crowdsec-firewall-bouncer-nftables'
+    state: 'present'
+    update_cache: true
+  notify:
+    - 'Reboot'
+
+- name: 'Apply pending reboot for gateway packages'
+  ansible.builtin.meta: 'flush_handlers'

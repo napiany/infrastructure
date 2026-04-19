@@ -1,0 +1,44 @@
+---
+- name: 'Create the certbot-config volume'
+  ansible.builtin.include_tasks: 'helpers/volume.yaml'
+  vars:
+    podman_volume:
+      name: 'certbot-config'
+      uid: '0'
+      gid: '0'
+      mode: '0755'
+
+- name: 'Create the haproxy-config volume'
+  ansible.builtin.include_tasks: 'helpers/volume.yaml'
+  vars:
+    podman_volume:
+      name: 'haproxy-config'
+      uid: '300019'
+      gid: '300019'
+      mode: '0750'
+      recurse: true
+
+- name: 'Create the certbot volume'
+  ansible.builtin.include_tasks: 'helpers/volume.yaml'
+  vars:
+    podman_volume:
+      name: 'certbot'
+      uid: '0'
+      gid: '0'
+      mode: '0755'
+
+- name: 'Create the certbot-webroot volume'
+  ansible.builtin.include_tasks: 'helpers/volume.yaml'
+  vars:
+    podman_volume:
+      name: 'certbot-webroot'
+      uid: '0'
+      gid: '0'
+      mode: '0755'
+
+- name: 'Set HAProxy and certbot mount points'
+  ansible.builtin.set_fact:
+    certbot_config_mountpoint: '{{ (podman_volume_mountpoints | default({})).get(''certbot-config'', '''') }}'
+    haproxy_config_mountpoint: '{{ (podman_volume_mountpoints | default({})).get(''haproxy-config'', '''') }}'
+    certbot_mountpoint: '{{ (podman_volume_mountpoints | default({})).get(''certbot'', '''') }}'
+    certbot_webroot_mountpoint: '{{ (podman_volume_mountpoints | default({})).get(''certbot-webroot'', '''') }}'

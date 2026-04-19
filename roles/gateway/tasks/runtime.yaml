@@ -1,0 +1,12 @@
+---
+- name: 'Start gateway WireGuard'
+  ansible.builtin.systemd:
+    name: 'wg-quick@wg0.service'
+    state: 'started'
+    enabled: true
+
+- name: 'Start gateway CrowdSec firewall bouncer'
+  ansible.builtin.systemd:
+    name: 'crowdsec-firewall-bouncer.service'
+    state: 'started'
+    enabled: true

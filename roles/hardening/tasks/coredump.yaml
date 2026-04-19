@@ -27,7 +27,7 @@
         group: 'root'
         mode: '0755'
 
-    - name: 'Copy vendored coredump override config file'
+    - name: 'Copy coredump override config file'
       ansible.builtin.copy:
         owner: 'root'
         group: 'root'

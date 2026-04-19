@@ -9,7 +9,7 @@
         group: 'root'
         mode: '0755'
 
-    - name: 'Copy vendored override for NetworkManager'
+    - name: 'Copy override for NetworkManager'
       ansible.builtin.copy:
         owner: 'root'
         group: 'root'
@@ -19,9 +19,9 @@
       notify: 'Restart NetworkManager'
 
 - name: 'Configure NetworkManager privacy enhancements'
-  when: "'desktops' in group_names"
+  when: '''desktops'' in group_names'
   block:
-    - name: 'Copy vendored macrandomize config for NetworkManager'
+    - name: 'Copy macrandomize config for NetworkManager'
       ansible.builtin.copy:
         owner: 'root'
         group: 'root'
@@ -30,7 +30,7 @@
         dest: '/etc/NetworkManager/conf.d/00-macrandomize.conf'
       notify: 'Restart NetworkManager'
 
-    - name: 'Copy vendored transient hostname config for NetworkManager'
+    - name: 'Copy transient hostname config for NetworkManager'
       ansible.builtin.copy:
         owner: 'root'
         group: 'root'

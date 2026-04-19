@@ -1,0 +1,54 @@
+---
+- name: 'Create /etc/containers/containers.conf.d'
+  ansible.builtin.file:
+    path: '/etc/containers/containers.conf.d'
+    state: 'directory'
+    owner: 'root'
+    group: 'root'
+    mode: '0755'
+
+- name: 'Template Podman gVisor defaults'
+  ansible.builtin.template:
+    src: 'gvisor/containers.conf.j2'
+    dest: '/etc/containers/containers.conf.d/90-gvisor.conf'
+    owner: 'root'
+    group: 'root'
+    mode: '0644'
+  register: 'podman_gvisor_defaults_config'
+
+- name: 'Template gVisor transparent hugepage tuning'
+  ansible.builtin.template:
+    src: 'gvisor/transparent-hugepage.conf.j2'
+    dest: '/etc/tmpfiles.d/gvisor-thp.conf'
+    owner: 'root'
+    group: 'root'
+    mode: '0644'
+  register: 'podman_gvisor_thp_config'
+
+- name: 'Copy gvisor-auto-update.service'
+  ansible.builtin.copy:
+    src: 'gvisor/auto-update.service'
+    dest: '/etc/systemd/system/gvisor-auto-update.service'
+    owner: 'root'
+    group: 'root'
+    mode: '0644'
+  notify:
+    - 'Daemon reload'
+
+- name: 'Copy gvisor-auto-update.timer'
+  ansible.builtin.copy:
+    src: 'gvisor/auto-update.timer'
+    dest: '/etc/systemd/system/gvisor-auto-update.timer'
+    owner: 'root'
+    group: 'root'
+    mode: '0644'
+  notify:
+    - 'Daemon reload'
+
+- name: 'Reload systemd after gVisor unit changes'
+  ansible.builtin.systemd:
+    daemon_reload: true
+  when: 'not ansible_check_mode'
+
+- name: 'Manage the gVisor runtime'
+  ansible.builtin.include_tasks: 'gvisor/runtime.yaml'

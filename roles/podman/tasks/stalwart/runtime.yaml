@@ -1,0 +1,14 @@
+---
+- name: 'Start Stalwart Postgres'
+  ansible.builtin.systemd:
+    name: 'stalwart-postgres.service'
+    state: 'started'
+    enabled: true
+    daemon_reload: true
+
+- name: 'Start Stalwart'
+  ansible.builtin.systemd:
+    name: 'stalwart.service'
+    state: 'started'
+    enabled: true
+    daemon_reload: true

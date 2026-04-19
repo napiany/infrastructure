@@ -22,24 +22,21 @@
           - 'mollysocket.service'
 
 - name: 'Manage MollySocket secrets'
-  ansible.builtin.include_tasks: 'service_task.yaml'
+  ansible.builtin.include_tasks: 'helpers/secret.yaml'
   vars:
-    podman_service_task: 'secret'
     podman_secret: '{{ item }}'
   loop: '{{ mollysocket_secrets }}'
   loop_control:
     label: '{{ item.name }}'
 
 - name: 'Copy MollySocket Quadlets'
-  ansible.builtin.include_tasks: 'service_task.yaml'
+  ansible.builtin.include_tasks: 'helpers/quadlets.yaml'
   vars:
-    podman_service_task: 'quadlets'
     podman_quadlet_files: '{{ mollysocket_quadlets }}'
 
 - name: 'Create the MollySocket volume'
-  ansible.builtin.include_tasks: 'service_task.yaml'
+  ansible.builtin.include_tasks: 'helpers/volume.yaml'
   vars:
-    podman_service_task: 'volume'
     podman_volume:
       name: 'mollysocket'
       uid: '300009'
@@ -53,12 +50,11 @@
     group: '300009'
     mode: '0600'
   register: 'mollysocket_config_file'
-  when: '(podman_volume_mountpoints | default({})).get("mollysocket", "") | length > 0'
+  when: '(podman_volume_mountpoints | default({})).get(''mollysocket'', '''') | length > 0'
 
 - name: 'Track MollySocket restart after config changes'
-  ansible.builtin.include_tasks: 'service_task.yaml'
+  ansible.builtin.include_tasks: 'helpers/restart_units.yaml'
   vars:
-    podman_service_task: 'track_units'
     podman_restart_units:
       - 'mollysocket.service'
   when:
@@ -66,9 +62,8 @@
     - 'mollysocket_config_file.changed | default(false)'
 
 - name: 'Issue the MollySocket certificate'
-  ansible.builtin.include_tasks: 'service_task.yaml'
+  ansible.builtin.include_tasks: 'helpers/certificate.yaml'
   vars:
-    podman_service_task: 'certificate'
     podman_certificate:
       domains:
         - 'mollysocket.napiany.com'

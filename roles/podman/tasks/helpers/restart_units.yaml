@@ -1,0 +1,9 @@
+---
+- name: 'Track service restarts'
+  ansible.builtin.set_fact:
+    podman_units_to_restart: '{{ ((podman_units_to_restart | default([])) + (podman_restart_units | default([]))) | unique }}'
+  when:
+    - '(podman_restart_units | default([]) | length) > 0'
+  changed_when: true
+  notify:
+    - 'Restart changed Podman units'

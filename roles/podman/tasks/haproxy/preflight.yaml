@@ -1,0 +1,112 @@
+---
+- name: 'Set HAProxy values'
+  vars:
+    podman_wireguard_local_ipv6_value: '{{ podman_wireguard_ipv6_prefix ~ (podman_wireguard_ip.split(''.'')[-1]) }}'
+    podman_local_ingress_ipv6_value: '{{ podman_local_ingress_ipv6 | default('''') | trim }}'
+    podman_local_source_ipv4_cidrs_value: '{{ ((podman_local_source_ipv4_cidrs | default([])) + [''127.0.0.0/8'', (podman_wireguard_ip | regex_replace(''\.[0-9]+$'', ''.0'')) ~ ''/24'', ''10.89.0.0/16'']) | unique }}'
+    podman_local_source_ipv6_cidrs_value: '{{ ((podman_local_source_ipv6_cidrs | default([])) + [''::1/128'', podman_wireguard_ipv6_prefix ~ ''/64'', ''fd89::/16'']) | unique }}'
+  ansible.builtin.set_fact:
+    podman_local_wireguard_ipv6: '{{ podman_wireguard_local_ipv6_value }}'
+    podman_local_ingress_ipv6: '{{ podman_local_ingress_ipv6_value }}'
+    podman_local_source_ipv4_cidrs_effective: '{{ podman_local_source_ipv4_cidrs_value }}'
+    podman_local_source_ipv6_cidrs_effective: '{{ podman_local_source_ipv6_cidrs_value }}'
+    haproxy_service_networks:
+      - service: 'kanidm'
+        src: 'kanidm/haproxy-kanidm.network'
+        dest: 'haproxy-kanidm.network'
+        restart_units:
+          - 'haproxy.service'
+          - 'kanidm.service'
+      - service: 'vaultwarden'
+        src: 'vaultwarden/haproxy-vaultwarden.network'
+        dest: 'haproxy-vaultwarden.network'
+        restart_units:
+          - 'haproxy.service'
+          - 'vaultwarden.service'
+      - service: 'seedvault'
+        src: 'seedvault/haproxy-seedvault.network'
+        dest: 'haproxy-seedvault.network'
+        restart_units:
+          - 'haproxy.service'
+          - 'seedvault.service'
+      - service: 'grid'
+        src: 'grid/haproxy-grid.network'
+        dest: 'haproxy-grid.network'
+        restart_units:
+          - 'haproxy.service'
+          - 'grid.service'
+      - service: 'ente'
+        src: 'ente/haproxy-ente.network'
+        dest: 'haproxy-ente.network'
+        restart_units:
+          - 'haproxy.service'
+          - 'ente-garage.service'
+          - 'ente-museum.service'
+          - 'ente-web.service'
+      - service: 'stalwart'
+        src: 'stalwart/haproxy-stalwart.network'
+        dest: 'haproxy-stalwart.network'
+        restart_units:
+          - 'haproxy.service'
+          - 'stalwart.service'
+      - service: 'autopush'
+        src: 'autopush/haproxy-autopush.network'
+        dest: 'haproxy-autopush.network'
+        restart_units:
+          - 'haproxy.service'
+          - 'autoconnect.service'
+          - 'autoendpoint.service'
+      - service: 'mollysocket'
+        src: 'mollysocket/haproxy-mollysocket.network'
+        dest: 'haproxy-mollysocket.network'
+        restart_units:
+          - 'haproxy.service'
+          - 'mollysocket.service'
+
+- name: 'Validate HAProxy listener addresses'
+  ansible.builtin.assert:
+    that:
+      - 'podman_wireguard_ip | default('''') | length > 0'
+    fail_msg: 'Missing podman_wireguard_ip for HAProxy and WireGuard configuration.'
+
+- name: 'List host IPv6 addresses'
+  ansible.builtin.command:
+    argv:
+      - 'ip'
+      - '-j'
+      - '-6'
+      - 'addr'
+      - 'show'
+  register: 'podman_host_ipv6_command'
+  changed_when: false
+  when: 'podman_local_ingress_ipv6 | length > 0'
+
+- name: 'Set host IPv6 addresses'
+  ansible.builtin.set_fact:
+    podman_host_ipv6_addresses: '{{ ((podman_host_ipv6_command.stdout | default(''[]'') | from_json) | map(attribute=''addr_info'') | sum(start=[])) | map(attribute=''local'') | list }}'
+  when: 'podman_local_ingress_ipv6 | length > 0'
+
+- name: 'Validate HAProxy local IPv6 listener address'
+  ansible.builtin.assert:
+    that:
+      - 'podman_local_ingress_ipv6 in (podman_host_ipv6_addresses | default([]))'
+    fail_msg: 'podman_local_ingress_ipv6 {{ podman_local_ingress_ipv6 }} is not configured on this host. Detected IPv6 addresses: {{ podman_host_ipv6_addresses | default([]) | join('', '') }}'
+  when: 'podman_local_ingress_ipv6 | length > 0'
+
+- name: 'Validate WireGuard private key for this host'
+  ansible.builtin.assert:
+    that:
+      - '(vault_wireguard_private_keys | default({})).get(inventory_hostname, '''') | length > 0'
+    fail_msg: 'Missing vault_wireguard_private_keys entry for {{ inventory_hostname }}.'
+
+- name: 'Validate WireGuard gateway public key'
+  ansible.builtin.assert:
+    that:
+      - '(vault_wireguard_public_keys | default({})).get(''gateway'', '''') | length > 0'
+    fail_msg: 'Missing vault_wireguard_public_keys entry for ''gateway''.'
+
+- name: 'Validate WireGuard preshared key for this host'
+  ansible.builtin.assert:
+    that:
+      - '(vault_wireguard_preshared_keys | default({})).get(inventory_hostname, '''') | length > 0'
+    fail_msg: 'Missing vault_wireguard_preshared_keys entry for {{ inventory_hostname }}.'

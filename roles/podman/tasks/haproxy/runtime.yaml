@@ -1,0 +1,32 @@
+---
+- name: 'Reload systemd before Podman image builds'
+  ansible.builtin.systemd:
+    daemon_reload: true
+  when:
+    - 'haproxy_build_unit.changed or haproxy_containerfile_file.changed or haproxy_container_unit.changed'
+
+- name: 'Build the haproxy image'
+  ansible.builtin.command:
+    argv:
+      - 'systemctl'
+      - 'restart'
+      - '--wait'
+      - 'haproxy-build.service'
+  register: 'haproxy_build_start'
+  changed_when: 'haproxy_build_start.rc == 0'
+  when:
+    - 'haproxy_build_unit.changed or haproxy_containerfile_file.changed or haproxy_container_unit.changed'
+
+- name: 'Start certbot.timer'
+  ansible.builtin.systemd:
+    name: 'certbot.timer'
+    state: 'started'
+    enabled: true
+    daemon_reload: true
+
+- name: 'Start haproxy-rotate-tls-ticket-keys.timer'
+  ansible.builtin.systemd:
+    name: 'haproxy-rotate-tls-ticket-keys.timer'
+    state: 'started'
+    enabled: true
+    daemon_reload: true

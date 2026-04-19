@@ -32,15 +32,13 @@
         gid: '300018'
 
 - name: 'Copy SeedVault Quadlets'
-  ansible.builtin.include_tasks: 'service_task.yaml'
+  ansible.builtin.include_tasks: 'helpers/quadlets.yaml'
   vars:
-    podman_service_task: 'quadlets'
     podman_quadlet_files: '{{ seedvault_quadlets }}'
 
 - name: 'Create SeedVault volumes'
-  ansible.builtin.include_tasks: 'service_task.yaml'
+  ansible.builtin.include_tasks: 'helpers/volume.yaml'
   vars:
-    podman_service_task: 'volume'
     podman_volume: '{{ item }}'
   loop: '{{ seedvault_volumes }}'
   loop_control:
@@ -48,9 +46,9 @@
 
 - name: 'Set SeedVault htpasswd value'
   ansible.builtin.set_fact:
-    seedvault_htpasswd_content: '{{ lookup("vars", "vault_podman_secret_seedvault_htpasswd", default="") }}'
-    seedvault_config_mountpoint: '{{ (podman_volume_mountpoints | default({})).get("seedvault-config", "") }}'
-    seedvault_data_mountpoint: '{{ (podman_volume_mountpoints | default({})).get("seedvault-data", "") }}'
+    seedvault_htpasswd_content: '{{ lookup(''vars'', ''vault_podman_secret_seedvault_htpasswd'', default='''') }}'
+    seedvault_config_mountpoint: '{{ (podman_volume_mountpoints | default({})).get(''seedvault-config'', '''') }}'
+    seedvault_data_mountpoint: '{{ (podman_volume_mountpoints | default({})).get(''seedvault-data'', '''') }}'
   no_log: true
 
 - name: 'Create SeedVault data directories'
@@ -102,9 +100,8 @@
   no_log: true
 
 - name: 'Track SeedVault restart after htpasswd changes'
-  ansible.builtin.include_tasks: 'service_task.yaml'
+  ansible.builtin.include_tasks: 'helpers/restart_units.yaml'
   vars:
-    podman_service_task: 'track_units'
     podman_restart_units:
       - 'seedvault.service'
   when:
@@ -132,9 +129,8 @@
     daemon_reload: true
 
 - name: 'Issue the SeedVault certificate'
-  ansible.builtin.include_tasks: 'service_task.yaml'
+  ansible.builtin.include_tasks: 'helpers/certificate.yaml'
   vars:
-    podman_service_task: 'certificate'
     podman_certificate:
       domains:
         - 'seedvault.napiany.com'

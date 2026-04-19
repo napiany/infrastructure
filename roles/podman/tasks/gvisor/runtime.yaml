@@ -1,0 +1,92 @@
+---
+- name: 'Check whether runsc is already installed'
+  ansible.builtin.stat:
+    path: '/usr/local/bin/runsc'
+  register: 'podman_gvisor_runsc_binary'
+
+- name: 'Run gvisor-auto-update.service immediately when runsc is missing'
+  ansible.builtin.systemd:
+    name: 'gvisor-auto-update.service'
+    state: 'started'
+  when:
+    - 'not ansible_check_mode'
+    - 'not (podman_gvisor_runsc_binary.stat.exists | default(false))'
+
+- name: 'Wait for runsc to become available'
+  ansible.builtin.wait_for:
+    path: '/usr/local/bin/runsc'
+    state: 'present'
+    timeout: 300
+  when:
+    - 'not ansible_check_mode'
+    - 'not (podman_gvisor_runsc_binary.stat.exists | default(false))'
+
+- name: 'Enable and start gvisor-auto-update.timer'
+  ansible.builtin.systemd:
+    name: 'gvisor-auto-update.timer'
+    state: 'started'
+    enabled: true
+  when: 'not ansible_check_mode'
+
+- name: 'Apply gVisor transparent hugepage tuning'
+  ansible.builtin.command:
+    argv:
+      - 'systemd-tmpfiles'
+      - '--create'
+      - '/etc/tmpfiles.d/gvisor-thp.conf'
+  changed_when: false
+  when: 'not ansible_check_mode'
+
+- name: 'Set Podman gVisor CPU vendor'
+  ansible.builtin.set_fact:
+    podman_gvisor_is_intel: '{{ ''GenuineIntel'' in (ansible_facts[''processor''] | default([]) | join('' '')) }}'
+    podman_gvisor_is_amd: '{{ ''AuthenticAMD'' in (ansible_facts[''processor''] | default([]) | join('' '')) }}'
+
+- name: 'Set KVM kernel modules for gVisor'
+  ansible.builtin.set_fact:
+    podman_gvisor_kvm_modules: '{{ [''kvm''] + ([''kvm_intel''] if podman_gvisor_is_intel else [''kvm_amd''] if podman_gvisor_is_amd else []) }}'
+
+- name: 'Try to load KVM kernel modules for gVisor'
+  community.general.modprobe:
+    name: '{{ item }}'
+    state: 'present'
+  loop: '{{ podman_gvisor_kvm_modules }}'
+  failed_when: false
+  changed_when: false
+  when: 'not ansible_check_mode'
+
+- name: 'Persist KVM kernel modules for gVisor'
+  ansible.builtin.template:
+    src: 'gvisor/kvm-modules-load.conf.j2'
+    dest: '/etc/modules-load.d/gvisor-kvm.conf'
+    owner: 'root'
+    group: 'root'
+    mode: '0644'
+
+- name: 'Set long-running services using Podman gVisor defaults'
+  ansible.builtin.set_fact:
+    podman_gvisor_service_units: '{{ ([]
+      + ([''haproxy'', ''crowdsec-spoa''] if (''haproxy'' in podman_containers_selected) else [])
+      + ([''crowdsec''])
+      + ([''kanidm''] if ''kanidm'' in podman_containers_selected else [])
+      + ([''grid'', ''grid-postgres''] if ''grid'' in podman_containers_selected else [])
+      + ([''ente-museum'', ''ente-postgres'', ''ente-web'', ''ente-garage''] if ''ente'' in podman_containers_selected else [])
+      + ([''vaultwarden'', ''vaultwarden-postgres''] if ''vaultwarden'' in podman_containers_selected else [])
+      + ([''seedvault''] if ''seedvault'' in podman_containers_selected else [])
+      + ([''stalwart'', ''stalwart-postgres''] if ''stalwart'' in podman_containers_selected else [])
+      + ([''autoconnect'', ''autoendpoint'', ''autopush-valkey''] if ''autopush'' in podman_containers_selected else [])
+      + ([''mollysocket''] if ''mollysocket'' in podman_containers_selected else []))
+      | unique }}'
+
+- name: 'Set Podman gVisor restart state'
+  ansible.builtin.set_fact:
+    podman_gvisor_restart_required: '{{ (podman_gvisor_defaults_config is defined and podman_gvisor_defaults_config.changed | default(false)) or (podman_gvisor_thp_config is defined and podman_gvisor_thp_config.changed | default(false)) }}'
+
+- name: 'Restart long-running services after Podman gVisor runtime changes'
+  ansible.builtin.systemd:
+    name: '{{ item }}.service'
+    state: 'restarted'
+  loop: '{{ podman_gvisor_service_units | default([]) }}'
+  when:
+    - 'not ansible_check_mode'
+    - 'podman_gvisor_restart_required | default(false)'

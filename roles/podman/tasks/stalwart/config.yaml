@@ -1,0 +1,86 @@
+---
+- name: 'Render stalwart.container'
+  ansible.builtin.template:
+    src: 'stalwart/stalwart.container.j2'
+    dest: '/etc/containers/systemd/stalwart.container'
+    owner: 'root'
+    group: 'root'
+    mode: '0644'
+  register: 'stalwart_container_unit'
+  notify:
+    - 'Daemon reload'
+
+- name: 'Track Stalwart restart after unit changes'
+  ansible.builtin.include_tasks: 'helpers/restart_units.yaml'
+  vars:
+    podman_restart_units:
+      - 'stalwart.service'
+  when: 'stalwart_container_unit.changed | default(false)'
+
+- name: 'Set the Stalwart mount point'
+  ansible.builtin.set_fact:
+    stalwart_mountpoint: '{{ (podman_volume_mountpoints | default({})).get(''stalwart'', '''') }}'
+
+- name: 'Create Stalwart data directories'
+  ansible.builtin.file:
+    path: '{{ stalwart_mountpoint }}/{{ item }}'
+    state: 'directory'
+    owner: '300006'
+    group: '300006'
+    mode: '0700'
+  loop:
+    - 'etc'
+    - 'data'
+    - 'logs'
+  when: 'stalwart_mountpoint | length > 0'
+
+- name: 'Render the Stalwart config'
+  ansible.builtin.set_fact:
+    stalwart_config_toml_content: '{{ lookup(''template'', ''stalwart/config.toml.j2'') }}'
+  when: 'stalwart_mountpoint | length > 0'
+
+- name: 'Check the current Stalwart config'
+  ansible.builtin.stat:
+    path: '{{ stalwart_mountpoint }}/etc/config.toml'
+  register: 'stalwart_config_toml_stat'
+  when: 'stalwart_mountpoint | length > 0'
+
+- name: 'Read the current Stalwart config'
+  ansible.builtin.slurp:
+    src: '{{ stalwart_mountpoint }}/etc/config.toml'
+  register: 'stalwart_config_toml_raw'
+  when:
+    - 'stalwart_mountpoint | length > 0'
+    - 'stalwart_config_toml_stat.stat.exists | default(false)'
+
+- name: 'Write the Stalwart config'
+  ansible.builtin.copy:
+    content: '{{ stalwart_config_toml_content }}'
+    dest: '{{ stalwart_mountpoint }}/etc/config.toml'
+    owner: '300006'
+    group: '300006'
+    mode: '0600'
+    unsafe_writes: true
+  register: 'stalwart_config_toml_file'
+  when:
+    - 'stalwart_mountpoint | length > 0'
+    - 'not (stalwart_config_toml_stat.stat.exists | default(false)) or (stalwart_config_toml_raw.content | b64decode) != stalwart_config_toml_content'
+
+- name: 'Track Stalwart restart after config changes'
+  ansible.builtin.include_tasks: 'helpers/restart_units.yaml'
+  vars:
+    podman_restart_units:
+      - 'stalwart.service'
+  when:
+    - 'stalwart_config_toml_file is defined'
+    - 'stalwart_config_toml_file.changed | default(false)'
+
+- name: 'Set Stalwart config ownership'
+  ansible.builtin.file:
+    path: '{{ stalwart_mountpoint }}/etc/config.toml'
+    owner: '300006'
+    group: '300006'
+    mode: '0600'
+    state: 'file'
+  when: 'stalwart_mountpoint | length > 0'
+  changed_when: false

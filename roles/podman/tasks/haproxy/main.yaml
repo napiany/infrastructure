@@ -1,0 +1,26 @@
+---
+- name: 'Prepare HAProxy values'
+  ansible.builtin.include_tasks: 'haproxy/preflight.yaml'
+
+- name: 'Copy HAProxy service networks'
+  ansible.builtin.include_tasks: 'helpers/quadlets.yaml'
+  vars:
+    podman_quadlet_files: '{{ haproxy_service_networks | selectattr(''service'', ''in'', podman_containers_selected | difference([''haproxy''])) | list }}'
+
+- name: 'Apply pending Podman network changes before starting HAProxy dependencies'
+  ansible.builtin.meta: 'flush_handlers'
+
+- name: 'Prepare HAProxy units'
+  ansible.builtin.include_tasks: 'haproxy/units.yaml'
+
+- name: 'Prepare HAProxy volumes'
+  ansible.builtin.include_tasks: 'haproxy/volumes.yaml'
+
+- name: 'Render HAProxy configuration'
+  ansible.builtin.include_tasks: 'haproxy/config.yaml'
+
+- name: 'Prepare HAProxy TLS assets'
+  ansible.builtin.include_tasks: 'haproxy/tls.yaml'
+
+- name: 'Start HAProxy services'
+  ansible.builtin.include_tasks: 'haproxy/runtime.yaml'

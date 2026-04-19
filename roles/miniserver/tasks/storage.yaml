@@ -19,22 +19,12 @@
   register: 'miniserver_hdd_spindown_service'
 
 - name: 'Install HDD spindown udev rule'
-  ansible.builtin.copy:
+  ansible.builtin.template:
+    src: '60-hdd-spindown.rules.j2'
     dest: '/etc/udev/rules.d/60-hdd-spindown.rules'
     owner: 'root'
     group: 'root'
     mode: '0644'
-    content: '{{ [
-      "ACTION==\"add|change\", SUBSYSTEM==\"block\", ENV{DEVTYPE}==\"disk\", "
-      ~ "KERNEL==\"sd*[!0-9]\", ATTR{queue/rotational}==\"1\", "
-      ~ "ENV{ID_SERIAL}==\"?*\", TAG+=\"systemd\", "
-      ~ "ENV{SYSTEMD_WANTS}+=\"hdd-spindown@ata-$env{ID_SERIAL}.service\"",
-      "ACTION==\"add|change\", SUBSYSTEM==\"block\", ENV{DEVTYPE}==\"disk\", "
-      ~ "KERNEL==\"sd*[!0-9]\", ATTR{queue/rotational}==\"1\", "
-      ~ "ENV{ID_SERIAL}!=\"?*\", ENV{ID_WWN_WITH_EXTENSION}==\"?*\", "
-      ~ "TAG+=\"systemd\", "
-      ~ "ENV{SYSTEMD_WANTS}+=\"hdd-spindown@wwn-$env{ID_WWN_WITH_EXTENSION}.service\""
-      ] | join("\n") ~ "\n" }}'
   register: 'miniserver_hdd_spindown_rule'
 
 - name: 'Reload systemd after HDD spindown unit changes'

@@ -1,9 +1,9 @@
 ---
 - name: 'Set Kanidm values'
   vars:
-    kanidm_settings: '{{ (podman_services | default({})).get("kanidm", {}) }}'
+    kanidm_settings: '{{ (podman_services | default({})).get(''kanidm'', {}) }}'
   ansible.builtin.set_fact:
-    kanidm_domain: '{{ kanidm_settings.domain | default("") }}'
+    kanidm_domain: '{{ kanidm_settings.domain | default('''') }}'
     kanidm_quadlets:
       - src: 'kanidm/haproxy-kanidm.network'
         dest: 'haproxy-kanidm.network'
@@ -16,15 +16,13 @@
           - 'kanidm.service'
 
 - name: 'Copy Kanidm Quadlets'
-  ansible.builtin.include_tasks: 'service_task.yaml'
+  ansible.builtin.include_tasks: 'helpers/quadlets.yaml'
   vars:
-    podman_service_task: 'quadlets'
     podman_quadlet_files: '{{ kanidm_quadlets }}'
 
 - name: 'Create the Kanidm volume'
-  ansible.builtin.include_tasks: 'service_task.yaml'
+  ansible.builtin.include_tasks: 'helpers/volume.yaml'
   vars:
-    podman_service_task: 'volume'
     podman_volume:
       name: 'kanidm'
       uid: '300002'
@@ -38,12 +36,11 @@
     group: '300002'
     mode: '0600'
   register: 'kanidm_server_config'
-  when: '(podman_volume_mountpoints | default({})).get("kanidm", "") | length > 0'
+  when: '(podman_volume_mountpoints | default({})).get(''kanidm'', '''') | length > 0'
 
 - name: 'Track Kanidm restart after config changes'
-  ansible.builtin.include_tasks: 'service_task.yaml'
+  ansible.builtin.include_tasks: 'helpers/restart_units.yaml'
   vars:
-    podman_service_task: 'track_units'
     podman_restart_units:
       - 'kanidm.service'
   when:
@@ -51,9 +48,8 @@
     - 'kanidm_server_config.changed | default(false)'
 
 - name: 'Issue the Kanidm certificate'
-  ansible.builtin.include_tasks: 'service_task.yaml'
+  ansible.builtin.include_tasks: 'helpers/certificate.yaml'
   vars:
-    podman_service_task: 'certificate'
     podman_certificate:
       domains:
         - '{{ kanidm_domain }}'

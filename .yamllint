@@ -9,7 +9,7 @@ rules:
 
   quoted-strings:
     required: true
-    quote-type: 'any'
+    quote-type: 'single'
 
   trailing-spaces: 'enable'
 

@@ -1,8 +1,8 @@
 ---
 - name: 'Set Autopush values'
   vars:
-    autopush_crypto_keys_source: '{{ lookup("vars", "vault_podman_secret_autopush_crypto_keys", default=[]) }}'
-    autopush_auth_keys_source: '{{ lookup("vars", "vault_podman_secret_autopush_auth_keys", default=[]) }}'
+    autopush_crypto_keys_source: '{{ lookup(''vars'', ''vault_podman_secret_autopush_crypto_keys'', default=[]) }}'
+    autopush_auth_keys_source: '{{ lookup(''vars'', ''vault_podman_secret_autopush_auth_keys'', default=[]) }}'
     autopush_crypto_keys_candidate: '{{ autopush_crypto_keys_source if (autopush_crypto_keys_source is sequence and not (autopush_crypto_keys_source is string)) else (autopush_crypto_keys_source | trim | from_json) }}'
     autopush_auth_keys_candidate: '{{ autopush_auth_keys_source if (autopush_auth_keys_source is sequence and not (autopush_auth_keys_source is string)) else (autopush_auth_keys_source | trim | from_json) }}'
   ansible.builtin.set_fact:
@@ -11,8 +11,8 @@
 
 - name: 'Build Autopush secret values'
   ansible.builtin.set_fact:
-    autopush_crypto_keys_value: '{{ "[" ~ (autopush_crypto_keys_list | join(",")) ~ "]" }}'
-    autopush_auth_keys_value: '{{ "[" ~ (autopush_auth_keys_list | join(",")) ~ "]" }}'
+    autopush_crypto_keys_value: '{{ ''['' ~ (autopush_crypto_keys_list | join('','')) ~ '']'' }}'
+    autopush_auth_keys_value: '{{ ''['' ~ (autopush_auth_keys_list | join('','')) ~ '']'' }}'
   no_log: true
 
 - name: 'Set Autopush service values'
@@ -76,9 +76,8 @@
   no_log: true
 
 - name: 'Manage Autopush secrets'
-  ansible.builtin.include_tasks: 'service_task.yaml'
+  ansible.builtin.include_tasks: 'helpers/secret.yaml'
   vars:
-    podman_service_task: 'secret'
     podman_secret: '{{ item }}'
   loop: '{{ autopush_secrets }}'
   loop_control:
@@ -86,15 +85,13 @@
   no_log: true
 
 - name: 'Copy Autopush Quadlets'
-  ansible.builtin.include_tasks: 'service_task.yaml'
+  ansible.builtin.include_tasks: 'helpers/quadlets.yaml'
   vars:
-    podman_service_task: 'quadlets'
     podman_quadlet_files: '{{ autopush_quadlets }}'
 
 - name: 'Create the Autopush Valkey volume'
-  ansible.builtin.include_tasks: 'service_task.yaml'
+  ansible.builtin.include_tasks: 'helpers/volume.yaml'
   vars:
-    podman_service_task: 'volume'
     podman_volume:
       name: 'autopush-valkey'
       uid: '300012'
@@ -108,9 +105,8 @@
     daemon_reload: true
 
 - name: 'Issue the Autopush certificate'
-  ansible.builtin.include_tasks: 'service_task.yaml'
+  ansible.builtin.include_tasks: 'helpers/certificate.yaml'
   vars:
-    podman_service_task: 'certificate'
     podman_certificate:
       domains:
         - 'push.napiany.com'

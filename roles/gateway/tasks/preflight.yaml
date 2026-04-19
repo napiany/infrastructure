@@ -1,0 +1,16 @@
+---
+- name: 'Set gateway values'
+  ansible.builtin.set_fact:
+    gateway_firewall_bouncer_key: '{{ lookup(''vars'', ''vault_crowdsec_firewall_bouncer_key'', default=lookup(''vars'', ''vault_crowdsec_nginx_bouncer_key'', default='''')) }}'
+  no_log: true
+
+- name: 'Validate miniserver WireGuard address'
+  ansible.builtin.assert:
+    that:
+      - '(hostvars[''miniserver''].podman_wireguard_ip | default('''')) | length > 0'
+      - '(vault_wireguard_private_keys | default({})).get(''gateway'', '''') | length > 0'
+      - '(vault_wireguard_public_keys | default({})).get(''miniserver'', '''') | length > 0'
+      - '(vault_wireguard_preshared_keys | default({})).get(''miniserver'', '''') | length > 0'
+      - 'gateway_firewall_bouncer_key | length > 0'
+    fail_msg: 'Missing gateway WireGuard or CrowdSec firewall bouncer configuration.'
+  no_log: true

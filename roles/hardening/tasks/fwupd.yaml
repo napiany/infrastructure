@@ -20,4 +20,4 @@
     name: 'fwupd-refresh.timer'
     state: 'started'
     enabled: true
-  when: "'servers' in group_names"
+  when: '''servers'' in group_names'

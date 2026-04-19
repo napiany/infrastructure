@@ -1,0 +1,113 @@
+---
+- name: 'Start CrowdSec'
+  ansible.builtin.systemd:
+    name: 'crowdsec.service'
+    state: 'started'
+    enabled: true
+    daemon_reload: true
+
+- name: 'Start CrowdSec SPOA'
+  ansible.builtin.systemd:
+    name: 'crowdsec-spoa.service'
+    state: 'started'
+    enabled: true
+    daemon_reload: true
+
+- name: 'Wait for the CrowdSec CLI'
+  ansible.builtin.command:
+    argv:
+      - 'podman'
+      - 'exec'
+      - 'crowdsec'
+      - 'cscli'
+      - 'machines'
+      - 'list'
+  register: 'crowdsec_cli_ready'
+  changed_when: false
+  retries: 10
+  delay: 3
+  until: 'crowdsec_cli_ready.rc == 0'
+  when: 'not ansible_check_mode'
+
+- name: 'Inspect the gateway firewall bouncer'
+  ansible.builtin.command:
+    argv:
+      - 'podman'
+      - 'exec'
+      - 'crowdsec'
+      - 'cscli'
+      - 'bouncers'
+      - 'inspect'
+      - 'gateway-firewall-bouncer'
+  register: 'crowdsec_firewall_bouncer_inspect'
+  changed_when: false
+  failed_when: false
+  when: 'not ansible_check_mode'
+
+- name: 'Register the gateway firewall bouncer'
+  ansible.builtin.command:
+    argv:
+      - 'podman'
+      - 'exec'
+      - 'crowdsec'
+      - 'cscli'
+      - 'bouncers'
+      - 'add'
+      - 'gateway-firewall-bouncer'
+      - '--key'
+      - '{{ crowdsec_firewall_bouncer_key }}'
+  changed_when: true
+  when:
+    - 'not ansible_check_mode'
+    - 'crowdsec_firewall_bouncer_inspect.rc != 0'
+  no_log: true
+
+- name: 'Inspect the haproxy SPOA bouncer'
+  ansible.builtin.command:
+    argv:
+      - 'podman'
+      - 'exec'
+      - 'crowdsec'
+      - 'cscli'
+      - 'bouncers'
+      - 'inspect'
+      - 'haproxy-spoa-bouncer'
+  register: 'crowdsec_spoa_bouncer_inspect'
+  changed_when: false
+  failed_when: false
+  when: 'not ansible_check_mode'
+
+- name: 'Delete the existing haproxy SPOA bouncer before rotation'
+  ansible.builtin.command:
+    argv:
+      - 'podman'
+      - 'exec'
+      - 'crowdsec'
+      - 'cscli'
+      - 'bouncers'
+      - 'delete'
+      - 'haproxy-spoa-bouncer'
+  changed_when: true
+  failed_when: false
+  when:
+    - 'not ansible_check_mode'
+    - 'crowdsec_spoa_bouncer_key_rotated | default(false)'
+    - 'crowdsec_spoa_bouncer_inspect.rc == 0'
+
+- name: 'Register the haproxy SPOA bouncer'
+  ansible.builtin.command:
+    argv:
+      - 'podman'
+      - 'exec'
+      - 'crowdsec'
+      - 'cscli'
+      - 'bouncers'
+      - 'add'
+      - 'haproxy-spoa-bouncer'
+      - '--key'
+      - '{{ lookup(''vars'', ''vault_crowdsec_spoa_bouncer_key'') }}'
+  changed_when: true
+  when:
+    - 'not ansible_check_mode'
+    - 'crowdsec_spoa_bouncer_inspect.rc != 0 or (crowdsec_spoa_bouncer_key_rotated | default(false))'
+  no_log: true
