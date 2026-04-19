@@ -1,0 +1,64 @@
+---
+- name: 'Manage Ente Postgres podman secret'
+  ansible.builtin.include_tasks: 'helpers/secret.yaml'
+  vars:
+    podman_secret:
+      name: 'ente-postgres_password'
+      value_var: 'vault_podman_secret_ente_postgres_password'
+      restart_units:
+        - 'ente-postgres.service'
+  no_log: true
+
+- name: 'Copy Ente Quadlet files'
+  ansible.builtin.include_tasks: 'helpers/quadlets.yaml'
+  vars:
+    podman_quadlet_files:
+      - src: 'ente/haproxy-ente.network'
+        dest: 'haproxy-ente.network'
+        restart_units:
+          - 'haproxy.service'
+          - 'ente-garage.service'
+          - 'ente-museum.service'
+          - 'ente-web.service'
+      - src: 'ente/ente-backend.network'
+        dest: 'ente-backend.network'
+        restart_units:
+          - 'ente-postgres.service'
+          - 'ente-garage.service'
+          - 'ente-museum.service'
+      - src: 'ente/ente-postgres.container'
+        dest: 'ente-postgres.container'
+        restart_units:
+          - 'ente-postgres.service'
+      - src: 'ente/ente-garage.container'
+        dest: 'ente-garage.container'
+        restart_units:
+          - 'ente-garage.service'
+      - src: 'ente/ente-museum.container'
+        dest: 'ente-museum.container'
+        restart_units:
+          - 'ente-museum.service'
+      - src: 'ente/ente-web.build'
+        dest: 'ente-web.build'
+        restart_units:
+          - 'ente-web.service'
+      - src: 'ente/ente-web.containerfile'
+        dest: 'ente-web.containerfile'
+        restart_units:
+          - 'ente-web.service'
+      - src: 'ente/ente-web.container'
+        dest: 'ente-web.container'
+        restart_units:
+          - 'ente-web.service'
+
+- name: 'Prepare Ente volumes'
+  ansible.builtin.include_tasks: 'ente/volumes.yaml'
+
+- name: 'Configure Ente Garage'
+  ansible.builtin.include_tasks: 'ente/garage.yaml'
+
+- name: 'Configure Ente credentials'
+  ansible.builtin.include_tasks: 'ente/credentials.yaml'
+
+- name: 'Start Ente services'
+  ansible.builtin.include_tasks: 'ente/runtime.yaml'

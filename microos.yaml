@@ -33,14 +33,6 @@
         group: 'root'
         mode: '0440'
 
-    - name: 'Refresh zypper metadata'
-      ansible.builtin.command:
-        argv:
-          - 'zypper'
-          - '--non-interactive'
-          - 'refresh'
-      changed_when: false
-
     - name: 'Install required packages'
       community.general.zypper:
         name:
@@ -66,18 +58,18 @@
     - name: 'Run gateway role'
       ansible.builtin.import_role:
         name: 'gateway'
-      when: "inventory_hostname == 'gateway'"
+      when: 'inventory_hostname == ''gateway'''
 
     - name: 'Run miniserver role'
       ansible.builtin.import_role:
         name: 'miniserver'
-      when: "inventory_hostname == 'miniserver'"
+      when: 'inventory_hostname == ''miniserver'''
       tags:
         - 'miniserver'
 
     - name: 'Run podman role'
       ansible.builtin.import_role:
         name: 'podman'
-      when: "inventory_hostname == 'miniserver'"
+      when: 'inventory_hostname == ''miniserver'''
       tags:
         - 'podman'

@@ -1,5 +1,5 @@
 ---
-- name: 'Copy vendored drop-in chrony configuration file'
+- name: 'Copy drop-in chrony configuration file'
   ansible.builtin.copy:
     owner: 'root'
     group: 'root'
@@ -29,7 +29,7 @@
         group: 'root'
         mode: '0755'
 
-    - name: 'Copy vendored configuration file for chronyd override'
+    - name: 'Copy configuration file for chronyd override'
       ansible.builtin.copy:
         owner: 'root'
         group: 'root'

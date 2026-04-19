@@ -19,7 +19,7 @@
         group: 'root'
         mode: '0755'
 
-    - name: 'Copy vendored configuration file for sshd override'
+    - name: 'Copy configuration file for sshd override'
       ansible.builtin.copy:
         owner: 'root'
         group: 'root'

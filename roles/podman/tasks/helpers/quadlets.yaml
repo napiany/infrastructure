@@ -1,0 +1,43 @@
+---
+- name: 'Copy Quadlet files'
+  ansible.builtin.copy:
+    src: '{{ podman_quadlet_file.src }}'
+    dest: '/etc/containers/systemd/{{ podman_quadlet_file.dest }}'
+    owner: 'root'
+    group: 'root'
+    mode: '0644'
+  loop: '{{ podman_quadlet_files | default([]) }}'
+  loop_control:
+    loop_var: 'podman_quadlet_file'
+    label: '{{ podman_quadlet_file.dest }}'
+  register: 'podman_quadlet_copy_results'
+  notify:
+    - 'Daemon reload'
+
+- name: 'Track network recreation after Quadlet changes'
+  ansible.builtin.set_fact:
+    podman_changed_networks: '{{ ((podman_changed_networks | default([])) + [item.podman_quadlet_file.dest | regex_replace(''\.network$'', '''')]) | unique }}'
+    podman_network_units_to_restart: '{{ ((podman_network_units_to_restart | default([])) + (item.podman_quadlet_file.restart_units | default([]))) | unique }}'
+  loop: '{{ podman_quadlet_copy_results.results | default([]) }}'
+  loop_control:
+    label: '{{ item.podman_quadlet_file.dest | default('''') }}'
+  when:
+    - 'item.changed | default(false)'
+    - '(item.podman_quadlet_file.dest | basename) is match(''.*\.network$'')'
+  changed_when: true
+  notify:
+    - 'Recreate changed Podman networks'
+
+- name: 'Track service restarts after Quadlet changes'
+  ansible.builtin.set_fact:
+    podman_units_to_restart: '{{ ((podman_units_to_restart | default([])) + (item.podman_quadlet_file.restart_units | default([]))) | unique }}'
+  loop: '{{ podman_quadlet_copy_results.results | default([]) }}'
+  loop_control:
+    label: '{{ item.podman_quadlet_file.dest | default('''') }}'
+  when:
+    - 'item.changed | default(false)'
+    - 'not ((item.podman_quadlet_file.dest | basename) is match(''.*\.network$''))'
+    - '(item.podman_quadlet_file.restart_units | default([]) | length) > 0'
+  changed_when: true
+  notify:
+    - 'Restart changed Podman units'

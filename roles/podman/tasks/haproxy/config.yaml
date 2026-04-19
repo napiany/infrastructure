@@ -1,0 +1,112 @@
+---
+- name: 'Render the certbot deploy hook'
+  ansible.builtin.template:
+    src: 'certbot/certbot-deploy-hook.sh.j2'
+    dest: '{{ certbot_config_mountpoint }}/certbot-deploy-hook.sh'
+    owner: 'root'
+    group: 'root'
+    mode: '0755'
+  when: 'certbot_config_mountpoint | length > 0'
+
+- name: 'Create certbot directories'
+  ansible.builtin.file:
+    path: '{{ item.base }}/{{ item.path }}'
+    state: 'directory'
+    owner: '{{ item.owner }}'
+    group: '{{ item.group }}'
+    mode: '{{ item.mode }}'
+  loop:
+    - path: 'ansible'
+      owner: 'root'
+      group: 'root'
+      mode: '0700'
+      base: '{{ certbot_mountpoint }}'
+    - path: 'consumers'
+      owner: 'root'
+      group: 'root'
+      mode: '0755'
+      base: '{{ certbot_mountpoint }}'
+    - path: 'certs'
+      owner: '300019'
+      group: '300019'
+      mode: '0700'
+      base: '{{ haproxy_config_mountpoint }}'
+    - path: 'session-ticket-keys'
+      owner: '300019'
+      group: '300019'
+      mode: '0700'
+      base: '{{ haproxy_config_mountpoint }}'
+  when:
+    - 'certbot_mountpoint | length > 0'
+    - 'haproxy_config_mountpoint | length > 0'
+
+- name: 'Create certbot ACME webroot directories'
+  ansible.builtin.file:
+    path: '{{ certbot_webroot_mountpoint }}/{{ item }}'
+    state: 'directory'
+    owner: 'root'
+    group: 'root'
+    mode: '0755'
+  loop:
+    - '.well-known'
+    - '.well-known/acme-challenge'
+  when: 'certbot_webroot_mountpoint | length > 0'
+
+- name: 'Create /usr/local/libexec'
+  ansible.builtin.file:
+    path: '/usr/local/libexec'
+    state: 'directory'
+    owner: 'root'
+    group: 'root'
+    mode: '0755'
+
+- name: 'Render HAProxy TLS ticket create script'
+  ansible.builtin.template:
+    src: 'haproxy/session-ticket-keys-create.j2'
+    dest: '/usr/local/libexec/haproxy-session-ticket-keys-create'
+    owner: 'root'
+    group: 'root'
+    mode: '0755'
+  when: 'haproxy_config_mountpoint | length > 0'
+
+- name: 'Render HAProxy TLS ticket rotate script'
+  ansible.builtin.template:
+    src: 'haproxy/session-ticket-keys-rotate.j2'
+    dest: '/usr/local/libexec/haproxy-session-ticket-keys-rotate'
+    owner: 'root'
+    group: 'root'
+    mode: '0755'
+  when: 'haproxy_config_mountpoint | length > 0'
+
+- name: 'Copy the CrowdSec SPOE config'
+  ansible.builtin.copy:
+    src: 'haproxy/crowdsec.cfg'
+    dest: '{{ haproxy_config_mountpoint }}/crowdsec.cfg'
+    owner: '300019'
+    group: '300019'
+    mode: '0644'
+  when: 'haproxy_config_mountpoint | length > 0'
+  notify:
+    - 'Restart haproxy'
+
+- name: 'Render haproxy.cfg'
+  ansible.builtin.template:
+    src: 'haproxy/haproxy.cfg.j2'
+    dest: '{{ haproxy_config_mountpoint }}/haproxy.cfg'
+    owner: '300019'
+    group: '300019'
+    mode: '0644'
+  when: 'haproxy_config_mountpoint | length > 0'
+  notify:
+    - 'Restart haproxy'
+
+- name: 'Render ACME HTTP-01 Lua handler'
+  ansible.builtin.template:
+    src: 'haproxy/acme-http01.lua.j2'
+    dest: '{{ haproxy_config_mountpoint }}/acme-http01.lua'
+    owner: '300019'
+    group: '300019'
+    mode: '0644'
+  when: 'haproxy_config_mountpoint | length > 0'
+  notify:
+    - 'Restart haproxy'

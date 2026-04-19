@@ -2,9 +2,11 @@
 label = false
 
 [engine]
+# `runsc` is the default runtime. Quadlets can opt out with `GlobalArgs=--runtime=crun`.
 runtime = "runsc"
 
 [engine.runtimes]
+crun = ["/usr/bin/crun", "/bin/crun"]
 runc = ["/sbin/runc"]
 runsc = ["/usr/local/bin/runsc"]
 

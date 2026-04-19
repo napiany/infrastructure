@@ -1,66 +1,7 @@
 ---
-- name: 'Set Grid values'
-  ansible.builtin.set_fact:
-    grid_secrets:
-      - name: 'grid-postgres_password'
-        value_var: 'vault_podman_secret_grid_postgres_password'
-        restart_units:
-          - 'grid-postgres.service'
-          - 'grid.service'
-    grid_quadlets:
-      - src: 'grid/haproxy-grid.network'
-        dest: 'haproxy-grid.network'
-        restart_units:
-          - 'haproxy.service'
-          - 'grid.service'
-      - src: 'grid/grid-postgres.network'
-        dest: 'grid-postgres.network'
-        restart_units:
-          - 'grid-postgres.service'
-          - 'grid.service'
-      - src: 'grid/grid-postgres.container'
-        dest: 'grid-postgres.container'
-        restart_units:
-          - 'grid-postgres.service'
-      - src: 'grid/grid.container'
-        dest: 'grid.container'
-        restart_units:
-          - 'grid.service'
-    grid_volumes:
-      - name: 'grid-postgres'
-        uid: '300014'
-        gid: '300014'
-      - name: 'grid'
-        uid: '300013'
-        gid: '300013'
-
-- name: 'Manage Grid secrets'
-  ansible.builtin.include_tasks: 'service_task.yaml'
-  vars:
-    podman_service_task: 'secret'
-    podman_secret: '{{ item }}'
-  loop: '{{ grid_secrets }}'
-  loop_control:
-    label: '{{ item.name }}'
-
-- name: 'Copy Grid Quadlets'
-  ansible.builtin.include_tasks: 'service_task.yaml'
-  vars:
-    podman_service_task: 'quadlets'
-    podman_quadlet_files: '{{ grid_quadlets }}'
-
-- name: 'Create Grid volumes'
-  ansible.builtin.include_tasks: 'service_task.yaml'
-  vars:
-    podman_service_task: 'volume'
-    podman_volume: '{{ item }}'
-  loop: '{{ grid_volumes }}'
-  loop_control:
-    label: '{{ item.name }}'
-
 - name: 'Set Grid mount point'
   ansible.builtin.set_fact:
-    grid_mountpoint: '{{ (podman_volume_mountpoints | default({})).get("grid", "") }}'
+    grid_mountpoint: '{{ (podman_volume_mountpoints | default({})).get(''grid'', '''') }}'
 
 - name: 'Create Grid media store directory'
   ansible.builtin.file:
@@ -114,7 +55,7 @@
 
 - name: 'Render the Grid homeserver config'
   ansible.builtin.set_fact:
-    grid_homeserver_config_content: '{{ lookup("template", "grid/homeserver.yaml.j2") }}'
+    grid_homeserver_config_content: '{{ lookup(''template'', ''grid/homeserver.yaml.j2'') }}'
   when:
     - 'grid_mountpoint | length > 0'
     - 'not ansible_check_mode or (grid_homeserver_file.stat.exists | default(false))'
@@ -145,9 +86,8 @@
   no_log: true
 
 - name: 'Track Grid restart after config changes'
-  ansible.builtin.include_tasks: 'service_task.yaml'
+  ansible.builtin.include_tasks: 'helpers/restart_units.yaml'
   vars:
-    podman_service_task: 'track_units'
     podman_restart_units:
       - 'grid.service'
   when:
@@ -166,25 +106,3 @@
     - 'not ansible_check_mode or (grid_homeserver_file.stat.exists | default(false))'
   changed_when: false
   no_log: true
-
-- name: 'Start Grid Postgres'
-  ansible.builtin.systemd:
-    name: 'grid-postgres.service'
-    state: 'started'
-    enabled: true
-    daemon_reload: true
-
-- name: 'Start Grid'
-  ansible.builtin.systemd:
-    name: 'grid.service'
-    state: 'started'
-    enabled: true
-    daemon_reload: true
-
-- name: 'Issue the Grid certificate'
-  ansible.builtin.include_tasks: 'service_task.yaml'
-  vars:
-    podman_service_task: 'certificate'
-    podman_certificate:
-      domains:
-        - 'grid.napiany.com'

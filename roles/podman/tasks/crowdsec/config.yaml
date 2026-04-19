@@ -1,0 +1,76 @@
+---
+- name: 'Render crowdsec.container'
+  ansible.builtin.template:
+    src: 'crowdsec/crowdsec.container.j2'
+    dest: '/etc/containers/systemd/crowdsec.container'
+    owner: 'root'
+    group: 'root'
+    mode: '0644'
+  register: 'crowdsec_container_unit'
+  notify:
+    - 'Daemon reload'
+    - 'Restart crowdsec'
+
+- name: 'Create the crowdsec-config volume'
+  ansible.builtin.include_tasks: 'helpers/volume.yaml'
+  vars:
+    podman_volume:
+      name: 'crowdsec-config'
+      uid: '300020'
+      gid: '300020'
+      recurse: true
+
+- name: 'Create the crowdsec-data volume'
+  ansible.builtin.include_tasks: 'helpers/volume.yaml'
+  vars:
+    podman_volume:
+      name: 'crowdsec-data'
+      uid: '300020'
+      gid: '300020'
+      recurse: true
+
+- name: 'Create the crowdsec-spoa-config volume'
+  ansible.builtin.include_tasks: 'helpers/volume.yaml'
+  vars:
+    podman_volume:
+      name: 'crowdsec-spoa-config'
+      uid: '300021'
+      gid: '300021'
+      mode: '0750'
+      recurse: true
+
+- name: 'Set CrowdSec mount points'
+  ansible.builtin.set_fact:
+    crowdsec_config_mountpoint: '{{ (podman_volume_mountpoints | default({})).get(''crowdsec-config'', '''') }}'
+    crowdsec_spoa_config_mountpoint: '{{ (podman_volume_mountpoints | default({})).get(''crowdsec-spoa-config'', '''') }}'
+
+- name: 'Create CrowdSec config directories'
+  ansible.builtin.file:
+    path: '{{ crowdsec_config_mountpoint }}/acquis.d'
+    state: 'directory'
+    owner: '300020'
+    group: '300020'
+    mode: '0755'
+  when: 'crowdsec_config_mountpoint | length > 0'
+
+- name: 'Render the CrowdSec AppSec acquisition file'
+  ansible.builtin.template:
+    src: 'crowdsec/appsec.yaml.j2'
+    dest: '{{ crowdsec_config_mountpoint }}/acquis.d/appsec.yaml'
+    owner: '300020'
+    group: '300020'
+    mode: '0644'
+  when: 'crowdsec_config_mountpoint | length > 0'
+  notify:
+    - 'Restart crowdsec'
+
+- name: 'Render the CrowdSec SPOA config'
+  ansible.builtin.template:
+    src: 'crowdsec/crowdsec-spoa-bouncer.yaml.j2'
+    dest: '{{ crowdsec_spoa_config_mountpoint }}/crowdsec-spoa-bouncer.yaml'
+    owner: '300021'
+    group: '300021'
+    mode: '0644'
+  when: 'crowdsec_spoa_config_mountpoint | length > 0'
+  notify:
+    - 'Restart crowdsec-spoa'

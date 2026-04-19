@@ -1,0 +1,69 @@
+---
+- name: 'Set CrowdSec values'
+  ansible.builtin.set_fact:
+    crowdsec_wireguard_ipv6: '{{ podman_wireguard_ipv6_prefix ~ (podman_wireguard_ip.split(''.'')[-1]) }}'
+    crowdsec_lapi_url: 'http://crowdsec:8080'
+    crowdsec_firewall_bouncer_key: '{{ lookup(''vars'', ''vault_crowdsec_firewall_bouncer_key'', default=lookup(''vars'', ''vault_crowdsec_nginx_bouncer_key'', default='''')) }}'
+    crowdsec_collections:
+      - 'crowdsecurity/linux'
+      - 'crowdsecurity/sshd'
+      - 'crowdsecurity/whitelist-good-actors'
+      - 'crowdsecurity/appsec-generic-rules'
+      - 'crowdsecurity/appsec-virtual-patching'
+      - 'crowdsecurity/appsec-crs'
+    crowdsec_appsec_acquisition_configs_effective:
+      - 'crowdsecurity/appsec-default'
+      - 'crowdsecurity/crs'
+    crowdsec_appsec_enabled: true
+    crowdsec_appsec_listen_host_effective: '{{ crowdsec_appsec_listen_host | default(''0.0.0.0'') }}'
+    crowdsec_appsec_listen_port_effective: '{{ crowdsec_appsec_listen_port | default(7422) }}'
+    crowdsec_quadlets:
+      - src: 'crowdsec/haproxy-crowdsec.network'
+        dest: 'haproxy-crowdsec.network'
+        restart_units:
+          - 'crowdsec.service'
+          - 'crowdsec-spoa.service'
+          - 'haproxy.service'
+      - src: 'haproxy/crowdsec-spoa.container'
+        dest: 'crowdsec-spoa.container'
+        restart_units:
+          - 'crowdsec-spoa.service'
+  no_log: true
+
+- name: 'Validate CrowdSec values'
+  ansible.builtin.assert:
+    that:
+      - 'podman_wireguard_ip | default('''') | length > 0'
+      - 'crowdsec_firewall_bouncer_key | length > 0'
+      - 'lookup(''vars'', ''vault_crowdsec_spoa_bouncer_key'', default='''') | length > 0'
+    fail_msg: 'Missing CrowdSec WireGuard or bouncer configuration.'
+  no_log: true
+
+- name: 'Copy CrowdSec Quadlets'
+  ansible.builtin.include_tasks: 'helpers/quadlets.yaml'
+  vars:
+    podman_quadlet_files: '{{ crowdsec_quadlets }}'
+
+- name: 'Apply pending Podman network changes before starting CrowdSec services'
+  ansible.builtin.meta: 'flush_handlers'
+
+- name: 'Manage the CrowdSec SPOA secret'
+  ansible.builtin.include_tasks: 'helpers/secret.yaml'
+  vars:
+    podman_secret:
+      name: 'crowdsec_spoa_bouncer_key'
+      value_var: 'vault_crowdsec_spoa_bouncer_key'
+      restart_units:
+        - 'crowdsec-spoa.service'
+  no_log: true
+
+- name: 'Set CrowdSec SPOA key rotation state'
+  ansible.builtin.set_fact:
+    crowdsec_spoa_bouncer_key_rotated: '{{ podman_secret_create is defined and (podman_secret_create.changed | default(false)) }}'
+  no_log: true
+
+- name: 'Configure CrowdSec'
+  ansible.builtin.include_tasks: 'crowdsec/config.yaml'
+
+- name: 'Start CrowdSec services'
+  ansible.builtin.include_tasks: 'crowdsec/runtime.yaml'

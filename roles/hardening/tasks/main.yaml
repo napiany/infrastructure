@@ -7,11 +7,11 @@
 
 - name: 'Include Flatpak hardening tasks'
   ansible.builtin.include_tasks: 'flatpak.yaml'
-  when: "'desktops' in group_names"
+  when: '''desktops'' in group_names'
 
 - name: 'Include fwupd hardening tasks'
   ansible.builtin.include_tasks: 'fwupd.yaml'
-  when: "ansible_facts['virtualization_role'] == 'host'"
+  when: 'ansible_facts[''virtualization_role''] == ''host'''
 
 - name: 'Include kernel hardening tasks'
   ansible.builtin.include_tasks: 'kernel.yaml'
@@ -21,7 +21,7 @@
 
 - name: 'Include SSH hardening tasks'
   ansible.builtin.include_tasks: 'ssh.yaml'
-  when: "'servers' in group_names"
+  when: '''servers'' in group_names'
 
 - name: 'Mask debug-shell.service'
   ansible.builtin.systemd:

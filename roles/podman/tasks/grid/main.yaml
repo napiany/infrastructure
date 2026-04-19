@@ -1,0 +1,69 @@
+---
+- name: 'Set Grid values'
+  ansible.builtin.set_fact:
+    grid_secrets:
+      - name: 'grid-postgres_password'
+        value_var: 'vault_podman_secret_grid_postgres_password'
+        restart_units:
+          - 'grid-postgres.service'
+          - 'grid.service'
+    grid_quadlets:
+      - src: 'grid/haproxy-grid.network'
+        dest: 'haproxy-grid.network'
+        restart_units:
+          - 'haproxy.service'
+          - 'grid.service'
+      - src: 'grid/grid-postgres.network'
+        dest: 'grid-postgres.network'
+        restart_units:
+          - 'grid-postgres.service'
+          - 'grid.service'
+      - src: 'grid/grid-postgres.container'
+        dest: 'grid-postgres.container'
+        restart_units:
+          - 'grid-postgres.service'
+      - src: 'grid/grid.container'
+        dest: 'grid.container'
+        restart_units:
+          - 'grid.service'
+    grid_volumes:
+      - name: 'grid-postgres'
+        uid: '300014'
+        gid: '300014'
+      - name: 'grid'
+        uid: '300013'
+        gid: '300013'
+
+- name: 'Manage Grid secrets'
+  ansible.builtin.include_tasks: 'helpers/secret.yaml'
+  vars:
+    podman_secret: '{{ item }}'
+  loop: '{{ grid_secrets }}'
+  loop_control:
+    label: '{{ item.name }}'
+
+- name: 'Copy Grid Quadlets'
+  ansible.builtin.include_tasks: 'helpers/quadlets.yaml'
+  vars:
+    podman_quadlet_files: '{{ grid_quadlets }}'
+
+- name: 'Create Grid volumes'
+  ansible.builtin.include_tasks: 'helpers/volume.yaml'
+  vars:
+    podman_volume: '{{ item }}'
+  loop: '{{ grid_volumes }}'
+  loop_control:
+    label: '{{ item.name }}'
+
+- name: 'Configure Grid'
+  ansible.builtin.include_tasks: 'grid/config.yaml'
+
+- name: 'Start Grid services'
+  ansible.builtin.include_tasks: 'grid/runtime.yaml'
+
+- name: 'Issue the Grid certificate'
+  ansible.builtin.include_tasks: 'helpers/certificate.yaml'
+  vars:
+    podman_certificate:
+      domains:
+        - 'grid.napiany.com'

@@ -1,12 +1,4 @@
 ---
-- name: 'Refresh zypper metadata for Podman'
-  ansible.builtin.command:
-    argv:
-      - 'zypper'
-      - '--non-interactive'
-      - 'refresh'
-  changed_when: false
-
 - name: 'Install Podman packages'
   community.general.zypper:
     name:
@@ -15,6 +7,7 @@
       - 'aardvark-dns'
       - 'wireguard-tools'
     state: 'present'
+    update_cache: true
   notify:
     - 'Reboot'
 
@@ -43,19 +36,19 @@
 
 - name: 'Include HAProxy tasks'
   ansible.builtin.include_tasks:
-    file: 'haproxy.yaml'
+    file: 'haproxy/main.yaml'
     apply:
       tags:
         - 'podman'
         - 'haproxy'
-  when: "'haproxy' in podman_containers_selected"
+  when: '''haproxy'' in podman_containers_selected'
   tags:
     - 'podman'
     - 'haproxy'
 
 - name: 'Include CrowdSec tasks'
   ansible.builtin.include_tasks:
-    file: 'crowdsec.yaml'
+    file: 'crowdsec/main.yaml'
     apply:
       tags:
         - 'podman'
@@ -64,22 +57,105 @@
     - 'podman'
     - 'crowdsec'
 
-- name: 'Include selected podman service tasks'
+- name: 'Include Kanidm tasks'
   ansible.builtin.include_tasks:
-    file: '{{ podman_service_name }}.yaml'
+    file: 'kanidm/main.yaml'
     apply:
       tags:
         - 'podman'
-        - '{{ podman_service_name }}'
-  loop: '{{ podman_available_containers | difference(["haproxy"]) | select("in", podman_containers_selected) | list }}'
-  loop_control:
-    loop_var: 'podman_service_name'
+        - 'kanidm'
+  when: '''kanidm'' in podman_containers_selected'
   tags:
-    - 'always'
+    - 'podman'
+    - 'kanidm'
+
+- name: 'Include Grid tasks'
+  ansible.builtin.include_tasks:
+    file: 'grid/main.yaml'
+    apply:
+      tags:
+        - 'podman'
+        - 'grid'
+  when: '''grid'' in podman_containers_selected'
+  tags:
+    - 'podman'
+    - 'grid'
+
+- name: 'Include Ente tasks'
+  ansible.builtin.include_tasks:
+    file: 'ente/main.yaml'
+    apply:
+      tags:
+        - 'podman'
+        - 'ente'
+  when: '''ente'' in podman_containers_selected'
+  tags:
+    - 'podman'
+    - 'ente'
+
+- name: 'Include Vaultwarden tasks'
+  ansible.builtin.include_tasks:
+    file: 'vaultwarden/main.yaml'
+    apply:
+      tags:
+        - 'podman'
+        - 'vaultwarden'
+  when: '''vaultwarden'' in podman_containers_selected'
+  tags:
+    - 'podman'
+    - 'vaultwarden'
+
+- name: 'Include SeedVault tasks'
+  ansible.builtin.include_tasks:
+    file: 'seedvault/main.yaml'
+    apply:
+      tags:
+        - 'podman'
+        - 'seedvault'
+  when: '''seedvault'' in podman_containers_selected'
+  tags:
+    - 'podman'
+    - 'seedvault'
+
+- name: 'Include Stalwart tasks'
+  ansible.builtin.include_tasks:
+    file: 'stalwart/main.yaml'
+    apply:
+      tags:
+        - 'podman'
+        - 'stalwart'
+  when: '''stalwart'' in podman_containers_selected'
+  tags:
+    - 'podman'
+    - 'stalwart'
+
+- name: 'Include Autopush tasks'
+  ansible.builtin.include_tasks:
+    file: 'autopush/main.yaml'
+    apply:
+      tags:
+        - 'podman'
+        - 'autopush'
+  when: '''autopush'' in podman_containers_selected'
+  tags:
+    - 'podman'
+    - 'autopush'
+
+- name: 'Include MollySocket tasks'
+  ansible.builtin.include_tasks:
+    file: 'mollysocket/main.yaml'
+    apply:
+      tags:
+        - 'podman'
+        - 'mollysocket'
+  when: '''mollysocket'' in podman_containers_selected'
+  tags:
+    - 'podman'
+    - 'mollysocket'
 
 - name: 'Include gVisor tasks'
   ansible.builtin.include_tasks:
-    file: 'gvisor.yaml'
+    file: 'gvisor/main.yaml'
     apply:
       tags:
         - 'podman'

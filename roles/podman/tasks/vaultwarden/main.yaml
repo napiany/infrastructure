@@ -56,24 +56,21 @@
         gid: '300003'
 
 - name: 'Manage Vaultwarden secrets'
-  ansible.builtin.include_tasks: 'service_task.yaml'
+  ansible.builtin.include_tasks: 'helpers/secret.yaml'
   vars:
-    podman_service_task: 'secret'
     podman_secret: '{{ item }}'
   loop: '{{ vaultwarden_secrets }}'
   loop_control:
     label: '{{ item.name }}'
 
 - name: 'Copy Vaultwarden Quadlets'
-  ansible.builtin.include_tasks: 'service_task.yaml'
+  ansible.builtin.include_tasks: 'helpers/quadlets.yaml'
   vars:
-    podman_service_task: 'quadlets'
     podman_quadlet_files: '{{ vaultwarden_quadlets }}'
 
 - name: 'Create Vaultwarden volumes'
-  ansible.builtin.include_tasks: 'service_task.yaml'
+  ansible.builtin.include_tasks: 'helpers/volume.yaml'
   vars:
-    podman_service_task: 'volume'
     podman_volume: '{{ item }}'
   loop: '{{ vaultwarden_volumes }}'
   loop_control:
@@ -87,9 +84,8 @@
     daemon_reload: true
 
 - name: 'Issue the Vaultwarden certificate'
-  ansible.builtin.include_tasks: 'service_task.yaml'
+  ansible.builtin.include_tasks: 'helpers/certificate.yaml'
   vars:
-    podman_service_task: 'certificate'
     podman_certificate:
       domains:
         - 'vault.napiany.com'

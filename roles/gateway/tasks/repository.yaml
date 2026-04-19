@@ -1,0 +1,8 @@
+---
+- name: 'Add the CrowdSec package repository'
+  ansible.builtin.copy:
+    src: 'crowdsec/crowdsec.repo'
+    dest: '/etc/zypp/repos.d/crowdsec.repo'
+    owner: 'root'
+    group: 'root'
+    mode: '0644'

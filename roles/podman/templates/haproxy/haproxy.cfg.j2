@@ -81,9 +81,9 @@ frontend local_https
     http-request send-spoe-group crowdsec crowdsec-http-no-body if !crowdsec_bypass !local_src !body_within_limit { req.body_size -m found }
     http-request set-header X-Crowdsec-Remediation %[var(txn.crowdsec.remediation)] if { var(txn.crowdsec.remediation) -m found }
     http-request set-header X-Crowdsec-IsoCode %[var(txn.crowdsec.isocode)] if { var(txn.crowdsec.isocode) -m found }
-    http-request redirect code 302 location %[url] if !local_src { var(txn.crowdsec.remediation) -m str allow } { var(txn.crowdsec.redirect) -m found }
-    http-request lua.crowdsec_handle if !local_src { var(txn.crowdsec.remediation) -m str captcha }
-    http-request lua.crowdsec_handle if !local_src { var(txn.crowdsec.remediation) -m str ban }
+    http-request redirect code 302 location %[url] if !crowdsec_bypass !local_src { var(txn.crowdsec.remediation) -m str allow } { var(txn.crowdsec.redirect) -m found }
+    http-request lua.crowdsec_handle if !crowdsec_bypass !local_src { var(txn.crowdsec.remediation) -m str captcha }
+    http-request lua.crowdsec_handle if !crowdsec_bypass !local_src { var(txn.crowdsec.remediation) -m str ban }
     http-after-response set-header Set-Cookie %[var(txn.crowdsec.captcha_cookie)] if { var(txn.crowdsec.captcha_status) -m found } { var(txn.crowdsec.captcha_cookie) -m found }
     http-after-response set-header Set-Cookie %[var(txn.crowdsec.captcha_cookie)] if { var(txn.crowdsec.captcha_cookie) -m found } !{ var(txn.crowdsec.captcha_status) -m found }
     http-response set-header Strict-Transport-Security "max-age=31536000; includeSubDomains; preload"
@@ -94,6 +94,7 @@ frontend local_https
 {% endif %}
 {% if 'seedvault' in selected %}
     acl host_seedvault hdr(host) -i seedvault.napiany.com
+    acl seedvault_favicon path -i /favicon.ico
 {% endif %}
 {% if 'grid' in selected %}
     acl host_grid hdr(host) -i grid.napiany.com
@@ -144,6 +145,9 @@ frontend local_https
     http-request deny deny_status 429 if host_updates_push autopush_updates_req_limit
     http-request deny deny_status 403 if host_push autopush_local_path !local_src
     http-request deny deny_status 403 if host_updates_push autopush_local_path !local_src
+{% endif %}
+{% if 'seedvault' in selected %}
+    http-request return status 404 if host_seedvault seedvault_favicon
 {% endif %}
 {% if 'grid' in selected %}
     http-request return status 200 content-type application/json hdr Access-Control-Allow-Origin "*" lf-string '{"m.homeserver":{"base_url":"https://grid.napiany.com"}}' if host_grid grid_well_known
