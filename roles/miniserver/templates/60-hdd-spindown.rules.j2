@@ -1,2 +1,0 @@
-ACTION=="add|change", SUBSYSTEM=="block", ENV{DEVTYPE}=="disk", KERNEL=="sd*[!0-9]", ATTR{queue/rotational}=="1", ENV{ID_SERIAL}=="?*", TAG+="systemd", ENV{SYSTEMD_WANTS}+="hdd-spindown@ata-$env{ID_SERIAL}.service"
-ACTION=="add|change", SUBSYSTEM=="block", ENV{DEVTYPE}=="disk", KERNEL=="sd*[!0-9]", ATTR{queue/rotational}=="1", ENV{ID_SERIAL}!="?*", ENV{ID_WWN_WITH_EXTENSION}=="?*", TAG+="systemd", ENV{SYSTEMD_WANTS}+="hdd-spindown@wwn-$env{ID_WWN_WITH_EXTENSION}.service"

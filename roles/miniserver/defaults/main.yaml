@@ -1,3 +1,0 @@
----
-# hdparm -S 240 = 20 minutes of inactivity before standby.
-miniserver_hdd_spindown_hdparm_timeout: '240'

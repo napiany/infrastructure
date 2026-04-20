@@ -1,8 +1,0 @@
-[Unit]
-Description=Apply HDD spindown timeout to %I
-Documentation=man:hdparm(8)
-ConditionPathExists=/dev/disk/by-id/%I
-
-[Service]
-Type=oneshot
-ExecStart=/usr/sbin/hdparm -q -S {{ miniserver_hdd_spindown_hdparm_timeout }} /dev/disk/by-id/%I

@@ -9,23 +9,20 @@
 - name: 'Apply pending reboot before continuing'
   ansible.builtin.meta: 'flush_handlers'
 
-- name: 'Install HDD spindown systemd template'
-  ansible.builtin.template:
-    src: 'hdd-spindown@.service.j2'
+- name: 'Install HDD spindown systemd unit'
+  ansible.builtin.copy:
+    src: 'hdd-spindown@.service'
     dest: '/etc/systemd/system/hdd-spindown@.service'
     owner: 'root'
     group: 'root'
     mode: '0644'
   register: 'miniserver_hdd_spindown_service'
 
-- name: 'Install HDD spindown udev rule'
-  ansible.builtin.template:
-    src: '60-hdd-spindown.rules.j2'
-    dest: '/etc/udev/rules.d/60-hdd-spindown.rules'
-    owner: 'root'
-    group: 'root'
-    mode: '0644'
-  register: 'miniserver_hdd_spindown_rule'
+- name: 'Remove HDD spindown udev rule'
+  ansible.builtin.file:
+    path: '/etc/udev/rules.d/60-hdd-spindown.rules'
+    state: 'absent'
+  register: 'miniserver_hdd_spindown_rule_removed'
 
 - name: 'Reload systemd after HDD spindown unit changes'
   ansible.builtin.systemd:
@@ -39,7 +36,7 @@
       - 'control'
       - '--reload'
   changed_when: false
-  when: 'miniserver_hdd_spindown_rule.changed | default(false)'
+  when: 'miniserver_hdd_spindown_rule_removed.changed | default(false)'
 
 - name: 'List currently attached HDD devices'
   ansible.builtin.command:
@@ -113,14 +110,12 @@
     msg: 'Detected HDD devices for spindown: {{ miniserver_hdd_byid_devices | join(", ") }}'
   when: '(miniserver_hdd_byid_devices | default([]) | length) > 0'
 
-- name: 'Apply HDD spindown to currently attached HDD devices'
-  ansible.builtin.command:
-    argv:
-      - 'systemctl'
-      - 'start'
-      - 'hdd-spindown@{{ item }}.service'
+- name: 'Enable and start HDD spindown for currently attached HDD devices'
+  ansible.builtin.systemd:
+    name: 'hdd-spindown@{{ item }}.service'
+    enabled: true
+    state: 'started'
   loop: '{{ miniserver_hdd_byid_devices | default([]) }}'
   loop_control:
     label: '{{ item }}'
-  changed_when: false
   when: '(miniserver_hdd_byid_devices | default([]) | length) > 0'

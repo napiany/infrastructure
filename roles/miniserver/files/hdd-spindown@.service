@@ -1,0 +1,13 @@
+[Unit]
+Description=Apply HDD spindown timeout to %i
+Documentation=man:hdparm(8)
+ConditionPathExists=/dev/disk/by-id/%i
+After=local-fs.target
+Wants=local-fs.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/sbin/hdparm -q -S 240 /dev/disk/by-id/%i
+
+[Install]
+WantedBy=multi-user.target
