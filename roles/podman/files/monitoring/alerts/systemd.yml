@@ -1,0 +1,28 @@
+---
+groups:
+  - name: 'Systemd'
+    rules:
+      - alert: 'SystemdUnitFailed'
+        expr: 'node_systemd_unit_state{state="failed"} == 1'
+        for: '5m'
+        labels:
+          severity: 'warning'
+        annotations:
+          summary: 'Systemd unit failed (instance {{ $labels.instance }})'
+          description: 'Systemd unit {{ $labels.name }} has entered failed state. VALUE = {{ $value }} LABELS = {{ $labels }}'
+      - alert: 'SystemdServiceCrashLooping'
+        expr: 'increase(node_systemd_service_restart_total[1h]) > 5 and increase(node_systemd_service_restart_total[5m]) > 0 and on(instance,name) (node_systemd_unit_state{type="service",state="active"} == 1)'
+        for: '5m'
+        labels:
+          severity: 'critical'
+        annotations:
+          summary: 'Systemd service crash looping (instance {{ $labels.instance }})'
+          description: 'Systemd service {{ $labels.name }} has restarted {{ $value }} times in the last hour. VALUE = {{ $value }} LABELS = {{ $labels }}'
+      - alert: 'SystemdUnitTasksNearLimit'
+        expr: 'node_systemd_unit_tasks_current / ignoring(type) node_systemd_unit_tasks_max > 0.9 and ignoring(type) node_systemd_unit_tasks_max > 0'
+        for: '5m'
+        labels:
+          severity: 'warning'
+        annotations:
+          summary: 'Systemd unit tasks near limit (instance {{ $labels.instance }})'
+          description: 'Systemd unit {{ $labels.name }} is using {{ $value | humanizePercentage }} of its task limit. VALUE = {{ $value }} LABELS = {{ $labels }}'

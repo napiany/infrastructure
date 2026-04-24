@@ -1,4 +1,6 @@
 [Network]
+Internal=true
+Options=no_default_route=1
 Subnet=10.89.105.0/24
 Gateway=10.89.105.1
 Subnet=fd89:105::/64

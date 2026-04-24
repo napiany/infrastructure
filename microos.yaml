@@ -73,3 +73,9 @@
       when: 'inventory_hostname == ''miniserver'''
       tags:
         - 'podman'
+
+    - name: 'Run monitoring role'
+      ansible.builtin.import_role:
+        name: 'monitoring'
+      tags:
+        - 'monitoring'

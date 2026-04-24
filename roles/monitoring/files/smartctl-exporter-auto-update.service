@@ -1,0 +1,51 @@
+[Unit]
+Description=Update smartctl_exporter
+Documentation=https://github.com/prometheus-community/smartctl_exporter
+Requires=network-online.target
+After=network-online.target
+Before=smartctl-exporter.service
+
+[Service]
+Type=oneshot
+RuntimeDirectory=smartctl-exporter-updater
+WorkingDirectory=/run/smartctl-exporter-updater
+ExecStart=/usr/bin/sleep 5
+ExecStart=/bin/sh -ec 'curl -fsSLI -o /dev/null -w "%%{url_effective}" "https://github.com/prometheus-community/smartctl_exporter/releases/latest" | sed "s#.*/v##" > version'
+ExecStart=/bin/sh -ec 'printf "smartctl_exporter-%%s.linux-amd64.tar.gz\n" "$$(cat version)" > archive'
+ExecStart=/bin/sh -ec 'printf "https://github.com/prometheus-community/smartctl_exporter/releases/download/v%%s\n" "$$(cat version)" > release_url'
+ExecStart=/bin/sh -ec 'curl -fLsS --remote-name-all "$$(cat release_url)/$$(cat archive)" "$$(cat release_url)/sha256sums.txt"'
+ExecStart=/bin/sh -ec 'grep "  $$(cat archive)\$$" sha256sums.txt | sha256sum -c -'
+ExecStart=/bin/sh -ec 'tar -xzf "$$(cat archive)"'
+ExecStart=+/bin/sh -ec 'chown root:root "smartctl_exporter-$$(cat version).linux-amd64/smartctl_exporter"'
+ExecStart=+/bin/sh -ec 'chmod a+rx "smartctl_exporter-$$(cat version).linux-amd64/smartctl_exporter"'
+ExecStart=+/bin/sh -ec 'mv -Zf "smartctl_exporter-$$(cat version).linux-amd64/smartctl_exporter" "/usr/local/bin/smartctl_exporter"'
+ExecStartPost=-+/usr/bin/systemctl try-restart smartctl-exporter.service
+DynamicUser=true
+CapabilityBoundingSet=
+LockPersonality=true
+MemoryDenyWriteExecute=true
+NoNewPrivileges=true
+PrivateDevices=true
+PrivateIPC=true
+PrivateTmp=true
+ProcSubset=pid
+ProtectClock=true
+ProtectControlGroups=true
+ProtectHome=true
+ProtectHostname=true
+ProtectKernelLogs=true
+ProtectKernelModules=true
+ProtectKernelTunables=true
+ProtectProc=invisible
+ProtectSystem=strict
+RestrictAddressFamilies=
+RestrictNamespaces=true
+RestrictRealtime=true
+RestrictSUIDSGID=true
+RuntimeDirectoryMode=700
+SystemCallArchitectures=native
+SystemCallFilter=@system-service
+SystemCallFilter=~@obsolete
+
+[Install]
+WantedBy=multi-user.target

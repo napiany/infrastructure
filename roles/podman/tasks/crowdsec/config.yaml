@@ -53,6 +53,17 @@
     mode: '0755'
   when: 'crowdsec_config_mountpoint | length > 0'
 
+- name: 'Render the CrowdSec local config overrides'
+  ansible.builtin.template:
+    src: 'crowdsec/config.yaml.local.j2'
+    dest: '{{ crowdsec_config_mountpoint }}/config.yaml.local'
+    owner: '300020'
+    group: '300020'
+    mode: '0644'
+  when: 'crowdsec_config_mountpoint | length > 0'
+  notify:
+    - 'Restart crowdsec'
+
 - name: 'Render the CrowdSec AppSec acquisition file'
   ansible.builtin.template:
     src: 'crowdsec/appsec.yaml.j2'

@@ -1,4 +1,6 @@
 [Network]
+Internal=true
+Options=no_default_route=1
 Subnet=fd89:108::/64
 Gateway=fd89:108::1
 IPv6=true

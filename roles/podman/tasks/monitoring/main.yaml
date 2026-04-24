@@ -1,0 +1,134 @@
+---
+- name: 'Manage Monitoring secrets'
+  ansible.builtin.include_tasks: 'helpers/secret.yaml'
+  vars:
+    podman_secret: '{{ item }}'
+  loop: '{{ (podman_service_manifests.monitoring | default({})).secrets | default([]) }}'
+  loop_control:
+    label: '{{ item.name }}'
+
+- name: 'Copy Monitoring Quadlets'
+  ansible.builtin.include_tasks: 'helpers/quadlets.yaml'
+  vars:
+    podman_quadlet_files: '{{ (podman_service_manifests.monitoring | default({})).quadlet_files | default([]) }}'
+
+- name: 'Render prometheus.container'
+  ansible.builtin.template:
+    src: 'monitoring/prometheus.container.j2'
+    dest: '/etc/containers/systemd/prometheus.container'
+    owner: 'root'
+    group: 'root'
+    mode: '0644'
+  register: 'monitoring_prometheus_unit'
+  notify:
+    - 'Daemon reload'
+
+- name: 'Track Prometheus restart after unit changes'
+  ansible.builtin.include_tasks: 'helpers/restart_units.yaml'
+  vars:
+    podman_restart_units:
+      - 'prometheus.service'
+  when: 'monitoring_prometheus_unit.changed | default(false)'
+
+- name: 'Render alertmanager.container'
+  ansible.builtin.template:
+    src: 'monitoring/alertmanager.container.j2'
+    dest: '/etc/containers/systemd/alertmanager.container'
+    owner: 'root'
+    group: 'root'
+    mode: '0644'
+  register: 'monitoring_alertmanager_unit'
+  notify:
+    - 'Daemon reload'
+
+- name: 'Track Alertmanager restart after unit changes'
+  ansible.builtin.include_tasks: 'helpers/restart_units.yaml'
+  vars:
+    podman_restart_units:
+      - 'alertmanager.service'
+  when: 'monitoring_alertmanager_unit.changed | default(false)'
+
+- name: 'Render grafana.container'
+  ansible.builtin.template:
+    src: 'monitoring/grafana.container.j2'
+    dest: '/etc/containers/systemd/grafana.container'
+    owner: 'root'
+    group: 'root'
+    mode: '0644'
+  register: 'monitoring_grafana_unit'
+  notify:
+    - 'Daemon reload'
+
+- name: 'Track Grafana restart after unit changes'
+  ansible.builtin.include_tasks: 'helpers/restart_units.yaml'
+  vars:
+    podman_restart_units:
+      - 'grafana.service'
+  when: 'monitoring_grafana_unit.changed | default(false)'
+
+- name: 'Stop removed blackbox exporter service'
+  ansible.builtin.command:
+    argv:
+      - 'systemctl'
+      - 'disable'
+      - '--now'
+      - 'blackbox-exporter.service'
+  changed_when: false
+  failed_when: false
+
+- name: 'Remove removed blackbox exporter container'
+  ansible.builtin.command:
+    argv:
+      - 'podman'
+      - 'rm'
+      - '-f'
+      - '-i'
+      - 'blackbox-exporter'
+  register: 'monitoring_blackbox_exporter_container_remove'
+  changed_when: 'monitoring_blackbox_exporter_container_remove.rc == 0'
+  failed_when: false
+
+- name: 'Remove removed blackbox exporter config volume'
+  ansible.builtin.command:
+    argv:
+      - 'podman'
+      - 'volume'
+      - 'rm'
+      - '-f'
+      - 'blackbox-exporter-config'
+  register: 'monitoring_blackbox_exporter_volume_remove'
+  changed_when: 'monitoring_blackbox_exporter_volume_remove.rc == 0'
+  failed_when: false
+
+- name: 'Remove removed blackbox exporter Quadlet'
+  ansible.builtin.file:
+    path: '/etc/containers/systemd/blackbox-exporter.container'
+    state: 'absent'
+  notify:
+    - 'Daemon reload'
+
+- name: 'Apply pending Podman network changes before starting Monitoring services'
+  ansible.builtin.meta: 'flush_handlers'
+
+- name: 'Create Monitoring volumes'
+  ansible.builtin.include_tasks: 'helpers/volume.yaml'
+  vars:
+    podman_volume: '{{ item }}'
+  loop: '{{ (podman_service_manifests.monitoring | default({})).volumes | default([]) }}'
+  loop_control:
+    label: '{{ item.name }}'
+
+- name: 'Configure Monitoring services'
+  ansible.builtin.include_tasks: 'monitoring/config.yaml'
+
+- name: 'Start Monitoring services'
+  ansible.builtin.include_tasks: 'monitoring/runtime.yaml'
+
+- name: 'Apply pending Monitoring restarts after config changes'
+  ansible.builtin.meta: 'flush_handlers'
+
+- name: 'Issue the Monitoring certificate'
+  ansible.builtin.include_tasks: 'helpers/certificate.yaml'
+  vars:
+    podman_certificate: '{{ ((podman_service_manifests.monitoring | default({})).certificates | default([]) | first) }}'
+  when: '((podman_service_manifests.monitoring | default({})).certificates | default([]) | length) > 0'

@@ -7,6 +7,12 @@ Image=docker.io/kanidm/server:1.9.2@sha256:b2600b42dd4a91bcea66eb067b74a180b9ffa
 AutoUpdate=registry
 
 Network=haproxy-kanidm.network:ip6=fd89:100::2
+{% if 'vaultwarden' in (podman_containers_selected | default([])) %}
+Network=kanidm-vaultwarden.network:ip=10.89.102.2,ip6=fd89:102::2
+{% endif %}
+{% if 'monitoring' in (podman_containers_selected | default([])) %}
+Network=kanidm-grafana.network:ip=10.89.107.2,ip6=fd89:107::2
+{% endif %}
 NetworkAlias=kanidm
 
 Volume=kanidm:/data:U,Z,noexec
@@ -21,6 +27,7 @@ User=300002
 Group=300002
 
 DropCapability=ALL
+AddCapability=NET_BIND_SERVICE
 NoNewPrivileges=true
 
 [Service]

@@ -1,0 +1,100 @@
+---
+groups:
+  - name: 'HAProxyExporter'
+    rules:
+      - alert: 'HAProxyHighHTTP5xxErrorRateBackend'
+        expr: 'sum by (proxy) (increase(haproxy_server_http_responses_total{code="5xx", proxy!="be_ente_memories"}[5m])) > 5'
+        for: '5m'
+        labels:
+          severity: 'critical'
+        annotations:
+          summary: 'HAProxy high HTTP 5xx error rate backend (instance {{ $labels.instance }})'
+          description: 'Too many HTTP requests with status 5xx on backend {{ $labels.proxy }} VALUE = {{ $value }} LABELS = {{ $labels }}'
+      - alert: 'HAProxyHighHTTP5xxErrorRateServer'
+        expr: 'sum by (server) (increase(haproxy_server_http_responses_total{code="5xx", server!="ente_memories"}[5m])) > 5'
+        for: '5m'
+        labels:
+          severity: 'critical'
+        annotations:
+          summary: 'HAProxy high HTTP 5xx error rate server (instance {{ $labels.instance }})'
+          description: 'Too many HTTP requests with status 5xx on server {{ $labels.server }} VALUE = {{ $value }} LABELS = {{ $labels }}'
+      - alert: 'HAProxyServerResponseErrors'
+        expr: 'sum by (server) (increase(haproxy_server_response_errors_total[5m])) > 5'
+        for: '5m'
+        labels:
+          severity: 'critical'
+        annotations:
+          summary: 'HAProxy server response errors (instance {{ $labels.instance }})'
+          description: 'Too many response errors to {{ $labels.server }} server. VALUE = {{ $value }} LABELS = {{ $labels }}'
+      - alert: 'HAProxyBackendConnectionErrors'
+        expr: 'sum by (proxy) (increase(haproxy_backend_connection_errors_total{proxy!="be_ente_memories"}[5m])) > 20'
+        for: '5m'
+        labels:
+          severity: 'critical'
+        annotations:
+          summary: 'HAProxy backend connection errors (instance {{ $labels.instance }})'
+          description: 'Too many connection errors to {{ $labels.proxy }} backend. VALUE = {{ $value }} LABELS = {{ $labels }}'
+      - alert: 'HAProxyServerConnectionErrors'
+        expr: 'sum by (proxy) (increase(haproxy_server_connection_errors_total{proxy!="be_ente_memories"}[5m])) > 20'
+        for: '5m'
+        labels:
+          severity: 'critical'
+        annotations:
+          summary: 'HAProxy server connection errors (instance {{ $labels.instance }})'
+          description: 'Too many connection errors to {{ $labels.proxy }}. VALUE = {{ $value }} LABELS = {{ $labels }}'
+      - alert: 'HAProxyBackendMaxActiveSession>80%'
+        expr: '(haproxy_backend_current_sessions / haproxy_backend_limit_sessions * 100) > 80 and haproxy_backend_limit_sessions > 0'
+        for: '2m'
+        labels:
+          severity: 'warning'
+        annotations:
+          summary: 'HAProxy backend max active session > 80% (instance {{ $labels.instance }})'
+          description: 'Session limit from backend {{ $labels.proxy }} reached 80% of limit - {{ $value | printf "%.2f"}}% VALUE = {{ $value }} LABELS = {{ $labels }}'
+      - alert: 'HAProxyPendingRequests'
+        expr: 'sum by (proxy) (haproxy_backend_current_queue{proxy!="be_ente_memories"}) > 0'
+        for: '5m'
+        labels:
+          severity: 'warning'
+        annotations:
+          summary: 'HAProxy pending requests (instance {{ $labels.instance }})'
+          description: 'Some HAProxy requests are pending on {{ $labels.proxy }} - {{ $value | printf "%.2f"}} VALUE = {{ $value }} LABELS = {{ $labels }}'
+      - alert: 'HAProxyHTTPSlowingDown'
+        expr: 'avg by (instance, proxy) (haproxy_backend_total_time_average_seconds{proxy!~"^be_(prometheus|alertmanager|https_termination|ente_memories)$"}) > 3'
+        for: '5m'
+        labels:
+          severity: 'warning'
+        annotations:
+          summary: 'HAProxy HTTP slowing down (instance {{ $labels.instance }})'
+          description: 'HAProxy backend average total time is above 3s on {{ $labels.proxy }} - {{ $value | printf "%.2f"}}s VALUE = {{ $value }} LABELS = {{ $labels }}'
+      - alert: 'HAProxyRetryHigh'
+        expr: 'sum by (proxy) (increase(haproxy_backend_retry_warnings_total{proxy!="be_ente_memories"}[5m])) > 10'
+        for: '5m'
+        labels:
+          severity: 'warning'
+        annotations:
+          summary: 'HAProxy retry high (instance {{ $labels.instance }})'
+          description: 'High rate of retry on {{ $labels.proxy }} - {{ $value | printf "%.2f"}} VALUE = {{ $value }} LABELS = {{ $labels }}'
+      - alert: 'HAproxyHasNoAliveBackends'
+        expr: '(haproxy_backend_active_servers + haproxy_backend_backup_servers == 0) and on (proxy) haproxy_backend_active_servers{proxy!~"^be_(not_found|ente_memories)$"}'
+        for: '2m'
+        labels:
+          severity: 'critical'
+        annotations:
+          summary: 'HAproxy has no alive backends (instance {{ $labels.instance }})'
+          description: 'HAProxy has no alive active or backup backends for {{ $labels.proxy }} VALUE = {{ $value }} LABELS = {{ $labels }}'
+      - alert: 'HAProxyFrontendSecurityBlockedRequests'
+        expr: 'sum by (proxy) (rate(haproxy_frontend_denied_connections_total[5m])) > 30'
+        for: '5m'
+        labels:
+          severity: 'warning'
+        annotations:
+          summary: 'HAProxy frontend security blocked requests (instance {{ $labels.instance }})'
+          description: 'HAProxy is blocking requests for security reason VALUE = {{ $value }} LABELS = {{ $labels }}'
+      - alert: 'HAProxyServerHealthcheckFailure'
+        expr: 'increase(haproxy_server_check_failures_total{server!="ente_memories"}[5m]) > 5'
+        for: '5m'
+        labels:
+          severity: 'warning'
+        annotations:
+          summary: 'HAProxy server healthcheck failure (instance {{ $labels.instance }})'
+          description: 'Some server healthcheck are failing on {{ $labels.server }} ({{ $value }} in the last 5m) VALUE = {{ $value }} LABELS = {{ $labels }}'

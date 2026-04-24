@@ -1,0 +1,44 @@
+---
+groups:
+  - name: 'Blackbox'
+    rules:
+      - alert: 'BlackboxProbeFailed'
+        expr: 'probe_success == 0'
+        for: '1m'
+        labels:
+          severity: 'critical'
+        annotations:
+          summary: 'Blackbox probe failed (instance {{ $labels.instance }})'
+          description: 'Probe failed VALUE = {{ $value }} LABELS = {{ $labels }}'
+      - alert: 'BlackboxSlowProbe'
+        expr: 'probe_success == 1 and probe_duration_seconds > 3'
+        for: '5m'
+        labels:
+          severity: 'warning'
+        annotations:
+          summary: 'Blackbox slow probe (instance {{ $labels.instance }})'
+          description: 'Blackbox probe took more than 3s to complete VALUE = {{ $value }} LABELS = {{ $labels }}'
+      - alert: 'BlackboxSSLCertificateWillExpireSoon'
+        expr: 'round((last_over_time(probe_ssl_earliest_cert_expiry[10m]) - time()) / 86400, 0.1) >= 1 and round((last_over_time(probe_ssl_earliest_cert_expiry[10m]) - time()) / 86400, 0.1) < 2'
+        for: '0m'
+        labels:
+          severity: 'warning'
+        annotations:
+          summary: 'Blackbox SSL certificate will expire soon (instance {{ $labels.instance }})'
+          description: 'Short-lived SSL certificate expires in less than 2 days VALUE = {{ $value }} LABELS = {{ $labels }}'
+      - alert: 'BlackboxSSLCertificateWillExpireVerySoon'
+        expr: 'round((last_over_time(probe_ssl_earliest_cert_expiry[10m]) - time()) / 86400, 0.1) >= 0 and round((last_over_time(probe_ssl_earliest_cert_expiry[10m]) - time()) / 86400, 0.1) < 1'
+        for: '0m'
+        labels:
+          severity: 'critical'
+        annotations:
+          summary: 'Blackbox SSL certificate will expire very soon (instance {{ $labels.instance }})'
+          description: 'Short-lived SSL certificate expires in less than 1 day VALUE = {{ $value }} LABELS = {{ $labels }}'
+      - alert: 'BlackboxSSLCertificateExpired'
+        expr: 'round((last_over_time(probe_ssl_earliest_cert_expiry[10m]) - time()) / 86400, 0.1) < 0'
+        for: '0m'
+        labels:
+          severity: 'critical'
+        annotations:
+          summary: 'Blackbox SSL certificate expired (instance {{ $labels.instance }})'
+          description: 'SSL certificate has expired already VALUE = {{ $value }} LABELS = {{ $labels }}'

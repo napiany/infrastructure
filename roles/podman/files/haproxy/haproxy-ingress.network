@@ -1,0 +1,7 @@
+[Network]
+Subnet=10.89.114.0/24
+Gateway=10.89.114.1
+Subnet=fd89:114::/64
+Gateway=fd89:114::1
+IPv6=true
+NetworkDeleteOnStop=true

@@ -143,6 +143,9 @@
     loop_var: 'podman_certificate_domain'
     label: '{{ podman_certificate_domain }}'
 
+- name: 'Apply pending Podman changes before certificate issuance'
+  ansible.builtin.meta: 'flush_handlers'
+
 - name: 'Start HAProxy for ACME HTTP-01 challenges'
   ansible.builtin.systemd:
     name: 'haproxy.service'
@@ -151,14 +154,42 @@
     daemon_reload: true
   when: '''haproxy'' in (podman_containers_selected | default(podman_containers | default([])))'
 
-- name: 'Wait for HAProxy HTTP listener'
-  ansible.builtin.wait_for:
-    host: '{{ podman_wireguard_ip }}'
-    port: 80
-    timeout: 30
+- name: 'Wait for HAProxy HTTP listener socket'
+  ansible.builtin.command:
+    argv:
+      - 'ss'
+      - '-Hln4'
+  register: 'podman_haproxy_http_listener'
+  changed_when: false
+  retries: 30
+  delay: 1
+  until: 'podman_wireguard_ip ~ '':80'' in podman_haproxy_http_listener.stdout'
   when:
     - '''haproxy'' in (podman_containers_selected | default(podman_containers | default([])))'
     - 'podman_wireguard_ip | default('''') | length > 0'
+
+- name: 'Set HAProxy WireGuard IPv6 HTTP listener socket'
+  ansible.builtin.set_fact:
+    podman_haproxy_http_listener_socket_ipv6: '[{{ podman_wireguard_ipv6_prefix ~ (podman_wireguard_ip.split(''.'')[-1]) }}]:80'
+  when:
+    - '''haproxy'' in (podman_containers_selected | default(podman_containers | default([])))'
+    - 'podman_wireguard_ip | default('''') | length > 0'
+    - 'podman_wireguard_ipv6_prefix | default('''') | length > 0'
+
+- name: 'Wait for HAProxy WireGuard IPv6 HTTP listener socket'
+  ansible.builtin.command:
+    argv:
+      - 'ss'
+      - '-Hln6'
+  register: 'podman_haproxy_http_listener_ipv6'
+  changed_when: false
+  retries: 30
+  delay: 1
+  until: 'podman_haproxy_http_listener_socket_ipv6 in podman_haproxy_http_listener_ipv6.stdout'
+  when:
+    - '''haproxy'' in (podman_containers_selected | default(podman_containers | default([])))'
+    - 'podman_wireguard_ip | default('''') | length > 0'
+    - 'podman_wireguard_ipv6_prefix | default('''') | length > 0'
 
 - name: 'Issue certificate'
   ansible.builtin.command:

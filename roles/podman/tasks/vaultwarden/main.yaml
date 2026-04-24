@@ -12,6 +12,24 @@
   vars:
     podman_quadlet_files: '{{ (podman_service_manifests.vaultwarden | default({})).quadlet_files | default([]) }}'
 
+- name: 'Render vaultwarden.container'
+  ansible.builtin.template:
+    src: 'vaultwarden/vaultwarden.container.j2'
+    dest: '/etc/containers/systemd/vaultwarden.container'
+    owner: 'root'
+    group: 'root'
+    mode: '0644'
+  register: 'vaultwarden_container_unit'
+  notify:
+    - 'Daemon reload'
+
+- name: 'Track Vaultwarden restart after unit changes'
+  ansible.builtin.include_tasks: 'helpers/restart_units.yaml'
+  vars:
+    podman_restart_units:
+      - 'vaultwarden.service'
+  when: 'vaultwarden_container_unit.changed | default(false)'
+
 - name: 'Create Vaultwarden volumes'
   ansible.builtin.include_tasks: 'helpers/volume.yaml'
   vars:
@@ -19,6 +37,26 @@
   loop: '{{ (podman_service_manifests.vaultwarden | default({})).volumes | default([]) }}'
   loop_control:
     label: '{{ item.name }}'
+
+- name: 'Render Vaultwarden config'
+  ansible.builtin.template:
+    src: 'vaultwarden/config.json.j2'
+    dest: '{{ podman_volume_mountpoints.vaultwarden }}/config.json'
+    owner: '300003'
+    group: '300003'
+    mode: '0600'
+  register: 'vaultwarden_config'
+  no_log: true
+  when: '(podman_volume_mountpoints | default({})).get(''vaultwarden'', '''') | length > 0'
+
+- name: 'Track Vaultwarden restart after config changes'
+  ansible.builtin.include_tasks: 'helpers/restart_units.yaml'
+  vars:
+    podman_restart_units:
+      - 'vaultwarden.service'
+  when:
+    - 'vaultwarden_config is defined'
+    - 'vaultwarden_config.changed | default(false)'
 
 - name: 'Start Vaultwarden Postgres'
   ansible.builtin.systemd:

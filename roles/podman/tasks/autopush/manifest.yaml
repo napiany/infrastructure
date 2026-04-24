@@ -9,6 +9,11 @@
             - 'haproxy.service'
             - 'autoconnect.service'
             - 'autoendpoint.service'
+        - src: 'autopush/autopush-egress.network'
+          dest: 'autopush-egress.network'
+          restart_units:
+            - 'autoconnect.service'
+            - 'autoendpoint.service'
         - src: 'autopush/autopush-valkey.network'
           dest: 'autopush-valkey.network'
           restart_units:

@@ -15,6 +15,14 @@
     group: 'root'
     mode: '0755'
 
+- name: 'Create crowdsec-firewall-bouncer override directory'
+  ansible.builtin.file:
+    path: '/etc/systemd/system/crowdsec-firewall-bouncer.service.d'
+    state: 'directory'
+    owner: 'root'
+    group: 'root'
+    mode: '0755'
+
 - name: 'Render gateway WireGuard config'
   ansible.builtin.template:
     src: 'wireguard/wireguard-server.conf.j2'
@@ -25,13 +33,24 @@
   notify:
     - 'Restart gateway wireguard'
 
-- name: 'Render gateway CrowdSec firewall bouncer config'
+- name: 'Render gateway CrowdSec firewall bouncer local override'
   ansible.builtin.template:
     src: 'crowdsec/crowdsec-firewall-bouncer.yaml.j2'
-    dest: '/etc/crowdsec/bouncers/crowdsec-firewall-bouncer.yaml'
+    dest: '/etc/crowdsec/bouncers/crowdsec-firewall-bouncer.yaml.local'
     owner: 'root'
     group: 'root'
     mode: '0600'
   no_log: true
   notify:
+    - 'Restart gateway crowdsec-firewall-bouncer'
+
+- name: 'Install crowdsec-firewall-bouncer systemd override'
+  ansible.builtin.copy:
+    src: 'crowdsec-firewall-bouncer-override.conf'
+    dest: '/etc/systemd/system/crowdsec-firewall-bouncer.service.d/override.conf'
+    owner: 'root'
+    group: 'root'
+    mode: '0644'
+  notify:
+    - 'Reload gateway systemd'
     - 'Restart gateway crowdsec-firewall-bouncer'

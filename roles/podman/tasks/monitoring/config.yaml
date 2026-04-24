@@ -1,0 +1,202 @@
+---
+- name: 'Set Monitoring mount points'
+  ansible.builtin.set_fact:
+    monitoring_prometheus_config_mountpoint: '{{ (podman_volume_mountpoints | default({})).get(''prometheus-config'', '''') }}'
+    monitoring_alertmanager_config_mountpoint: '{{ (podman_volume_mountpoints | default({})).get(''alertmanager-config'', '''') }}'
+    monitoring_grafana_provisioning_mountpoint: '{{ (podman_volume_mountpoints | default({})).get(''grafana-provisioning'', '''') }}'
+
+- name: 'Set Monitoring secret values'
+  ansible.builtin.set_fact:
+    monitoring_alertmanager_smtp_password: '{{ lookup(''vars'', ''vault_podman_secret_monitoring_smtp_password'', default='''') }}'
+  no_log: true
+
+- name: 'Set missing Monitoring configuration values'
+  ansible.builtin.set_fact:
+    monitoring_missing_configuration: '{{ [''vault_podman_secret_monitoring_smtp_password''] if (monitoring_alertmanager_smtp_password | length == 0) else [] }}'
+
+- name: 'Validate Monitoring configuration values'
+  ansible.builtin.assert:
+    that:
+      - '(monitoring_missing_configuration | default([]) | length) == 0'
+    fail_msg: 'Monitoring is missing required configuration: {{ monitoring_missing_configuration | join('', '') }}'
+
+- name: 'Render the Prometheus config'
+  ansible.builtin.set_fact:
+    monitoring_prometheus_config_content: '{{ lookup(''template'', ''monitoring/prometheus.yml.j2'') }}'
+    monitoring_prometheus_alert_rule_files: '{{ query(''fileglob'', role_path ~ ''/files/monitoring/alerts/*.yml'') | map(''basename'') | sort | list }}'
+
+- name: 'Render the Alertmanager config'
+  ansible.builtin.set_fact:
+    monitoring_alertmanager_config_content: '{{ lookup(''template'', ''monitoring/alertmanager.yml.j2'') }}'
+  no_log: true
+
+- name: 'Read the Grafana Prometheus datasource config'
+  ansible.builtin.set_fact:
+    monitoring_grafana_prometheus_datasource_config_content: '{{ lookup(''file'', role_path ~ ''/files/monitoring/grafana-prometheus-datasource.yml'', rstrip=false) }}'
+
+- name: 'Check the current Prometheus config'
+  ansible.builtin.stat:
+    path: '{{ monitoring_prometheus_config_mountpoint }}/prometheus.yml'
+  register: 'monitoring_prometheus_config_file'
+  when: 'monitoring_prometheus_config_mountpoint | length > 0'
+
+- name: 'Read the current Prometheus config'
+  ansible.builtin.slurp:
+    src: '{{ monitoring_prometheus_config_mountpoint }}/prometheus.yml'
+  register: 'monitoring_prometheus_config_raw'
+  when:
+    - 'monitoring_prometheus_config_mountpoint | length > 0'
+    - 'monitoring_prometheus_config_file.stat.exists | default(false)'
+
+- name: 'Write the Prometheus config'
+  ansible.builtin.copy:
+    content: '{{ monitoring_prometheus_config_content }}'
+    dest: '{{ monitoring_prometheus_config_mountpoint }}/prometheus.yml'
+    owner: '300023'
+    group: '300023'
+    mode: '0600'
+    unsafe_writes: true
+  register: 'monitoring_prometheus_config_copy'
+  when:
+    - 'monitoring_prometheus_config_mountpoint | length > 0'
+    - 'not (monitoring_prometheus_config_file.stat.exists | default(false)) or (monitoring_prometheus_config_raw.content | b64decode) != monitoring_prometheus_config_content'
+
+- name: 'Track Prometheus restart after config changes'
+  ansible.builtin.include_tasks: 'helpers/restart_units.yaml'
+  vars:
+    podman_restart_units:
+      - 'prometheus.service'
+  when:
+    - 'monitoring_prometheus_config_copy is defined'
+    - 'monitoring_prometheus_config_copy.changed | default(false)'
+
+- name: 'Create the Prometheus alerts directory'
+  ansible.builtin.file:
+    path: '{{ monitoring_prometheus_config_mountpoint }}/alerts'
+    state: 'directory'
+    owner: '300023'
+    group: '300023'
+    mode: '0700'
+  register: 'monitoring_prometheus_alerts_directory'
+  when: 'monitoring_prometheus_config_mountpoint | length > 0'
+
+- name: 'List current Prometheus alert rule files'
+  ansible.builtin.find:
+    paths: '{{ monitoring_prometheus_config_mountpoint }}/alerts'
+    patterns: '*.yml'
+    file_type: 'file'
+    recurse: false
+  register: 'monitoring_prometheus_existing_alert_rule_files'
+  when:
+    - 'monitoring_prometheus_config_mountpoint | length > 0'
+    - 'monitoring_prometheus_alert_rule_files | length > 0'
+
+- name: 'Copy the Prometheus alert rule files'
+  ansible.builtin.copy:
+    src: 'monitoring/alerts/{{ item }}'
+    dest: '{{ monitoring_prometheus_config_mountpoint }}/alerts/{{ item }}'
+    owner: '300023'
+    group: '300023'
+    mode: '0600'
+  loop: '{{ monitoring_prometheus_alert_rule_files }}'
+  register: 'monitoring_prometheus_alert_rule_copy'
+  when:
+    - 'monitoring_prometheus_config_mountpoint | length > 0'
+    - 'monitoring_prometheus_alert_rule_files | length > 0'
+
+- name: 'Remove stale Prometheus alert rule files'
+  ansible.builtin.file:
+    path: '{{ item.path }}'
+    state: 'absent'
+  loop: '{{ monitoring_prometheus_existing_alert_rule_files.files | default([]) }}'
+  when:
+    - 'monitoring_prometheus_config_mountpoint | length > 0'
+    - '(item.path | basename) not in monitoring_prometheus_alert_rule_files'
+  register: 'monitoring_prometheus_alert_rule_remove'
+
+- name: 'Remove the legacy Prometheus alerts.yml file'
+  ansible.builtin.file:
+    path: '{{ monitoring_prometheus_config_mountpoint }}/alerts.yml'
+    state: 'absent'
+  register: 'monitoring_prometheus_legacy_rules_file'
+  when: 'monitoring_prometheus_config_mountpoint | length > 0'
+
+- name: 'Track Prometheus restart after rule changes'
+  ansible.builtin.include_tasks: 'helpers/restart_units.yaml'
+  vars:
+    podman_restart_units:
+      - 'prometheus.service'
+  when:
+    - '(monitoring_prometheus_alert_rule_copy is defined and (monitoring_prometheus_alert_rule_copy.results | default([]) | selectattr(''changed'') | list | length) > 0)
+      or (monitoring_prometheus_alert_rule_remove is defined and (monitoring_prometheus_alert_rule_remove.results | default([]) | selectattr(''changed'') | list | length) > 0)
+      or (monitoring_prometheus_legacy_rules_file is defined and (monitoring_prometheus_legacy_rules_file.changed | default(false)))'
+
+- name: 'Check the current Alertmanager config'
+  ansible.builtin.stat:
+    path: '{{ monitoring_alertmanager_config_mountpoint }}/alertmanager.yml'
+  register: 'monitoring_alertmanager_config_file'
+  when: 'monitoring_alertmanager_config_mountpoint | length > 0'
+
+- name: 'Read the current Alertmanager config'
+  ansible.builtin.slurp:
+    src: '{{ monitoring_alertmanager_config_mountpoint }}/alertmanager.yml'
+  register: 'monitoring_alertmanager_config_raw'
+  when:
+    - 'monitoring_alertmanager_config_mountpoint | length > 0'
+    - 'monitoring_alertmanager_config_file.stat.exists | default(false)'
+  no_log: true
+
+- name: 'Write the Alertmanager config'
+  ansible.builtin.copy:
+    content: '{{ monitoring_alertmanager_config_content }}'
+    dest: '{{ monitoring_alertmanager_config_mountpoint }}/alertmanager.yml'
+    owner: '300024'
+    group: '300024'
+    mode: '0600'
+    unsafe_writes: true
+  register: 'monitoring_alertmanager_config_copy'
+  when:
+    - 'monitoring_alertmanager_config_mountpoint | length > 0'
+    - 'not (monitoring_alertmanager_config_file.stat.exists | default(false)) or (monitoring_alertmanager_config_raw.content | b64decode) != monitoring_alertmanager_config_content'
+  no_log: true
+
+- name: 'Track Alertmanager restart after config changes'
+  ansible.builtin.include_tasks: 'helpers/restart_units.yaml'
+  vars:
+    podman_restart_units:
+      - 'alertmanager.service'
+  when:
+    - 'monitoring_alertmanager_config_copy is defined'
+    - 'monitoring_alertmanager_config_copy.changed | default(false)'
+
+- name: 'Create the Grafana provisioning directories'
+  ansible.builtin.file:
+    path: '{{ item }}'
+    state: 'directory'
+    owner: '472'
+    group: '472'
+    mode: '0700'
+  loop:
+    - '{{ monitoring_grafana_provisioning_mountpoint }}'
+    - '{{ monitoring_grafana_provisioning_mountpoint }}/datasources'
+  when: 'monitoring_grafana_provisioning_mountpoint | length > 0'
+
+- name: 'Write the Grafana Prometheus datasource config'
+  ansible.builtin.copy:
+    content: '{{ monitoring_grafana_prometheus_datasource_config_content }}'
+    dest: '{{ monitoring_grafana_provisioning_mountpoint }}/datasources/prometheus.yml'
+    owner: '472'
+    group: '472'
+    mode: '0600'
+    unsafe_writes: true
+  register: 'monitoring_grafana_prometheus_datasource_config_copy'
+  when: 'monitoring_grafana_provisioning_mountpoint | length > 0'
+
+- name: 'Track Grafana restart after provisioning changes'
+  ansible.builtin.include_tasks: 'helpers/restart_units.yaml'
+  vars:
+    podman_restart_units:
+      - 'grafana.service'
+  when:
+    - 'monitoring_grafana_prometheus_datasource_config_copy is defined'
+    - 'monitoring_grafana_prometheus_datasource_config_copy.changed | default(false)'

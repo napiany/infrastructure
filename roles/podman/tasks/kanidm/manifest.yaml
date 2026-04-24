@@ -3,19 +3,14 @@
   vars:
     kanidm_settings: '{{ (podman_services | default({})).get(''kanidm'', {}) }}'
     kanidm_domain: '{{ kanidm_settings.domain | default('''') }}'
+    kanidm_vaultwarden_quadlet_files: '{{ [{''src'': ''vaultwarden/kanidm-vaultwarden.network'', ''dest'': ''kanidm-vaultwarden.network'', ''restart_units'': [''kanidm.service'', ''vaultwarden.service'']}] if (''vaultwarden'' in (podman_containers_selected | default([]))) else [] }}'
+    kanidm_monitoring_quadlet_files: '{{ [{''src'': ''monitoring/kanidm-grafana.network'', ''dest'': ''kanidm-grafana.network'', ''restart_units'': [''kanidm.service'', ''grafana.service'']}] if (''monitoring'' in (podman_containers_selected | default([]))) else [] }}'
+    kanidm_shared_network_quadlet_files: '{{ kanidm_vaultwarden_quadlet_files + kanidm_monitoring_quadlet_files }}'
     kanidm_manifest:
       domain: '{{ kanidm_domain }}'
-      quadlet_files:
-        - src: 'kanidm/haproxy-kanidm.network'
-          dest: 'haproxy-kanidm.network'
-          restart_units:
-            - 'haproxy.service'
-            - 'kanidm.service'
-        - src: 'kanidm/kanidm.container'
-          dest: 'kanidm.container'
-          restart_units:
-            - 'kanidm.service'
-      managed_files_extra: []
+      quadlet_files: '{{ [{''src'': ''kanidm/haproxy-kanidm.network'', ''dest'': ''haproxy-kanidm.network'', ''restart_units'': [''haproxy.service'', ''kanidm.service'']}] + kanidm_shared_network_quadlet_files }}'
+      managed_files_extra:
+        - 'kanidm.container'
       secrets: []
       volumes:
         - name: 'kanidm'

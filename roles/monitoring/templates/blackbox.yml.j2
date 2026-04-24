@@ -1,0 +1,96 @@
+---
+modules:
+{% for monitoring_blackbox_target_domain in monitoring_blackbox_public_domains | default([]) %}
+  https_edge_{{ loop.index }}:
+    prober: 'http'
+    timeout: '10s'
+    http:
+      method: 'GET'
+      valid_status_codes:
+        - 200
+        - 204
+        - 301
+        - 302
+        - 303
+        - 307
+        - 308
+      fail_if_not_ssl: true
+      follow_redirects: false
+      preferred_ip_protocol: 'ip6'
+      ip_protocol_fallback: true
+      headers:
+        Host: '{{ monitoring_blackbox_target_domain }}'
+      tls_config:
+        server_name: '{{ monitoring_blackbox_target_domain }}'
+{% endfor %}
+  http_2xx_prometheus_local:
+    prober: 'http'
+    timeout: '10s'
+    http:
+      follow_redirects: true
+      preferred_ip_protocol: 'ip6'
+      ip_protocol_fallback: true
+      headers:
+        Host: 'prometheus.napiany.com'
+      tls_config:
+        server_name: 'prometheus.napiany.com'
+  http_2xx_alertmanager_local:
+    prober: 'http'
+    timeout: '10s'
+    http:
+      follow_redirects: true
+      preferred_ip_protocol: 'ip6'
+      ip_protocol_fallback: true
+      headers:
+        Host: 'alertmanager.napiany.com'
+      tls_config:
+        server_name: 'alertmanager.napiany.com'
+  http_json_status_ok_push:
+    prober: 'http'
+    timeout: '10s'
+    http:
+      method: 'GET'
+      valid_status_codes:
+        - 200
+      fail_if_not_ssl: true
+      fail_if_body_not_matches_regexp:
+        - '"status"\s*:\s*"OK"'
+      follow_redirects: false
+      preferred_ip_protocol: 'ip6'
+      ip_protocol_fallback: true
+      headers:
+        Host: 'push.napiany.com'
+      tls_config:
+        server_name: 'push.napiany.com'
+  http_json_status_ok_updates_push:
+    prober: 'http'
+    timeout: '10s'
+    http:
+      method: 'GET'
+      valid_status_codes:
+        - 200
+      fail_if_not_ssl: true
+      fail_if_body_not_matches_regexp:
+        - '"status"\s*:\s*"OK"'
+      follow_redirects: false
+      preferred_ip_protocol: 'ip6'
+      ip_protocol_fallback: true
+      headers:
+        Host: 'updates.push.napiany.com'
+      tls_config:
+        server_name: 'updates.push.napiany.com'
+  tcp_connect:
+    prober: 'tcp'
+    timeout: '10s'
+    tcp:
+      preferred_ip_protocol: 'ip6'
+      ip_protocol_fallback: true
+  tcp_tls_connect_mail:
+    prober: 'tcp'
+    timeout: '10s'
+    tcp:
+      preferred_ip_protocol: 'ip6'
+      ip_protocol_fallback: true
+      tls: true
+      tls_config:
+        server_name: 'mail.napiany.com'

@@ -8,6 +8,10 @@
           restart_units:
             - 'haproxy.service'
             - 'mollysocket.service'
+        - src: 'mollysocket/mollysocket-egress.network'
+          dest: 'mollysocket-egress.network'
+          restart_units:
+            - 'mollysocket.service'
         - src: 'mollysocket/mollysocket.container'
           dest: 'mollysocket.container'
           restart_units:

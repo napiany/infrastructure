@@ -1,0 +1,28 @@
+---
+groups:
+  - name: 'ContainerMetrics'
+    rules:
+      - alert: 'ContainerHighCPUUsage'
+        expr: 'rate(container_cpu_usage_seconds_total{image!=""}[5m]) > 0.8'
+        for: '5m'
+        labels:
+          severity: 'warning'
+        annotations:
+          summary: 'Container high CPU usage (instance {{ $labels.instance }})'
+          description: 'Container {{ $labels.name }} is using more than 0.8 CPU cores on average. VALUE = {{ $value }} LABELS = {{ $labels }}'
+      - alert: 'ContainerHighMemoryUsage'
+        expr: '((container_memory_working_set_bytes{image!=""} / container_spec_memory_limit_bytes{image!=""}) * 100 > 80) and on(instance, id) (container_spec_memory_limit_bytes{image!=""} > 0)'
+        for: '5m'
+        labels:
+          severity: 'warning'
+        annotations:
+          summary: 'Container high memory usage (instance {{ $labels.instance }})'
+          description: 'Container {{ $labels.name }} is using more than 80% of its memory limit. VALUE = {{ $value }} LABELS = {{ $labels }}'
+      - alert: 'ContainerNetworkErrors'
+        expr: 'sum by (instance, name) (increase(container_network_receive_errors_total{image!=""}[10m])) + sum by (instance, name) (increase(container_network_transmit_errors_total{image!=""}[10m])) > 10'
+        for: '5m'
+        labels:
+          severity: 'warning'
+        annotations:
+          summary: 'Container network errors (instance {{ $labels.instance }})'
+          description: 'Container {{ $labels.name }} has sustained network errors. VALUE = {{ $value }} LABELS = {{ $labels }}'

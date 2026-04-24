@@ -3,6 +3,10 @@
   vars:
     vaultwarden_manifest:
       quadlet_files:
+        - src: 'vaultwarden/vaultwarden-egress.network'
+          dest: 'vaultwarden-egress.network'
+          restart_units:
+            - 'vaultwarden.service'
         - src: 'vaultwarden/haproxy-vaultwarden.network'
           dest: 'haproxy-vaultwarden.network'
           restart_units:
@@ -17,37 +21,13 @@
           dest: 'vaultwarden-postgres.container'
           restart_units:
             - 'vaultwarden-postgres.service'
-        - src: 'vaultwarden/vaultwarden.container'
-          dest: 'vaultwarden.container'
-          restart_units:
-            - 'vaultwarden.service'
-      managed_files_extra: []
+      managed_files_extra:
+        - 'vaultwarden.container'
       secrets:
         - name: 'vaultwarden-postgres_password'
           value_var: 'vault_podman_secret_vaultwarden_postgres_password'
           restart_units:
             - 'vaultwarden-postgres.service'
-            - 'vaultwarden.service'
-        - name: 'vaultwarden-postgres_dburl'
-          value_var: 'vault_podman_secret_vaultwarden_postgres_dburl'
-          restart_units:
-            - 'vaultwarden-postgres.service'
-            - 'vaultwarden.service'
-        - name: 'vaultwarden_installationid'
-          value_var: 'vault_podman_secret_vaultwarden_installationid'
-          restart_units:
-            - 'vaultwarden.service'
-        - name: 'vaultwarden_installationkey'
-          value_var: 'vault_podman_secret_vaultwarden_installationkey'
-          restart_units:
-            - 'vaultwarden.service'
-        - name: 'vaultwarden_admintoken'
-          value_var: 'vault_podman_secret_vaultwarden_admintoken'
-          restart_units:
-            - 'vaultwarden.service'
-        - name: 'vaultwarden_ssoclientpassword'
-          value_var: 'vault_podman_secret_vaultwarden_ssoclientpassword'
-          restart_units:
             - 'vaultwarden.service'
       volumes:
         - name: 'vaultwarden-postgres'

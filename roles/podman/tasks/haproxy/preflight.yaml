@@ -11,6 +11,11 @@
     podman_local_source_ipv4_cidrs_effective: '{{ podman_local_source_ipv4_cidrs_value }}'
     podman_local_source_ipv6_cidrs_effective: '{{ podman_local_source_ipv6_cidrs_value }}'
     haproxy_service_networks:
+      - service: 'haproxy'
+        src: 'haproxy/haproxy-ingress.network'
+        dest: 'haproxy-ingress.network'
+        restart_units:
+          - 'haproxy.service'
       - service: 'kanidm'
         src: 'kanidm/haproxy-kanidm.network'
         dest: 'haproxy-kanidm.network'
@@ -62,6 +67,24 @@
         restart_units:
           - 'haproxy.service'
           - 'mollysocket.service'
+      - service: 'monitoring'
+        src: 'monitoring/haproxy-prometheus.network'
+        dest: 'haproxy-prometheus.network'
+        restart_units:
+          - 'haproxy.service'
+          - 'prometheus.service'
+      - service: 'monitoring'
+        src: 'monitoring/haproxy-alertmanager.network'
+        dest: 'haproxy-alertmanager.network'
+        restart_units:
+          - 'haproxy.service'
+          - 'alertmanager.service'
+      - service: 'monitoring'
+        src: 'monitoring/haproxy-grafana.network'
+        dest: 'haproxy-grafana.network'
+        restart_units:
+          - 'haproxy.service'
+          - 'grafana.service'
 
 - name: 'Validate HAProxy listener addresses'
   ansible.builtin.assert:

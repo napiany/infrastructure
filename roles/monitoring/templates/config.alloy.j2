@@ -1,0 +1,274 @@
+logging {
+  level  = "info"
+  format = "logfmt"
+}
+
+prometheus.remote_write "central" {
+  endpoint {
+    url = "http://{{ hostvars['miniserver'].monitoring_scrape_address }}:9090/api/v1/write"
+  }
+}
+
+prometheus.exporter.self "alloy" {
+}
+
+discovery.relabel "alloy" {
+  targets = prometheus.exporter.self.alloy.targets
+
+  rule {
+    target_label = "host"
+    replacement  = "{{ inventory_hostname }}"
+  }
+
+  rule {
+    target_label = "instance"
+    replacement  = "{{ inventory_hostname }}"
+  }
+
+  rule {
+    target_label = "job"
+    replacement  = "alloy"
+  }
+}
+
+prometheus.scrape "alloy" {
+  targets         = discovery.relabel.alloy.output
+  forward_to      = [prometheus.remote_write.central.receiver]
+  scrape_interval = "30s"
+  job_name        = "alloy"
+}
+
+prometheus.exporter.unix "node" {
+  enable_collectors = ["systemd"]
+
+  systemd {
+    enable_restarts = true
+    task_metrics    = true
+  }
+}
+
+discovery.relabel "node" {
+  targets = prometheus.exporter.unix.node.targets
+
+  rule {
+    target_label = "host"
+    replacement  = "{{ inventory_hostname }}"
+  }
+
+  rule {
+    target_label = "instance"
+    replacement  = "{{ inventory_hostname }}"
+  }
+
+  rule {
+    target_label = "job"
+    replacement  = "node"
+  }
+}
+
+prometheus.scrape "node" {
+  targets         = discovery.relabel.node.output
+  forward_to      = [prometheus.remote_write.central.receiver]
+  scrape_interval = "30s"
+  job_name        = "node"
+}
+
+{% if monitoring_smart_exporter_enabled %}
+discovery.relabel "smartctl" {
+  targets = [{"__address__" = "127.0.0.1:9633"}]
+
+  rule {
+    target_label = "host"
+    replacement  = "{{ inventory_hostname }}"
+  }
+
+  rule {
+    target_label = "instance"
+    replacement  = "{{ inventory_hostname }}"
+  }
+
+  rule {
+    target_label = "job"
+    replacement  = "smartctl"
+  }
+}
+
+prometheus.scrape "smartctl" {
+  targets         = discovery.relabel.smartctl.output
+  forward_to      = [prometheus.remote_write.central.receiver]
+  scrape_interval = "30s"
+  job_name        = "smartctl"
+}
+{% endif %}
+
+{% if monitoring_podman_metrics_enabled %}
+prometheus.exporter.cadvisor "podman" {
+  docker_only            = false
+  store_container_labels = false
+  storage_duration       = "2m"
+}
+
+discovery.relabel "podman" {
+  targets = prometheus.exporter.cadvisor.podman.targets
+
+  rule {
+    target_label = "host"
+    replacement  = "{{ inventory_hostname }}"
+  }
+
+  rule {
+    target_label = "instance"
+    replacement  = "{{ inventory_hostname }}"
+  }
+
+  rule {
+    target_label = "job"
+    replacement  = "podman"
+  }
+}
+
+prometheus.scrape "podman" {
+  targets         = discovery.relabel.podman.output
+  forward_to      = [prometheus.remote_write.central.receiver]
+  scrape_interval = "30s"
+  job_name        = "podman"
+}
+{% endif %}
+
+{% set monitoring_blackbox_has_public_targets = (monitoring_blackbox_public_domains | default([]) | length) > 0 %}
+{% set monitoring_blackbox_has_autopush_targets = 'autopush' in (monitoring_central_selected_containers | default([])) %}
+{% set monitoring_blackbox_has_monitoring_targets = true %}
+{% set monitoring_blackbox_has_mail_targets = 'stalwart' in (monitoring_central_selected_containers | default([])) %}
+{% set monitoring_blackbox_has_http_base_url = (monitoring_blackbox_probe_base_url | default('') | length) > 0 %}
+{% set monitoring_blackbox_enabled = (monitoring_blackbox_has_http_base_url and (monitoring_blackbox_has_public_targets or monitoring_blackbox_has_autopush_targets or monitoring_blackbox_has_monitoring_targets)) or monitoring_blackbox_has_mail_targets %}
+{% if monitoring_blackbox_enabled %}
+prometheus.exporter.blackbox "probes" {
+  config_file = "/etc/alloy/blackbox.yml"
+{% if monitoring_blackbox_has_http_base_url %}
+{% for monitoring_blackbox_target_domain in monitoring_blackbox_public_domains | default([]) %}
+
+  target {
+    name    = "edge_{{ loop.index }}"
+    address = "{{ monitoring_blackbox_probe_base_url }}/"
+    module  = "https_edge_{{ loop.index }}"
+    labels = {
+      "domain" = "{{ monitoring_blackbox_target_domain }}",
+      "prober" = "{{ inventory_hostname }}",
+    }
+  }
+{% endfor %}
+{% if monitoring_blackbox_has_autopush_targets %}
+
+  target {
+    name    = "autopush"
+    address = "{{ monitoring_blackbox_probe_base_url }}/health"
+    module  = "http_json_status_ok_push"
+    labels = {
+      "domain" = "push.napiany.com",
+      "prober" = "{{ inventory_hostname }}",
+    }
+  }
+
+  target {
+    name    = "autopush_updates"
+    address = "{{ monitoring_blackbox_probe_base_url }}/health"
+    module  = "http_json_status_ok_updates_push"
+    labels = {
+      "domain" = "updates.push.napiany.com",
+      "prober" = "{{ inventory_hostname }}",
+    }
+  }
+{% endif %}
+{% if monitoring_blackbox_has_monitoring_targets %}
+
+  target {
+    name    = "prometheus_health"
+    address = "{{ monitoring_blackbox_probe_base_url }}/-/healthy"
+    module  = "http_2xx_prometheus_local"
+    labels = {
+      "domain" = "prometheus.napiany.com",
+      "prober" = "{{ inventory_hostname }}",
+    }
+  }
+
+  target {
+    name    = "alertmanager_health"
+    address = "{{ monitoring_blackbox_probe_base_url }}/-/healthy"
+    module  = "http_2xx_alertmanager_local"
+    labels = {
+      "domain" = "alertmanager.napiany.com",
+      "prober" = "{{ inventory_hostname }}",
+    }
+  }
+{% endif %}
+{% endif %}
+{% if monitoring_blackbox_has_mail_targets %}
+
+  target {
+    name    = "mail_smtp"
+    address = "mail.napiany.com:25"
+    module  = "tcp_connect"
+    labels = {
+      "domain" = "mail.napiany.com:25",
+      "prober" = "{{ inventory_hostname }}",
+    }
+  }
+
+  target {
+    name    = "mail_submissions"
+    address = "mail.napiany.com:465"
+    module  = "tcp_tls_connect_mail"
+    labels = {
+      "domain" = "mail.napiany.com:465",
+      "prober" = "{{ inventory_hostname }}",
+    }
+  }
+
+  target {
+    name    = "mail_submission"
+    address = "mail.napiany.com:587"
+    module  = "tcp_connect"
+    labels = {
+      "domain" = "mail.napiany.com:587",
+      "prober" = "{{ inventory_hostname }}",
+    }
+  }
+
+  target {
+    name    = "mail_imaptls"
+    address = "mail.napiany.com:993"
+    module  = "tcp_tls_connect_mail"
+    labels = {
+      "domain" = "mail.napiany.com:993",
+      "prober" = "{{ inventory_hostname }}",
+    }
+  }
+{% endif %}
+}
+
+discovery.relabel "blackbox" {
+  targets = prometheus.exporter.blackbox.probes.targets
+
+  rule {
+    source_labels = ["domain"]
+    target_label  = "instance"
+  }
+
+  rule {
+    target_label = "host"
+    replacement  = "{{ inventory_hostname }}"
+  }
+
+  rule {
+    target_label = "job"
+    replacement  = "blackbox"
+  }
+}
+
+prometheus.scrape "blackbox" {
+  targets         = discovery.relabel.blackbox.output
+  forward_to      = [prometheus.remote_write.central.receiver]
+  scrape_interval = "30s"
+  job_name        = "blackbox"
+}
+{% endif %}

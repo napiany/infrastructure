@@ -1,0 +1,50 @@
+[Unit]
+Description=Prometheus
+After=alertmanager.service
+Wants=alertmanager.service
+
+[Container]
+ContainerName=prometheus
+Image={{ podman_prometheus_image }}
+AutoUpdate=registry
+
+Network=prometheus-egress.network
+Network=monitoring-backend.network
+Network=crowdsec-monitoring.network
+{% if 'stalwart' in (podman_containers_selected | default([])) %}
+Network=stalwart-monitoring.network:ip6={{ podman_prometheus_stalwart_metrics_ipv6 }}
+{% endif %}
+Network=haproxy-prometheus.network:ip6={{ podman_haproxy_networks.prometheus.ipv6 }}
+NetworkAlias=prometheus
+{% if monitoring_scrape_address | default('') | trim | length > 0 %}
+PublishPort={{ monitoring_scrape_address }}:9090:9090
+{% endif %}
+
+Volume=prometheus-config:/etc/prometheus:ro,U,Z,noexec
+Volume=prometheus-data:/prometheus:U,Z,noexec
+ReadOnly=true
+Mount=type=tmpfs,tmpfs-size=64M,tmpfs-mode=1777,U,noexec,nosuid,nodev,destination=/tmp
+
+Exec=--config.file=/etc/prometheus/prometheus.yml --storage.tsdb.path=/prometheus --storage.tsdb.retention.time=30d --storage.tsdb.retention.size=8GB --web.external-url=https://prometheus.napiany.com --web.enable-remote-write-receiver
+
+Memory=1g
+PidsLimit=256
+PodmanArgs=--cpus=1
+User=300023
+Group=300023
+
+NoNewPrivileges=true
+DropCapability=ALL
+
+[Service]
+LockPersonality=true
+ProtectClock=true
+RestrictRealtime=true
+RuntimeDirectoryMode=700
+SystemCallArchitectures=native
+SystemCallFilter=~@obsolete
+Restart=on-failure
+RestartSec=10s
+
+[Install]
+WantedBy=default.target

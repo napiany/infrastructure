@@ -10,3 +10,13 @@
     name: 'crowdsec-firewall-bouncer.service'
     state: 'started'
     enabled: true
+    daemon_reload: true
+
+- name: 'Wait for gateway CrowdSec firewall bouncer metrics listener'
+  ansible.builtin.wait_for:
+    host: '{{ monitoring_scrape_address }}'
+    port: '{{ gateway_crowdsec_firewall_bouncer_metrics_port | int }}'
+    timeout: 30
+  when:
+    - 'not ansible_check_mode'
+    - 'monitoring_scrape_address | default('''') | trim | length > 0'

@@ -8,6 +8,24 @@
   vars:
     podman_quadlet_files: '{{ (podman_service_manifests.kanidm | default({})).quadlet_files | default([]) }}'
 
+- name: 'Render kanidm.container'
+  ansible.builtin.template:
+    src: 'kanidm/kanidm.container.j2'
+    dest: '/etc/containers/systemd/kanidm.container'
+    owner: 'root'
+    group: 'root'
+    mode: '0644'
+  register: 'kanidm_container_unit'
+  notify:
+    - 'Daemon reload'
+
+- name: 'Track Kanidm restart after unit changes'
+  ansible.builtin.include_tasks: 'helpers/restart_units.yaml'
+  vars:
+    podman_restart_units:
+      - 'kanidm.service'
+  when: 'kanidm_container_unit.changed | default(false)'
+
 - name: 'Create the Kanidm volume'
   ansible.builtin.include_tasks: 'helpers/volume.yaml'
   vars:

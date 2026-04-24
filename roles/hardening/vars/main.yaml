@@ -1,6 +1,7 @@
 ---
 kernel_args:
   # CPU vulnerabilities
+  - 'amd_pstate=active'
   - 'mitigations=auto,nosmt'
   - 'nosmt=force'
   - 'spectre_v2=on'

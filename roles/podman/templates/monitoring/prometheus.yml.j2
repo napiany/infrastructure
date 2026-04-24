@@ -1,0 +1,74 @@
+---
+global:
+  scrape_interval: '30s'
+  evaluation_interval: '30s'
+
+rule_files:
+  - '/etc/prometheus/alerts/*.yml'
+
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets:
+            - 'alertmanager:9093'
+
+scrape_configs:
+  - job_name: 'crowdsec_firewall_bouncer'
+    static_configs:
+{% for monitoring_host in groups['servers'] | default([]) | sort %}
+{% if monitoring_host == 'gateway' and hostvars[monitoring_host].monitoring_scrape_address | default('') | trim | length > 0 %}
+      - targets:
+          - '{{ hostvars[monitoring_host].monitoring_scrape_address }}:{{ hostvars[monitoring_host].gateway_crowdsec_firewall_bouncer_metrics_port | default('60601') }}'
+        labels:
+          host: '{{ monitoring_host }}'
+{% endif %}
+{% endfor %}
+  - job_name: 'crowdsec_spoa'
+    static_configs:
+      - targets:
+          - 'crowdsec-spoa:{{ podman_crowdsec_spoa_metrics_port }}'
+        labels:
+          host: 'miniserver'
+  - job_name: 'crowdsec'
+    static_configs:
+      - targets:
+          - 'crowdsec:{{ podman_crowdsec_metrics_port }}'
+        labels:
+          host: 'miniserver'
+{% if 'stalwart' in (podman_containers_selected | default([])) %}
+  - job_name: 'stalwart'
+    metrics_path: '/metrics/prometheus'
+    static_configs:
+      - targets:
+          - '[{{ podman_stalwart_metrics_ipv6 }}]:{{ podman_stalwart_metrics_port }}'
+        labels:
+          host: 'miniserver'
+{% endif %}
+{% if 'haproxy' in (podman_containers_selected | default([])) %}
+  - job_name: 'haproxy'
+    static_configs:
+      - targets:
+          - '[{{ podman_haproxy_networks.prometheus.proxy_ipv6 }}]:{{ podman_haproxy_metrics_port }}'
+        labels:
+          host: 'miniserver'
+{% endif %}
+{% if 'monitoring' in (podman_containers_selected | default([])) %}
+  - job_name: 'grafana'
+    static_configs:
+      - targets:
+          - 'grafana:3000'
+        labels:
+          host: 'miniserver'
+{% endif %}
+  - job_name: 'prometheus'
+    static_configs:
+      - targets:
+          - 'prometheus:9090'
+        labels:
+          host: 'miniserver'
+  - job_name: 'alertmanager'
+    static_configs:
+      - targets:
+          - 'alertmanager:9093'
+        labels:
+          host: 'miniserver'

@@ -7,8 +7,9 @@ Image=ghcr.io/mollyim/mollysocket:1.7.1-alpine@sha256:9a36b99e5e03f5d099f6204b04
 AutoUpdate=registry
 
 Network=haproxy-mollysocket.network:ip=10.89.105.2,ip6=fd89:105::2
+Network=mollysocket-egress.network
 NetworkAlias=mollysocket
-AddHost=updates.push.napiany.com:fd89:106::4
+AddHost=updates.push.napiany.com:fd89:105::10
 
 Volume=mollysocket:/data:U,Z,noexec
 ReadOnly=true

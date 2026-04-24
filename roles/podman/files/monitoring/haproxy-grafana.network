@@ -1,0 +1,7 @@
+[Network]
+Internal=true
+Options=no_default_route=1
+Subnet=fd89:117::/64
+Gateway=fd89:117::1
+IPv6=true
+NetworkDeleteOnStop=true

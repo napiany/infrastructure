@@ -5,8 +5,10 @@ all:
       hosts:
         gateway:
           ansible_host: 'gateway.napiany.com'
+          monitoring_scrape_address: '10.66.66.1'
         miniserver:
           ansible_host: 'miniserver.internal'
+          monitoring_scrape_address: '10.66.66.2'
           podman_wireguard_ip: '10.66.66.2'
           podman_local_ingress_ipv6: 'fd6e:64e3:424d:3::459'
           podman_local_source_ipv4_cidrs:
@@ -26,6 +28,7 @@ all:
             - 'stalwart'
             - 'mollysocket'
             - 'autopush'
+            - 'monitoring'
           podman_services:
             kanidm:
               domain: 'idm.napiany.com'

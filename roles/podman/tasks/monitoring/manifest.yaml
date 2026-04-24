@@ -1,0 +1,78 @@
+---
+- name: 'Register Monitoring service manifest'
+  vars:
+    monitoring_manifest:
+      quadlet_files:
+        - src: 'monitoring/monitoring-backend.network'
+          dest: 'monitoring-backend.network'
+          restart_units:
+            - 'alertmanager.service'
+            - 'prometheus.service'
+        - src: 'monitoring/alertmanager-egress.network'
+          dest: 'alertmanager-egress.network'
+          restart_units:
+            - 'alertmanager.service'
+        - src: 'monitoring/prometheus-egress.network'
+          dest: 'prometheus-egress.network'
+          restart_units:
+            - 'prometheus.service'
+        - src: 'crowdsec/crowdsec-monitoring.network'
+          dest: 'crowdsec-monitoring.network'
+          restart_units:
+            - 'prometheus.service'
+            - 'crowdsec.service'
+            - 'crowdsec-spoa.service'
+        - src: 'monitoring/haproxy-prometheus.network'
+          dest: 'haproxy-prometheus.network'
+          restart_units:
+            - 'haproxy.service'
+            - 'prometheus.service'
+        - src: 'monitoring/haproxy-alertmanager.network'
+          dest: 'haproxy-alertmanager.network'
+          restart_units:
+            - 'haproxy.service'
+            - 'alertmanager.service'
+        - src: 'monitoring/haproxy-grafana.network'
+          dest: 'haproxy-grafana.network'
+          restart_units:
+            - 'haproxy.service'
+            - 'grafana.service'
+      managed_files_extra:
+        - 'prometheus.container'
+        - 'alertmanager.container'
+        - 'grafana.container'
+      secrets:
+        - name: 'monitoring_grafana_admin_password'
+          value_var: 'vault_podman_secret_monitoring_grafana_admin_password'
+          restart_units:
+            - 'grafana.service'
+      volumes:
+        - name: 'prometheus-data'
+          uid: '300023'
+          gid: '300023'
+        - name: 'prometheus-config'
+          uid: '300023'
+          gid: '300023'
+          cleanup: 'remove'
+        - name: 'alertmanager-data'
+          uid: '300024'
+          gid: '300024'
+        - name: 'alertmanager-config'
+          uid: '300024'
+          gid: '300024'
+          cleanup: 'remove'
+        - name: 'grafana-data'
+          uid: '472'
+          gid: '472'
+        - name: 'grafana-provisioning'
+          uid: '472'
+          gid: '472'
+          cleanup: 'remove'
+      local_images: []
+      certificates:
+        - domains:
+            - 'prometheus.napiany.com'
+            - 'alertmanager.napiany.com'
+            - 'grafana.napiany.com'
+  ansible.builtin.set_fact:
+    podman_service_manifests: '{{ (podman_service_manifests | default({})) | combine({''monitoring'': monitoring_manifest}, recursive=true) }}'

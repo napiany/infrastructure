@@ -1,0 +1,27 @@
+[Unit]
+Description=Prometheus smartctl_exporter
+Documentation=https://github.com/prometheus-community/smartctl_exporter
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=simple
+ExecStart=/usr/local/bin/smartctl_exporter --web.listen-address=127.0.0.1:9633 --smartctl.path=/usr/sbin/smartctl --smartctl.interval=30m --smartctl.rescan=30m --smartctl.powermode-check=standby{% for device in monitoring_smartctl_exporter_devices | default([]) %} --smartctl.device={{ device }}{% endfor %}{% if (monitoring_smartctl_exporter_devices | default([]) | length) == 0 %} --smartctl.scan-device-type=by-id{% endif %} --log.level=info
+Restart=on-failure
+RestartSec=10s
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectClock=true
+ProtectControlGroups=true
+ProtectHome=true
+ProtectHostname=true
+ProtectKernelLogs=true
+ProtectKernelModules=true
+ProtectKernelTunables=true
+ProtectSystem=strict
+RestrictRealtime=true
+SystemCallArchitectures=native
+SystemCallFilter=~@obsolete
+
+[Install]
+WantedBy=multi-user.target

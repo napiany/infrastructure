@@ -15,7 +15,7 @@
       - 'crowdsecurity/appsec-default'
       - 'crowdsecurity/crs'
     crowdsec_appsec_enabled: true
-    crowdsec_appsec_listen_host_effective: '{{ crowdsec_appsec_listen_host | default(''0.0.0.0'') }}'
+    crowdsec_appsec_listen_host_effective: '{{ crowdsec_appsec_listen_host | default(''[::]'') }}'
     crowdsec_appsec_listen_port_effective: '{{ crowdsec_appsec_listen_port | default(7422) }}'
     crowdsec_quadlets:
       - src: 'crowdsec/haproxy-crowdsec.network'
@@ -24,9 +24,15 @@
           - 'crowdsec.service'
           - 'crowdsec-spoa.service'
           - 'haproxy.service'
-      - src: 'haproxy/crowdsec-spoa.container'
-        dest: 'crowdsec-spoa.container'
+      - src: 'crowdsec/crowdsec-egress.network'
+        dest: 'crowdsec-egress.network'
         restart_units:
+          - 'crowdsec.service'
+      - src: 'crowdsec/crowdsec-monitoring.network'
+        dest: 'crowdsec-monitoring.network'
+        restart_units:
+          - 'prometheus.service'
+          - 'crowdsec.service'
           - 'crowdsec-spoa.service'
   no_log: true
 
@@ -39,10 +45,33 @@
     fail_msg: 'Missing CrowdSec WireGuard or bouncer configuration.'
   no_log: true
 
+- name: 'Remove crowdsec-monitoring.network when Monitoring is not selected'
+  ansible.builtin.set_fact:
+    crowdsec_quadlets: '{{ crowdsec_quadlets | rejectattr(''dest'', ''equalto'', ''crowdsec-monitoring.network'') | list }}'
+  when: '''monitoring'' not in podman_containers_selected'
+
 - name: 'Copy CrowdSec Quadlets'
   ansible.builtin.include_tasks: 'helpers/quadlets.yaml'
   vars:
     podman_quadlet_files: '{{ crowdsec_quadlets }}'
+
+- name: 'Render crowdsec-spoa.container'
+  ansible.builtin.template:
+    src: 'haproxy/crowdsec-spoa.container.j2'
+    dest: '/etc/containers/systemd/crowdsec-spoa.container'
+    owner: 'root'
+    group: 'root'
+    mode: '0644'
+  register: 'crowdsec_spoa_unit'
+  notify:
+    - 'Daemon reload'
+
+- name: 'Track CrowdSec SPOA restart after unit changes'
+  ansible.builtin.include_tasks: 'helpers/restart_units.yaml'
+  vars:
+    podman_restart_units:
+      - 'crowdsec-spoa.service'
+  when: 'crowdsec_spoa_unit.changed | default(false)'
 
 - name: 'Apply pending Podman network changes before starting CrowdSec services'
   ansible.builtin.meta: 'flush_handlers'
@@ -64,6 +93,9 @@
 
 - name: 'Configure CrowdSec'
   ansible.builtin.include_tasks: 'crowdsec/config.yaml'
+
+- name: 'Apply pending CrowdSec unit changes before starting services'
+  ansible.builtin.meta: 'flush_handlers'
 
 - name: 'Start CrowdSec services'
   ansible.builtin.include_tasks: 'crowdsec/runtime.yaml'

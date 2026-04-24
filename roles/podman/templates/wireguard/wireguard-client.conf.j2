@@ -3,6 +3,24 @@
 {% set local_ingress_enabled = 'haproxy' in selected_containers %}
 {% set stalwart_enabled = 'stalwart' in selected_containers %}
 {% set wireguard_policy_routing_enabled = local_ingress_enabled or stalwart_enabled %}
+{% set haproxy_local_ingress_ipv4_sources = (
+  [podman_haproxy_ingress_ipv4, podman_haproxy_crowdsec_ipv4]
+  + ([podman_haproxy_networks.autopush.proxy_ipv4] if 'autopush' in selected_containers else [])
+  + ([podman_haproxy_networks.mollysocket.proxy_ipv4] if 'mollysocket' in selected_containers else [])
+) | unique %}
+{% set haproxy_local_ingress_ipv6_sources = (
+  [podman_haproxy_ingress_ipv6, podman_haproxy_crowdsec_ipv6]
+  + ([podman_haproxy_networks.kanidm.proxy_ipv6] if 'kanidm' in selected_containers else [])
+  + ([podman_haproxy_networks.vaultwarden.proxy_ipv6] if 'vaultwarden' in selected_containers else [])
+  + ([podman_haproxy_networks.seedvault.proxy_ipv6] if 'seedvault' in selected_containers else [])
+  + ([podman_haproxy_networks.grid.proxy_ipv6] if 'grid' in selected_containers else [])
+  + ([podman_haproxy_networks.ente.proxy_ipv6] if 'ente' in selected_containers else [])
+  + ([podman_haproxy_networks.stalwart.proxy_ipv6] if 'stalwart' in selected_containers else [])
+  + ([podman_haproxy_networks.mollysocket.proxy_ipv6] if 'mollysocket' in selected_containers else [])
+  + ([podman_haproxy_networks.prometheus.proxy_ipv6] if 'monitoring' in selected_containers else [])
+  + ([podman_haproxy_networks.alertmanager.proxy_ipv6] if 'monitoring' in selected_containers else [])
+  + ([podman_haproxy_networks.grafana.proxy_ipv6] if 'monitoring' in selected_containers else [])
+) | unique %}
 {% set local_ingress_ipv4_site_cidr = (
   '192.168.0.0/16'
   if (podman_local_ingress_ipv4 | default('')) is match('^192\\.168\\.')
@@ -32,17 +50,31 @@ PostUp = ip -6 route replace default via {{ podman_wireguard_gateway_ipv6 }} dev
 PostUp = sysctl -w net.ipv4.conf.all.rp_filter=0
 PostUp = sysctl -w net.ipv4.conf.wg0.rp_filter=0
 {% if local_ingress_ipv4_site_cidr | length > 0 %}
-PostUp = ip -4 rule add pref {{ (podman_stalwart_gateway_egress_table | int) - 5 }} from {{ podman_haproxy_crowdsec_ipv4 }}/32 to {{ local_ingress_ipv4_site_cidr }} table main || true
+{% for source_ipv4 in haproxy_local_ingress_ipv4_sources %}
+PostUp = ip -4 rule add pref {{ (podman_stalwart_gateway_egress_table | int) - 5 }} from {{ source_ipv4 }}/32 to {{ local_ingress_ipv4_site_cidr }} table main || true
+{% endfor %}
 {% endif %}
 {% if local_ingress_ipv6_site_cidr | length > 0 %}
-PostUp = ip -6 rule add pref {{ (podman_stalwart_gateway_egress_table | int) - 5 }} from {{ podman_haproxy_crowdsec_ipv6 }}/128 to {{ local_ingress_ipv6_site_cidr }} table main || true
+{% for source_ipv6 in haproxy_local_ingress_ipv6_sources %}
+PostUp = ip -6 rule add pref {{ (podman_stalwart_gateway_egress_table | int) - 5 }} from {{ source_ipv6 }}/128 to {{ local_ingress_ipv6_site_cidr }} table main || true
+{% endfor %}
 {% endif %}
-PostUp = ip -4 rule add pref {{ (podman_stalwart_gateway_egress_table | int) - 4 }} from {{ podman_haproxy_crowdsec_ipv4 }}/32 to 10.89.0.0/16 table main || true
-PostUp = ip -6 rule add pref {{ (podman_stalwart_gateway_egress_table | int) - 4 }} from {{ podman_haproxy_crowdsec_ipv6 }}/128 to fd89::/16 table main || true
+PostUp = ip -4 rule add pref {{ (podman_stalwart_gateway_egress_table | int) - 3 }} from {{ podman_wireguard_ip }}/32 to 10.89.0.0/16 table main || true
+PostUp = ip -6 rule add pref {{ (podman_stalwart_gateway_egress_table | int) - 3 }} from {{ wireguard_client_ipv6 }}/128 to fd89::/16 table main || true
+{% for source_ipv4 in haproxy_local_ingress_ipv4_sources %}
+PostUp = ip -4 rule add pref {{ (podman_stalwart_gateway_egress_table | int) - 4 }} from {{ source_ipv4 }}/32 to 10.89.0.0/16 table main || true
+{% endfor %}
+{% for source_ipv6 in haproxy_local_ingress_ipv6_sources %}
+PostUp = ip -6 rule add pref {{ (podman_stalwart_gateway_egress_table | int) - 4 }} from {{ source_ipv6 }}/128 to fd89::/16 table main || true
+{% endfor %}
 PostUp = ip -4 rule add pref {{ (podman_stalwart_gateway_egress_table | int) - 2 }} from {{ podman_wireguard_ip }}/32 table {{ podman_stalwart_gateway_egress_table }} || true
 PostUp = ip -6 rule add pref {{ (podman_stalwart_gateway_egress_table | int) - 2 }} from {{ wireguard_client_ipv6 }}/128 table {{ podman_stalwart_gateway_egress_table }} || true
-PostUp = ip -4 rule add pref {{ (podman_stalwart_gateway_egress_table | int) - 1 }} from {{ podman_haproxy_crowdsec_ipv4 }}/32 table {{ podman_stalwart_gateway_egress_table }} || true
-PostUp = ip -6 rule add pref {{ (podman_stalwart_gateway_egress_table | int) - 1 }} from {{ podman_haproxy_crowdsec_ipv6 }}/128 table {{ podman_stalwart_gateway_egress_table }} || true
+{% for source_ipv4 in haproxy_local_ingress_ipv4_sources %}
+PostUp = ip -4 rule add pref {{ (podman_stalwart_gateway_egress_table | int) - 1 }} from {{ source_ipv4 }}/32 table {{ podman_stalwart_gateway_egress_table }} || true
+{% endfor %}
+{% for source_ipv6 in haproxy_local_ingress_ipv6_sources %}
+PostUp = ip -6 rule add pref {{ (podman_stalwart_gateway_egress_table | int) - 1 }} from {{ source_ipv6 }}/128 table {{ podman_stalwart_gateway_egress_table }} || true
+{% endfor %}
 {% endif %}
 {% if stalwart_enabled %}
 PostUp = ip -4 rule add pref {{ podman_stalwart_gateway_egress_table }} from {{ podman_stalwart_ipv4 }}/32 table {{ podman_stalwart_gateway_egress_table }} || true
@@ -50,17 +82,31 @@ PostUp = ip -6 rule add pref {{ podman_stalwart_gateway_egress_table }} from {{ 
 {% endif %}
 {% if local_ingress_enabled %}
 {% if local_ingress_ipv4_site_cidr | length > 0 %}
-PostDown = ip -4 rule del pref {{ (podman_stalwart_gateway_egress_table | int) - 5 }} from {{ podman_haproxy_crowdsec_ipv4 }}/32 to {{ local_ingress_ipv4_site_cidr }} table main || true
+{% for source_ipv4 in haproxy_local_ingress_ipv4_sources %}
+PostDown = ip -4 rule del pref {{ (podman_stalwart_gateway_egress_table | int) - 5 }} from {{ source_ipv4 }}/32 to {{ local_ingress_ipv4_site_cidr }} table main || true
+{% endfor %}
 {% endif %}
 {% if local_ingress_ipv6_site_cidr | length > 0 %}
-PostDown = ip -6 rule del pref {{ (podman_stalwart_gateway_egress_table | int) - 5 }} from {{ podman_haproxy_crowdsec_ipv6 }}/128 to {{ local_ingress_ipv6_site_cidr }} table main || true
+{% for source_ipv6 in haproxy_local_ingress_ipv6_sources %}
+PostDown = ip -6 rule del pref {{ (podman_stalwart_gateway_egress_table | int) - 5 }} from {{ source_ipv6 }}/128 to {{ local_ingress_ipv6_site_cidr }} table main || true
+{% endfor %}
 {% endif %}
-PostDown = ip -4 rule del pref {{ (podman_stalwart_gateway_egress_table | int) - 4 }} from {{ podman_haproxy_crowdsec_ipv4 }}/32 to 10.89.0.0/16 table main || true
-PostDown = ip -6 rule del pref {{ (podman_stalwart_gateway_egress_table | int) - 4 }} from {{ podman_haproxy_crowdsec_ipv6 }}/128 to fd89::/16 table main || true
+PostDown = ip -4 rule del pref {{ (podman_stalwart_gateway_egress_table | int) - 3 }} from {{ podman_wireguard_ip }}/32 to 10.89.0.0/16 table main || true
+PostDown = ip -6 rule del pref {{ (podman_stalwart_gateway_egress_table | int) - 3 }} from {{ wireguard_client_ipv6 }}/128 to fd89::/16 table main || true
+{% for source_ipv4 in haproxy_local_ingress_ipv4_sources %}
+PostDown = ip -4 rule del pref {{ (podman_stalwart_gateway_egress_table | int) - 4 }} from {{ source_ipv4 }}/32 to 10.89.0.0/16 table main || true
+{% endfor %}
+{% for source_ipv6 in haproxy_local_ingress_ipv6_sources %}
+PostDown = ip -6 rule del pref {{ (podman_stalwart_gateway_egress_table | int) - 4 }} from {{ source_ipv6 }}/128 to fd89::/16 table main || true
+{% endfor %}
 PostDown = ip -4 rule del pref {{ (podman_stalwart_gateway_egress_table | int) - 2 }} from {{ podman_wireguard_ip }}/32 table {{ podman_stalwart_gateway_egress_table }} || true
 PostDown = ip -6 rule del pref {{ (podman_stalwart_gateway_egress_table | int) - 2 }} from {{ wireguard_client_ipv6 }}/128 table {{ podman_stalwart_gateway_egress_table }} || true
-PostDown = ip -4 rule del pref {{ (podman_stalwart_gateway_egress_table | int) - 1 }} from {{ podman_haproxy_crowdsec_ipv4 }}/32 table {{ podman_stalwart_gateway_egress_table }} || true
-PostDown = ip -6 rule del pref {{ (podman_stalwart_gateway_egress_table | int) - 1 }} from {{ podman_haproxy_crowdsec_ipv6 }}/128 table {{ podman_stalwart_gateway_egress_table }} || true
+{% for source_ipv4 in haproxy_local_ingress_ipv4_sources %}
+PostDown = ip -4 rule del pref {{ (podman_stalwart_gateway_egress_table | int) - 1 }} from {{ source_ipv4 }}/32 table {{ podman_stalwart_gateway_egress_table }} || true
+{% endfor %}
+{% for source_ipv6 in haproxy_local_ingress_ipv6_sources %}
+PostDown = ip -6 rule del pref {{ (podman_stalwart_gateway_egress_table | int) - 1 }} from {{ source_ipv6 }}/128 table {{ podman_stalwart_gateway_egress_table }} || true
+{% endfor %}
 {% endif %}
 {% if stalwart_enabled %}
 PostDown = ip -4 rule del pref {{ podman_stalwart_gateway_egress_table }} from {{ podman_stalwart_ipv4 }}/32 table {{ podman_stalwart_gateway_egress_table }} || true

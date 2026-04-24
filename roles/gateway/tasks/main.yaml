@@ -11,5 +11,8 @@
 - name: 'Render gateway configuration'
   ansible.builtin.include_tasks: 'configuration.yaml'
 
+- name: 'Apply pending gateway config restarts before starting services'
+  ansible.builtin.meta: 'flush_handlers'
+
 - name: 'Start gateway services'
   ansible.builtin.include_tasks: 'runtime.yaml'

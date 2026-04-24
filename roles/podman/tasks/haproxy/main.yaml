@@ -5,7 +5,7 @@
 - name: 'Copy HAProxy service networks'
   ansible.builtin.include_tasks: 'helpers/quadlets.yaml'
   vars:
-    podman_quadlet_files: '{{ haproxy_service_networks | selectattr(''service'', ''in'', podman_containers_selected | difference([''haproxy''])) | list }}'
+    podman_quadlet_files: '{{ haproxy_service_networks | selectattr(''service'', ''in'', podman_containers_selected) | list }}'
 
 - name: 'Apply pending Podman network changes before starting HAProxy dependencies'
   ansible.builtin.meta: 'flush_handlers'

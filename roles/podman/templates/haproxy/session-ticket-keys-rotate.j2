@@ -21,7 +21,7 @@ cat next.key {1..4}.key > keys.new
 status=0
 
 if /usr/bin/systemctl is-active --quiet haproxy.service; then
-    /usr/bin/systemctl reload haproxy || status=1
+    /usr/bin/systemctl restart haproxy.service || status=1
 fi
 
 exit $status

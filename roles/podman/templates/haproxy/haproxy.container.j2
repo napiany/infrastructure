@@ -9,9 +9,36 @@ After=wg-quick@wg0.service crowdsec.service crowdsec-spoa.service
 [Container]
 ContainerName=haproxy
 Image=haproxy.build
-Network=haproxy-crowdsec.network:ip={{ podman_haproxy_crowdsec_ipv4 }},ip6={{ podman_haproxy_crowdsec_ipv6 }}
+Network=haproxy-ingress.network:ip={{ podman_haproxy_ingress_ipv4 }},ip6={{ podman_haproxy_ingress_ipv6 }}
+Network=haproxy-crowdsec.network:ip6={{ podman_haproxy_crowdsec_ipv6 }}
+{% if 'kanidm' in podman_containers_selected %}
+Network=haproxy-kanidm.network:ip6={{ podman_haproxy_networks.kanidm.proxy_ipv6 }}
+{% endif %}
+{% if 'vaultwarden' in podman_containers_selected %}
+Network=haproxy-vaultwarden.network:ip6={{ podman_haproxy_networks.vaultwarden.proxy_ipv6 }}
+{% endif %}
+{% if 'seedvault' in podman_containers_selected %}
+Network=haproxy-seedvault.network:ip6={{ podman_haproxy_networks.seedvault.proxy_ipv6 }}
+{% endif %}
+{% if 'grid' in podman_containers_selected %}
+Network=haproxy-grid.network:ip6={{ podman_haproxy_networks.grid.proxy_ipv6 }}
+{% endif %}
+{% if 'ente' in podman_containers_selected %}
+Network=haproxy-ente.network:ip6={{ podman_haproxy_networks.ente.proxy_ipv6 }}
+{% endif %}
 {% if 'stalwart' in podman_containers_selected %}
-Network=haproxy-stalwart.network:ip6={{ podman_haproxy_networks.stalwart.proxy_ipv6 }},no_default_route=1
+Network=haproxy-stalwart.network:ip6={{ podman_haproxy_networks.stalwart.proxy_ipv6 }}
+{% endif %}
+{% if 'autopush' in podman_containers_selected %}
+Network=haproxy-autopush.network:ip={{ podman_haproxy_networks.autopush.proxy_ipv4 }}
+{% endif %}
+{% if 'mollysocket' in podman_containers_selected %}
+Network=haproxy-mollysocket.network:ip={{ podman_haproxy_networks.mollysocket.proxy_ipv4 }},ip6={{ podman_haproxy_networks.mollysocket.proxy_ipv6 }}
+{% endif %}
+{% if 'monitoring' in podman_containers_selected %}
+Network=haproxy-prometheus.network:ip6={{ podman_haproxy_networks.prometheus.proxy_ipv6 }}
+Network=haproxy-alertmanager.network:ip6={{ podman_haproxy_networks.alertmanager.proxy_ipv6 }}
+Network=haproxy-grafana.network:ip6={{ podman_haproxy_networks.grafana.proxy_ipv6 }}
 {% endif %}
 PublishPort={{ podman_wireguard_ip }}:80:80/tcp
 PublishPort=[{{ podman_local_wireguard_ipv6 }}]:80:80/tcp
@@ -23,9 +50,6 @@ PublishPort=[{{ podman_local_wireguard_ipv6 }}]:443:443/udp
 PublishPort=[{{ podman_local_ingress_ipv6 }}]:80:80/tcp
 PublishPort=[{{ podman_local_ingress_ipv6 }}]:443:443/tcp
 PublishPort=[{{ podman_local_ingress_ipv6 }}]:443:443/udp
-{% endif %}
-{% if 'ente' in podman_containers_selected %}
-PublishPort=[fd89:109::1]:443:443/tcp
 {% endif %}
 {% if 'stalwart' in podman_containers_selected %}
 {% for port in stalwart_local_mail_ports %}

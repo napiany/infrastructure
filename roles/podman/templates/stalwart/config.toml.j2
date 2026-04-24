@@ -32,6 +32,12 @@ protocol = "http"
 [server.listener."https".tls]
 implicit = true
 
+{% if 'monitoring' in (podman_containers_selected | default([])) %}
+[server.listener."metrics"]
+bind = "[{{ podman_stalwart_metrics_ipv6 }}]:{{ podman_stalwart_metrics_port }}"
+protocol = "http"
+
+{% endif %}
 [server.listener."imaptls"]
 bind = "[::]:993"
 protocol = "imap"
@@ -73,6 +79,11 @@ ip-strategy = "ipv6_then_ipv4"
 v4 = ["{{ podman_stalwart_egress_ipv4 }}"]
 v6 = ["{{ podman_stalwart_egress_ipv6 }}"]
 
+{% if 'monitoring' in (podman_containers_selected | default([])) %}
+[metrics.prometheus]
+enable = true
+
+{% endif %}
 [storage]
 blob = "postgresql"
 data = "postgresql"

@@ -1,0 +1,12 @@
+---
+- name: 'Restart Alloy'
+  ansible.builtin.systemd:
+    name: 'alloy.service'
+    state: 'restarted'
+    enabled: true
+
+- name: 'Restart smartctl exporter'
+  ansible.builtin.systemd:
+    name: 'smartctl-exporter.service'
+    state: 'restarted'
+    enabled: true

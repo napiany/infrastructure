@@ -1,0 +1,68 @@
+---
+groups:
+  - name: 'Alloy'
+    rules:
+      - alert: 'AlloyMetricsMissingGateway'
+        expr: 'absent_over_time(up{job="alloy", host="gateway"}[10m])'
+        for: '0m'
+        labels:
+          severity: 'critical'
+        annotations:
+          summary: 'Alloy metrics missing from gateway'
+          description: 'The gateway Alloy agent has not remote-written its own scrape result for 10 minutes.'
+      - alert: 'AlloyMetricsMissingMiniserver'
+        expr: 'absent_over_time(up{job="alloy", host="miniserver"}[10m])'
+        for: '0m'
+        labels:
+          severity: 'critical'
+        annotations:
+          summary: 'Alloy metrics missing from miniserver'
+          description: 'The miniserver Alloy agent has not remote-written its own scrape result for 10 minutes.'
+      - alert: 'NodeMetricsMissingGateway'
+        expr: 'absent_over_time(up{job="node", host="gateway"}[10m])'
+        for: '0m'
+        labels:
+          severity: 'critical'
+        annotations:
+          summary: 'Node metrics missing from gateway'
+          description: 'The gateway node metrics collected by Alloy have been absent for 10 minutes.'
+      - alert: 'NodeMetricsMissingMiniserver'
+        expr: 'absent_over_time(up{job="node", host="miniserver"}[10m])'
+        for: '0m'
+        labels:
+          severity: 'critical'
+        annotations:
+          summary: 'Node metrics missing from miniserver'
+          description: 'The miniserver node metrics collected by Alloy have been absent for 10 minutes.'
+      - alert: 'PodmanMetricsMissingMiniserver'
+        expr: 'absent_over_time(up{job="podman", host="miniserver"}[10m])'
+        for: '0m'
+        labels:
+          severity: 'critical'
+        annotations:
+          summary: 'Podman metrics missing from miniserver'
+          description: 'The miniserver Podman metrics collected by Alloy have been absent for 10 minutes.'
+      - alert: 'BlackboxMetricsMissingGateway'
+        expr: 'absent_over_time(up{job="blackbox", host="gateway"}[10m])'
+        for: '0m'
+        labels:
+          severity: 'critical'
+        annotations:
+          summary: 'Blackbox metrics missing from gateway'
+          description: 'The gateway blackbox probe metrics collected by Alloy have been absent for 10 minutes.'
+      - alert: 'BlackboxMetricsMissingMiniserver'
+        expr: 'absent_over_time(up{job="blackbox", host="miniserver"}[10m])'
+        for: '0m'
+        labels:
+          severity: 'critical'
+        annotations:
+          summary: 'Blackbox metrics missing from miniserver'
+          description: 'The miniserver blackbox probe metrics collected by Alloy have been absent for 10 minutes.'
+      - alert: 'SmartctlMetricsMissingMiniserver'
+        expr: 'absent_over_time(up{job="smartctl", host="miniserver"}[10m])'
+        for: '0m'
+        labels:
+          severity: 'critical'
+        annotations:
+          summary: 'SMART metrics missing from miniserver'
+          description: 'The miniserver SMART metrics collected by Alloy have been absent for 10 minutes.'

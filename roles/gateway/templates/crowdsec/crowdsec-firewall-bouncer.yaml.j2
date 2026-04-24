@@ -21,3 +21,7 @@ nftables:
     set-only: false
     table: 'crowdsec6'
     chain: 'crowdsec6-chain'
+prometheus:
+  enabled: true
+  listen_addr: '{{ monitoring_scrape_address }}'
+  listen_port: {{ gateway_crowdsec_firewall_bouncer_metrics_port }}

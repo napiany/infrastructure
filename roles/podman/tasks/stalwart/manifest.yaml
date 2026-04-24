@@ -18,6 +18,11 @@
           dest: 'stalwart-egress.network'
           restart_units:
             - 'stalwart.service'
+        - src: 'stalwart/stalwart-monitoring.network'
+          dest: 'stalwart-monitoring.network'
+          restart_units:
+            - 'stalwart.service'
+            - 'prometheus.service'
         - src: 'stalwart/stalwart-postgres.network'
           dest: 'stalwart-postgres.network'
           restart_units:

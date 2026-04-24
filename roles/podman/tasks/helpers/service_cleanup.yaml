@@ -81,6 +81,19 @@
   failed_when: false
   when: '(podman_cleanup_attached_container_ids | default([]) | length) > 0'
 
+- name: 'Check service network object existence'
+  ansible.builtin.command:
+    argv:
+      - 'podman'
+      - 'network'
+      - 'exists'
+      - '{{ item }}'
+  loop: '{{ podman_cleanup_owned_network_names | default([]) }}'
+  register: 'podman_cleanup_network_exists'
+  changed_when: false
+  failed_when: false
+  when: '(podman_cleanup_owned_network_names | default([]) | length) > 0'
+
 - name: 'Remove service network objects'
   ansible.builtin.command:
     argv:
@@ -88,12 +101,15 @@
       - 'network'
       - 'rm'
       - '-f'
-      - '{{ item }}'
-  loop: '{{ podman_cleanup_owned_network_names | default([]) }}'
+      - '{{ podman_cleanup_network.item }}'
+  loop: '{{ podman_cleanup_network_exists.results | default([]) | selectattr(''rc'', ''equalto'', 0) | list }}'
+  loop_control:
+    loop_var: 'podman_cleanup_network'
+    label: '{{ podman_cleanup_network.item }}'
   register: 'podman_cleanup_network_remove'
   changed_when: 'podman_cleanup_network_remove.rc == 0'
   failed_when: false
-  when: '(podman_cleanup_owned_network_names | default([]) | length) > 0'
+  when: '(podman_cleanup_network_exists.results | default([]) | selectattr(''rc'', ''equalto'', 0) | list | length) > 0'
 
 - name: 'Remove service Podman secrets'
   ansible.builtin.command:

@@ -1,0 +1,314 @@
+---
+- name: 'Validate monitoring scrape address'
+  ansible.builtin.assert:
+    that:
+      - 'monitoring_scrape_address | default('''') | trim | length > 0'
+    fail_msg: 'Missing monitoring_scrape_address for {{ inventory_hostname }}.'
+
+- name: 'Set Monitoring host facts'
+  ansible.builtin.set_fact:
+    monitoring_central_host: 'miniserver'
+    monitoring_smart_exporter_enabled: '{{ inventory_hostname != ''gateway'' }}'
+    monitoring_podman_metrics_enabled: '{{ (podman_containers_selected | default(podman_containers | default([])) | length) > 0 }}'
+
+- name: 'Set Monitoring central service facts'
+  ansible.builtin.set_fact:
+    monitoring_central_selected_containers: '{{ hostvars[monitoring_central_host].podman_containers_selected | default(hostvars[monitoring_central_host].podman_containers | default([])) }}'
+    monitoring_central_service_manifests: '{{ hostvars[monitoring_central_host].podman_service_manifests | default({}) }}'
+    monitoring_central_haproxy_ingress_ipv4: '{{ hostvars[monitoring_central_host].podman_haproxy_ingress_ipv4 | default('''') }}'
+    monitoring_central_wireguard_ip: '{{ hostvars[monitoring_central_host].podman_wireguard_ip | default(hostvars[monitoring_central_host].monitoring_scrape_address | default('''')) }}'
+
+- name: 'Set Monitoring blackbox target domains'
+  ansible.builtin.set_fact:
+    monitoring_blackbox_target_domains: '{{ monitoring_central_selected_containers | select(''in'', (monitoring_central_service_manifests.keys() | list)) | map(''extract'', monitoring_central_service_manifests) | map(attribute=''certificates'') | list | flatten | map(attribute=''domains'') | list | flatten | select(''string'') | map(''trim'') | reject(''equalto'', '''') | unique | sort | list }}'
+
+- name: 'Set Monitoring blackbox probe facts'
+  ansible.builtin.set_fact:
+    monitoring_blackbox_generic_excluded_domains:
+      - 'prometheus.napiany.com'
+      - 'alertmanager.napiany.com'
+      - 'api.ente.napiany.com'
+      - 'memories.ente.napiany.com'
+      - 's3.ente.napiany.com'
+      - 'seedvault.napiany.com'
+      - 'push.napiany.com'
+      - 'updates.push.napiany.com'
+    monitoring_blackbox_probe_base_url: '{{ (''https://'' ~ monitoring_central_haproxy_ingress_ipv4) if (inventory_hostname == monitoring_central_host and monitoring_central_haproxy_ingress_ipv4 | length > 0) else ((''https://'' ~ monitoring_central_wireguard_ip) if (monitoring_central_wireguard_ip | length > 0) else '''') }}'
+
+- name: 'Set Monitoring public blackbox target domains'
+  ansible.builtin.set_fact:
+    monitoring_blackbox_public_domains: '{{ monitoring_blackbox_target_domains | difference(monitoring_blackbox_generic_excluded_domains) | sort | list }}'
+
+- name: 'Validate SMART monitoring architecture support'
+  ansible.builtin.assert:
+    that:
+      - 'ansible_facts[''architecture''] == ''x86_64'''
+    fail_msg: 'SMART monitoring currently supports x86_64 only.'
+  when: 'monitoring_smart_exporter_enabled'
+
+- name: 'Install Alloy monitoring packages'
+  community.general.zypper:
+    name:
+      - 'alloy'
+      - 'curl'
+    state: 'present'
+    update_cache: true
+  notify:
+    - 'Reboot'
+
+- name: 'Install SMART monitoring packages'
+  community.general.zypper:
+    name:
+      - 'smartmontools'
+    state: 'present'
+  notify:
+    - 'Reboot'
+  when: 'monitoring_smart_exporter_enabled'
+
+- name: 'Apply pending reboot for Monitoring packages'
+  ansible.builtin.meta: 'flush_handlers'
+
+- name: 'Stop removed exporter services'
+  ansible.builtin.command:
+    argv:
+      - 'systemctl'
+      - 'disable'
+      - '--now'
+      - '{{ item }}'
+  loop:
+    - 'prometheus-node_exporter.service'
+    - 'prometheus-blackbox_exporter.service'
+    - 'systemd-exporter.service'
+    - 'systemd-exporter-auto-update.timer'
+    - 'podman-exporter.service'
+  changed_when: false
+  failed_when: false
+
+- name: 'Remove replaced exporter packages'
+  community.general.zypper:
+    name:
+      - 'golang-github-prometheus-node_exporter'
+      - 'prometheus-blackbox_exporter'
+    state: 'absent'
+
+- name: 'Remove replaced exporter files'
+  ansible.builtin.file:
+    path: '{{ item }}'
+    state: 'absent'
+  loop:
+    - '/etc/prometheus/blackbox.yml'
+    - '/etc/sysconfig/prometheus-node_exporter'
+    - '/etc/systemd/system/podman-exporter.service'
+    - '/etc/systemd/system/systemd-exporter.service'
+    - '/etc/systemd/system/systemd-exporter-auto-update.service'
+    - '/etc/systemd/system/systemd-exporter-auto-update.timer'
+    - '/usr/local/bin/podman_exporter'
+    - '/usr/local/bin/systemd_exporter'
+
+- name: 'Create Alloy directories'
+  ansible.builtin.file:
+    path: '{{ item.path }}'
+    state: 'directory'
+    owner: 'root'
+    group: 'root'
+    mode: '{{ item.mode }}'
+  loop:
+    - path: '/etc/alloy'
+      mode: '0755'
+    - path: '/etc/systemd/system/alloy.service.d'
+      mode: '0755'
+
+- name: 'Copy Alloy systemd override'
+  ansible.builtin.copy:
+    src: 'alloy-override.conf'
+    dest: '/etc/systemd/system/alloy.service.d/override.conf'
+    owner: 'root'
+    group: 'root'
+    mode: '0644'
+  notify:
+    - 'Restart Alloy'
+
+- name: 'Copy Alloy sysconfig'
+  ansible.builtin.copy:
+    src: 'alloy.sysconfig'
+    dest: '/etc/sysconfig/alloy'
+    owner: 'root'
+    group: 'root'
+    mode: '0644'
+  notify:
+    - 'Restart Alloy'
+
+- name: 'Render Alloy blackbox exporter config'
+  ansible.builtin.template:
+    src: 'blackbox.yml.j2'
+    dest: '/etc/alloy/blackbox.yml'
+    owner: 'root'
+    group: 'root'
+    mode: '0644'
+  notify:
+    - 'Restart Alloy'
+
+- name: 'Render Alloy config'
+  ansible.builtin.template:
+    src: 'config.alloy.j2'
+    dest: '/etc/alloy/config.alloy'
+    owner: 'root'
+    group: 'root'
+    mode: '0644'
+  notify:
+    - 'Restart Alloy'
+
+- name: 'Start Alloy'
+  ansible.builtin.systemd:
+    name: 'alloy.service'
+    state: 'started'
+    enabled: true
+    daemon_reload: true
+
+- name: 'Disable smartd where SMART monitoring is enabled'
+  ansible.builtin.systemd:
+    name: 'smartd.service'
+    enabled: false
+    state: 'stopped'
+  when: 'monitoring_smart_exporter_enabled'
+
+- name: 'Find SMART-capable by-id device symlinks'
+  ansible.builtin.find:
+    paths: '/dev/disk/by-id'
+    file_type: 'link'
+    patterns:
+      - 'ata-*'
+      - 'nvme-*'
+  register: 'monitoring_smartctl_by_id_devices'
+  when: 'monitoring_smart_exporter_enabled'
+
+- name: 'Build ATA SMART device list'
+  ansible.builtin.set_fact:
+    monitoring_smartctl_exporter_ata_devices: '{{ monitoring_smartctl_by_id_devices.files | map(attribute=''path'') | select(''search'', ''/ata-'') | reject(''search'', ''-part[0-9]+$'') | sort | list }}'
+  when: 'monitoring_smart_exporter_enabled'
+
+- name: 'Build NVMe SMART device list'
+  ansible.builtin.set_fact:
+    monitoring_smartctl_exporter_nvme_devices: '{{ monitoring_smartctl_by_id_devices.files | map(attribute=''path'') | select(''search'', ''/nvme-'') | reject(''search'', ''-part[0-9]+$'') | sort | list }}'
+  when: 'monitoring_smart_exporter_enabled'
+
+- name: 'Build explicit smartctl_exporter device arguments'
+  ansible.builtin.set_fact:
+    monitoring_smartctl_exporter_devices: '{{ ((monitoring_smartctl_exporter_ata_devices | default([])) | map(''regex_replace'', ''$'', '';sat'') | list) + ((monitoring_smartctl_exporter_nvme_devices | default([])) | map(''regex_replace'', ''$'', '';nvme'') | list) }}'
+  when: 'monitoring_smart_exporter_enabled'
+
+- name: 'Copy smartctl-exporter-auto-update.service'
+  ansible.builtin.copy:
+    src: 'smartctl-exporter-auto-update.service'
+    dest: '/etc/systemd/system/smartctl-exporter-auto-update.service'
+    owner: 'root'
+    group: 'root'
+    mode: '0644'
+  when: 'monitoring_smart_exporter_enabled'
+
+- name: 'Copy smartctl-exporter-auto-update.timer'
+  ansible.builtin.copy:
+    src: 'smartctl-exporter-auto-update.timer'
+    dest: '/etc/systemd/system/smartctl-exporter-auto-update.timer'
+    owner: 'root'
+    group: 'root'
+    mode: '0644'
+  when: 'monitoring_smart_exporter_enabled'
+
+- name: 'Render smartctl_exporter service'
+  ansible.builtin.template:
+    src: 'smartctl-exporter.service.j2'
+    dest: '/etc/systemd/system/smartctl-exporter.service'
+    owner: 'root'
+    group: 'root'
+    mode: '0644'
+  notify:
+    - 'Restart smartctl exporter'
+  when: 'monitoring_smart_exporter_enabled'
+
+- name: 'Reload systemd after smartctl_exporter unit changes'
+  ansible.builtin.systemd:
+    daemon_reload: true
+  when: 'not ansible_check_mode'
+
+- name: 'Check whether smartctl_exporter is already installed'
+  ansible.builtin.stat:
+    path: '/usr/local/bin/smartctl_exporter'
+  register: 'monitoring_smartctl_exporter_binary'
+  when: 'monitoring_smart_exporter_enabled'
+
+- name: 'Run smartctl-exporter-auto-update.service immediately when smartctl_exporter is missing'
+  ansible.builtin.systemd:
+    name: 'smartctl-exporter-auto-update.service'
+    state: 'started'
+  when:
+    - 'not ansible_check_mode'
+    - 'monitoring_smart_exporter_enabled'
+    - 'not (monitoring_smartctl_exporter_binary.stat.exists | default(false))'
+
+- name: 'Wait for smartctl_exporter to become available'
+  ansible.builtin.wait_for:
+    path: '/usr/local/bin/smartctl_exporter'
+    state: 'present'
+    timeout: 300
+  when:
+    - 'not ansible_check_mode'
+    - 'monitoring_smart_exporter_enabled'
+    - 'not (monitoring_smartctl_exporter_binary.stat.exists | default(false))'
+
+- name: 'Enable and start smartctl-exporter-auto-update.timer'
+  ansible.builtin.systemd:
+    name: 'smartctl-exporter-auto-update.timer'
+    state: 'started'
+    enabled: true
+  when:
+    - 'not ansible_check_mode'
+    - 'monitoring_smart_exporter_enabled'
+
+- name: 'Start smartctl_exporter service'
+  ansible.builtin.systemd:
+    name: 'smartctl-exporter.service'
+    state: 'started'
+    enabled: true
+    daemon_reload: true
+  when: 'monitoring_smart_exporter_enabled'
+
+- name: 'Stop smartctl_exporter service where SMART monitoring is disabled'
+  ansible.builtin.command:
+    argv:
+      - 'systemctl'
+      - 'disable'
+      - '--now'
+      - 'smartctl-exporter.service'
+  changed_when: false
+  failed_when: false
+  when: 'not monitoring_smart_exporter_enabled'
+
+- name: 'Stop smartctl-exporter-auto-update timer where SMART monitoring is disabled'
+  ansible.builtin.command:
+    argv:
+      - 'systemctl'
+      - 'disable'
+      - '--now'
+      - 'smartctl-exporter-auto-update.timer'
+  changed_when: false
+  failed_when: false
+  when: 'not monitoring_smart_exporter_enabled'
+
+- name: 'Remove smartctl_exporter files where SMART monitoring is disabled'
+  ansible.builtin.file:
+    path: '{{ item }}'
+    state: 'absent'
+  loop:
+    - '/etc/systemd/system/smartctl-exporter.service'
+    - '/etc/systemd/system/smartctl-exporter-auto-update.service'
+    - '/etc/systemd/system/smartctl-exporter-auto-update.timer'
+    - '/usr/local/bin/smartctl_exporter'
+  when: 'not monitoring_smart_exporter_enabled'
+
+- name: 'Reload systemd after removing smartctl_exporter units'
+  ansible.builtin.systemd:
+    daemon_reload: true
+  when:
+    - 'not ansible_check_mode'
+    - 'not monitoring_smart_exporter_enabled'

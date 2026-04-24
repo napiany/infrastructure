@@ -15,10 +15,10 @@ insecure_skip_verify: false
 appsec_url: 'http://crowdsec:{{ crowdsec_appsec_listen_port_effective }}/'
 {% endif %}
 
-listen_tcp: '0.0.0.0:9000'
+listen_tcp: '[::]:9000'
 listen_unix: '/run/crowdsec-spoa/spoa.sock'
 
 prometheus:
-  enabled: false
-  listen_addr: '127.0.0.1'
-  listen_port: 60601
+  enabled: true
+  listen_addr: '0.0.0.0'
+  listen_port: {{ podman_crowdsec_spoa_metrics_port }}

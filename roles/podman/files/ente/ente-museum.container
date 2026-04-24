@@ -13,7 +13,7 @@ AutoUpdate=registry
 Network=haproxy-ente.network:ip6=fd89:109::2
 Network=ente-backend.network
 NetworkAlias=ente-museum
-AddHost=s3.ente.napiany.com:fd89:109::1
+AddHost=s3.ente.napiany.com:fd89:109::10
 
 Volume=ente-config:/config:ro,U,Z,noexec
 ReadOnly=true

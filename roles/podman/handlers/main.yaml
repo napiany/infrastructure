@@ -155,6 +155,7 @@
     name: 'haproxy.service'
     state: 'restarted'
     enabled: true
+    daemon_reload: true
   tags:
     - 'haproxy'
 

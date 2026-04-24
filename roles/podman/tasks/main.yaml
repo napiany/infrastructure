@@ -14,11 +14,11 @@
 - name: 'Apply pending reboot for Podman packages'
   ansible.builtin.meta: 'flush_handlers'
 
-- name: 'Enable and start podman-auto-update.timer'
-  ansible.builtin.systemd:
-    name: 'podman-auto-update.timer'
-    state: 'started'
-    enabled: true
+# - name: 'Enable and start podman-auto-update.timer'
+#   ansible.builtin.systemd:
+#     name: 'podman-auto-update.timer'
+#     state: 'started'
+#     enabled: true
 
 - name: 'Set effective podman container list'
   ansible.builtin.set_fact:
@@ -48,9 +48,11 @@
       tags:
         - 'podman'
         - 'kanidm'
+        - 'monitoring'
   tags:
     - 'podman'
     - 'kanidm'
+    - 'monitoring'
 
 - name: 'Include Grid manifest tasks'
   ansible.builtin.include_tasks:
@@ -59,9 +61,11 @@
       tags:
         - 'podman'
         - 'grid'
+        - 'monitoring'
   tags:
     - 'podman'
     - 'grid'
+    - 'monitoring'
 
 - name: 'Include Ente manifest tasks'
   ansible.builtin.include_tasks:
@@ -70,9 +74,11 @@
       tags:
         - 'podman'
         - 'ente'
+        - 'monitoring'
   tags:
     - 'podman'
     - 'ente'
+    - 'monitoring'
 
 - name: 'Include Vaultwarden manifest tasks'
   ansible.builtin.include_tasks:
@@ -81,9 +87,11 @@
       tags:
         - 'podman'
         - 'vaultwarden'
+        - 'monitoring'
   tags:
     - 'podman'
     - 'vaultwarden'
+    - 'monitoring'
 
 - name: 'Include SeedVault manifest tasks'
   ansible.builtin.include_tasks:
@@ -92,9 +100,11 @@
       tags:
         - 'podman'
         - 'seedvault'
+        - 'monitoring'
   tags:
     - 'podman'
     - 'seedvault'
+    - 'monitoring'
 
 - name: 'Include Stalwart manifest tasks'
   ansible.builtin.include_tasks:
@@ -103,9 +113,11 @@
       tags:
         - 'podman'
         - 'stalwart'
+        - 'monitoring'
   tags:
     - 'podman'
     - 'stalwart'
+    - 'monitoring'
 
 - name: 'Include Autopush manifest tasks'
   ansible.builtin.include_tasks:
@@ -114,9 +126,11 @@
       tags:
         - 'podman'
         - 'autopush'
+        - 'monitoring'
   tags:
     - 'podman'
     - 'autopush'
+    - 'monitoring'
 
 - name: 'Include MollySocket manifest tasks'
   ansible.builtin.include_tasks:
@@ -125,9 +139,22 @@
       tags:
         - 'podman'
         - 'mollysocket'
+        - 'monitoring'
   tags:
     - 'podman'
     - 'mollysocket'
+    - 'monitoring'
+
+- name: 'Include Monitoring manifest tasks'
+  ansible.builtin.include_tasks:
+    file: 'monitoring/manifest.yaml'
+    apply:
+      tags:
+        - 'podman'
+        - 'monitoring'
+  tags:
+    - 'podman'
+    - 'monitoring'
 
 - name: 'Remove deselected Podman services'
   ansible.builtin.include_tasks: 'helpers/service_cleanup.yaml'
@@ -258,6 +285,18 @@
   tags:
     - 'podman'
     - 'mollysocket'
+
+- name: 'Include Monitoring tasks'
+  ansible.builtin.include_tasks:
+    file: 'monitoring/main.yaml'
+    apply:
+      tags:
+        - 'podman'
+        - 'monitoring'
+  when: '''monitoring'' in podman_containers_selected'
+  tags:
+    - 'podman'
+    - 'monitoring'
 
 - name: 'Include gVisor tasks'
   ansible.builtin.include_tasks:

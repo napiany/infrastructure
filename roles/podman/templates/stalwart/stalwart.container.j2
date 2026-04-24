@@ -10,6 +10,9 @@ AutoUpdate=registry
 
 Network=haproxy-stalwart.network:ip6={{ podman_haproxy_networks.stalwart.ipv6 }}
 Network=stalwart-egress.network:ip={{ podman_stalwart_egress_ipv4 }},ip6={{ podman_stalwart_egress_ipv6 }}
+{% if 'monitoring' in (podman_containers_selected | default([])) %}
+Network=stalwart-monitoring.network:ip6={{ podman_stalwart_metrics_ipv6 }}
+{% endif %}
 Network=stalwart-postgres.network
 NetworkAlias=stalwart
 

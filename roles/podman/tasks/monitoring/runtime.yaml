@@ -1,0 +1,21 @@
+---
+- name: 'Start Alertmanager'
+  ansible.builtin.systemd:
+    name: 'alertmanager.service'
+    state: 'started'
+    enabled: true
+    daemon_reload: true
+
+- name: 'Start Grafana'
+  ansible.builtin.systemd:
+    name: 'grafana.service'
+    state: 'started'
+    enabled: true
+    daemon_reload: true
+
+- name: 'Start Prometheus'
+  ansible.builtin.systemd:
+    name: 'prometheus.service'
+    state: 'started'
+    enabled: true
+    daemon_reload: true

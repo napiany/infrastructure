@@ -7,7 +7,11 @@ After=wg-quick@wg0.service
 ContainerName=crowdsec
 Image=docker.io/crowdsecurity/crowdsec:v1.7.7@sha256:6ca53ad26196ca59ddd4fa692a586b73d8fcde085046163b9ca2f04887dca563
 AutoUpdate=registry
-Network=haproxy-crowdsec.network:ip={{ podman_crowdsec_ipv4 }},ip6={{ podman_crowdsec_ipv6 }}
+Network=haproxy-crowdsec.network:ip6={{ podman_crowdsec_ipv6 }}
+Network=crowdsec-egress.network
+{% if 'monitoring' in (podman_containers_selected | default([])) %}
+Network=crowdsec-monitoring.network
+{% endif %}
 NetworkAlias=crowdsec
 
 Volume=crowdsec-config:/etc/crowdsec:U,z,noexec
@@ -17,7 +21,7 @@ Mount=type=tmpfs,tmpfs-size=16M,tmpfs-mode=1777,U,noexec,nosuid,nodev,destinatio
 
 Environment=TZ=UTC
 Environment="COLLECTIONS={{ crowdsec_collections | join(' ') }}"
-Environment=LOCAL_API_URL=http://0.0.0.0:8080
+Environment=LOCAL_API_URL=http://[::]:8080
 PublishPort={{ podman_wireguard_ip }}:8080:8080/tcp
 PublishPort=[{{ crowdsec_wireguard_ipv6 }}]:8080:8080/tcp
 

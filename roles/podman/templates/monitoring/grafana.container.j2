@@ -1,0 +1,55 @@
+{% set selected = podman_containers_selected | default(podman_containers | default([])) %}
+{% set kanidm_domain = ((podman_services | default({})).get('kanidm', {})).get('domain', '') %}
+[Unit]
+Description=Grafana
+
+[Container]
+ContainerName=grafana
+Image={{ podman_grafana_image }}
+AutoUpdate=registry
+
+Network=monitoring-backend.network
+Network=haproxy-grafana.network:ip6={{ podman_haproxy_networks.grafana.ipv6 }}
+{% if kanidm_domain | length > 0 and 'kanidm' in selected %}
+Network=kanidm-grafana.network:ip=10.89.107.3,ip6=fd89:107::3
+AddHost={{ kanidm_domain }}:10.89.107.2
+{% endif %}
+NetworkAlias=grafana
+
+Volume=grafana-data:/var/lib/grafana:U,Z,noexec
+Volume=grafana-provisioning:/etc/grafana/provisioning:ro,U,Z,noexec
+ReadOnly=true
+Mount=type=tmpfs,tmpfs-size=32M,tmpfs-mode=1777,U,noexec,nosuid,nodev,destination=/tmp
+
+Environment=GF_ANALYTICS_CHECK_FOR_UPDATES=false
+Environment=GF_ANALYTICS_REPORTING_ENABLED=false
+Environment=GF_METRICS_ENABLED=true
+Environment=GF_SECURITY_ADMIN_USER=admin
+Environment=GF_SECURITY_COOKIE_SECURE=true
+Environment=GF_SERVER_DOMAIN=grafana.napiany.com
+Environment=GF_SERVER_ENFORCE_DOMAIN=true
+Environment=GF_SERVER_ROOT_URL=https://grafana.napiany.com/
+Environment=GF_USERS_ALLOW_SIGN_UP=false
+Secret=monitoring_grafana_admin_password,type=env,target=GF_SECURITY_ADMIN_PASSWORD
+
+Memory=256m
+PidsLimit=256
+PodmanArgs=--cpus=0.5
+User=472
+Group=472
+
+NoNewPrivileges=true
+DropCapability=ALL
+
+[Service]
+LockPersonality=true
+ProtectClock=true
+RestrictRealtime=true
+RuntimeDirectoryMode=700
+SystemCallArchitectures=native
+SystemCallFilter=~@obsolete
+Restart=on-failure
+RestartSec=10s
+
+[Install]
+WantedBy=default.target

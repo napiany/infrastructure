@@ -2,6 +2,10 @@
 {% set kanidm_domain = ((podman_services | default({})).get('kanidm', {})).get('domain', '') %}
 {% set stalwart_settings = (podman_services | default({})).get('stalwart', {}) %}
 {% set stalwart_certificate_blocks = stalwart_settings.get('certificate_blocks', [{'domains': stalwart_settings.get('domains', [])}] if stalwart_settings.get('domains', []) else []) %}
+{% set gateway_blackbox_probe_sources = (
+  ([hostvars['gateway'].monitoring_scrape_address] if ('gateway' in (groups['servers'] | default([])) and hostvars['gateway'].monitoring_scrape_address | default('') | trim | length > 0) else [])
+  + ([podman_wireguard_gateway_ipv6] if 'gateway' in (groups['servers'] | default([])) else [])
+) | unique %}
 global
     log stdout format raw local0
     tune.bufsize 65536
@@ -54,6 +58,16 @@ frontend local_http
     acl acme_http01 path_beg /.well-known/acme-challenge/
     http-request use-service lua.acme_http01 if acme_http01
     http-request redirect scheme https code 308
+
+{% if 'monitoring' in selected %}
+frontend haproxy_prometheus
+    bind [{{ podman_haproxy_networks.prometheus.proxy_ipv6 }}]:{{ podman_haproxy_metrics_port }} v6only
+    mode http
+    option socket-stats
+    http-request use-service prometheus-exporter if { path /metrics }
+    http-request return status 404
+    no log
+{% endif %}
 
 frontend local_https
     bind 127.0.0.1:8444 accept-proxy ssl crt /usr/local/etc/haproxy/certs tls-ticket-keys /usr/local/etc/haproxy/session-ticket-keys/keys alpn h2,http/1.1
@@ -121,6 +135,10 @@ frontend local_https
     acl host_push hdr(host) -i push.napiany.com
     acl host_updates_push hdr(host) -i updates.push.napiany.com
     acl autopush_local_path path -i /health /__heartbeat__ /__version__
+{% if gateway_blackbox_probe_sources | length > 0 %}
+    acl gateway_blackbox_probe_src src {{ gateway_blackbox_probe_sources | join(' ') }}
+{% endif %}
+    acl autopush_websocket_upgrade hdr(Upgrade) -i websocket
     http-request track-sc0 src if host_push || host_updates_push
     acl autopush_push_conn_limit sc_conn_cur(0) gt 10
     acl autopush_push_req_limit sc_http_req_rate(0) gt 30
@@ -129,6 +147,11 @@ frontend local_https
 {% endif %}
 {% if 'mollysocket' in selected %}
     acl host_mollysocket hdr(host) -i mollysocket.napiany.com
+{% endif %}
+{% if 'monitoring' in selected %}
+    acl host_prometheus hdr(host) -i prometheus.napiany.com
+    acl host_alertmanager hdr(host) -i alertmanager.napiany.com
+    acl host_grafana hdr(host) -i grafana.napiany.com
 {% endif %}
 {% if 'stalwart' in selected %}
 {% for block in stalwart_certificate_blocks if (block.domains | default([]) | length) > 0 %}
@@ -143,8 +166,19 @@ frontend local_https
     http-request deny deny_status 429 if host_push autopush_push_req_limit
     http-request deny deny_status 429 if host_updates_push autopush_updates_conn_limit
     http-request deny deny_status 429 if host_updates_push autopush_updates_req_limit
+{% if gateway_blackbox_probe_sources | length > 0 %}
+    http-request deny deny_status 403 if host_push autopush_local_path !local_src !gateway_blackbox_probe_src
+    http-request deny deny_status 403 if host_updates_push autopush_local_path !local_src !gateway_blackbox_probe_src
+{% else %}
     http-request deny deny_status 403 if host_push autopush_local_path !local_src
     http-request deny deny_status 403 if host_updates_push autopush_local_path !local_src
+{% endif %}
+    http-request return status 426 content-type text/plain lf-string 'WebSocket endpoint\n' if host_push !autopush_local_path !autopush_websocket_upgrade
+{% endif %}
+{% if 'monitoring' in selected %}
+    http-request deny deny_status 403 if host_prometheus !local_src !acme_http01
+    http-request deny deny_status 403 if host_alertmanager !local_src !acme_http01
+    http-request deny deny_status 403 if host_grafana !local_src !acme_http01
 {% endif %}
 {% if 'seedvault' in selected %}
     http-request return status 404 if host_seedvault seedvault_favicon
@@ -182,6 +216,11 @@ frontend local_https
 {% endif %}
 {% if 'mollysocket' in selected %}
     use_backend be_mollysocket if host_mollysocket
+{% endif %}
+{% if 'monitoring' in selected %}
+    use_backend be_prometheus if host_prometheus
+    use_backend be_alertmanager if host_alertmanager
+    use_backend be_grafana if host_grafana
 {% endif %}
 {% if 'stalwart' in selected %}
 {% for block in stalwart_certificate_blocks if (block.domains | default([]) | length) > 0 %}
@@ -231,7 +270,7 @@ backend be_https_termination
 {% if 'kanidm' in selected %}
 backend be_kanidm_passthrough
     mode tcp
-    server kanidm [{{ podman_haproxy_networks.kanidm.ipv6 }}]:8443
+    server kanidm [{{ podman_haproxy_networks.kanidm.ipv6 }}]:443
 {% endif %}
 
 {% if 'vaultwarden' in selected %}
@@ -282,10 +321,21 @@ backend be_ente_embed
     server ente_embed [{{ podman_haproxy_networks.ente.web_ipv6 }}]:3006
 
 backend be_ente_paste
-    server ente_paste [{{ podman_haproxy_networks.ente.web_ipv6 }}]:3007
+    server ente_paste [{{ podman_haproxy_networks.ente.web_ipv6 }}]:3008
 
 backend be_ente_memories
-    server ente_memories [{{ podman_haproxy_networks.ente.web_ipv6 }}]:3008
+    server ente_memories [{{ podman_haproxy_networks.ente.web_ipv6 }}]:3010
+{% endif %}
+
+{% if 'monitoring' in selected %}
+backend be_prometheus
+    server prometheus [{{ podman_haproxy_networks.prometheus.ipv6 }}]:9090
+
+backend be_alertmanager
+    server alertmanager [{{ podman_haproxy_networks.alertmanager.ipv6 }}]:9093
+
+backend be_grafana
+    server grafana [{{ podman_haproxy_networks.grafana.ipv6 }}]:3000
 {% endif %}
 
 {% if 'stalwart' in selected %}

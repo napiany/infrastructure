@@ -1,4 +1,8 @@
 ---
+- name: 'Reload gateway systemd'
+  ansible.builtin.systemd:
+    daemon_reload: true
+
 - name: 'Restart gateway wireguard'
   ansible.builtin.systemd:
     name: 'wg-quick@wg0.service'

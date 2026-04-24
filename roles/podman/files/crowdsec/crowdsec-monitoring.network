@@ -1,0 +1,6 @@
+[Network]
+Internal=true
+Options=no_default_route=1
+Subnet=10.89.115.0/24
+Gateway=10.89.115.1
+NetworkDeleteOnStop=true

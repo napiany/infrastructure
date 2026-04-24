@@ -39,4 +39,4 @@ PostDown = nft delete table inet gateway_stalwart_egress >/dev/null 2>&1 || true
 [Peer]
 PublicKey = {{ vault_wireguard_public_keys['miniserver'] }}
 PresharedKey = {{ vault_wireguard_preshared_keys['miniserver'] }}
-AllowedIPs = {{ miniserver_wg_ipv4 }}/32, {{ miniserver_wg_ipv6 }}/128, {{ gateway_stalwart_ipv4 }}/32, {{ gateway_stalwart_ipv6 }}/128
+AllowedIPs = {{ miniserver_wg_ipv4 }}/32, {{ miniserver_wg_ipv6 }}/128, 10.89.118.0/24, fd89:118::/64, {{ gateway_stalwart_ipv4 }}/32, {{ gateway_stalwart_ipv6 }}/128
