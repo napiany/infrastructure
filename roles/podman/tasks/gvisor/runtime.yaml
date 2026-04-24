@@ -69,7 +69,6 @@
       + ([''haproxy'', ''crowdsec-spoa''] if (''haproxy'' in podman_containers_selected) else [])
       + ([''crowdsec''])
       + ([''kanidm''] if ''kanidm'' in podman_containers_selected else [])
-      + ([''grid'', ''grid-postgres''] if ''grid'' in podman_containers_selected else [])
       + ([''ente-museum'', ''ente-postgres'', ''ente-web'', ''ente-garage''] if ''ente'' in podman_containers_selected else [])
       + ([''vaultwarden'', ''vaultwarden-postgres''] if ''vaultwarden'' in podman_containers_selected else [])
       + ([''seedvault''] if ''seedvault'' in podman_containers_selected else [])

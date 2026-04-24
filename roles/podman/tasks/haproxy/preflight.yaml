@@ -34,12 +34,6 @@
         restart_units:
           - 'haproxy.service'
           - 'seedvault.service'
-      - service: 'grid'
-        src: 'grid/haproxy-grid.network'
-        dest: 'haproxy-grid.network'
-        restart_units:
-          - 'haproxy.service'
-          - 'grid.service'
       - service: 'ente'
         src: 'ente/haproxy-ente.network'
         dest: 'haproxy-ente.network'

@@ -110,13 +110,6 @@ frontend local_https
     acl host_seedvault hdr(host) -i seedvault.napiany.com
     acl seedvault_favicon path -i /favicon.ico
 {% endif %}
-{% if 'grid' in selected %}
-    acl host_grid hdr(host) -i grid.napiany.com
-    acl grid_matrix path_beg /_matrix
-    acl grid_synapse path_beg /_synapse/client
-    acl grid_well_known path -i /.well-known/matrix/client
-    acl grid_root path -i /
-{% endif %}
 {% if 'ente' in selected %}
     acl host_ente_api hdr(host) -i api.ente.napiany.com
     acl host_ente_s3 hdr(host) -i s3.ente.napiany.com
@@ -183,17 +176,9 @@ frontend local_https
 {% if 'seedvault' in selected %}
     http-request return status 404 if host_seedvault seedvault_favicon
 {% endif %}
-{% if 'grid' in selected %}
-    http-request return status 200 content-type application/json hdr Access-Control-Allow-Origin "*" lf-string '{"m.homeserver":{"base_url":"https://grid.napiany.com"}}' if host_grid grid_well_known
-    http-request return status 200 content-type text/plain lf-string 'Grid Matrix homeserver\n' if host_grid grid_root
-    http-request return status 404 if host_grid !grid_matrix !grid_synapse !grid_well_known !grid_root
-{% endif %}
 {% if 'ente' in selected %}
     http-request return status 204 hdr Access-Control-Allow-Origin "*" hdr Access-Control-Allow-Methods "GET, PUT, POST, HEAD, OPTIONS" hdr Access-Control-Allow-Headers "Content-Type, Content-Length, Content-MD5, Authorization, X-Amz-Date, X-Amz-Content-Sha256, X-Amz-Security-Token, X-Requested-With, X-Auth-Token, X-Client-Package, X-Client-Version, Origin, Accept, Range" hdr Access-Control-Max-Age "86400" if host_ente_s3 METH_OPTIONS
     http-request redirect code 308 prefix https://web.ente.napiany.com if host_ente_root
-{% endif %}
-{% if 'grid' in selected %}
-    use_backend be_grid if host_grid grid_matrix || host_grid grid_synapse
 {% endif %}
 {% if 'ente' in selected %}
     use_backend be_ente_museum if host_ente_api
@@ -281,11 +266,6 @@ backend be_vaultwarden
 {% if 'seedvault' in selected %}
 backend be_seedvault
     server seedvault [{{ podman_haproxy_networks.seedvault.ipv6 }}]:8080
-{% endif %}
-
-{% if 'grid' in selected %}
-backend be_grid
-    server grid [{{ podman_haproxy_networks.grid.ipv6 }}]:8008
 {% endif %}
 
 {% if 'ente' in selected %}

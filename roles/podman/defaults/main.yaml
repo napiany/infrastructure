@@ -2,7 +2,6 @@
 podman_available_containers:
   - 'haproxy'
   - 'kanidm'
-  - 'grid'
   - 'ente'
   - 'vaultwarden'
   - 'seedvault'
@@ -91,12 +90,6 @@ podman_haproxy_networks:
     web_ipv4: '10.89.109.4'
     web_ipv6: 'fd89:109::4'
     proxy_ipv6: 'fd89:109::10'
-  grid:
-    resolver: '10.89.108.1'
-    alias: 'grid'
-    ipv4: '10.89.108.2'
-    ipv6: 'fd89:108::2'
-    proxy_ipv6: 'fd89:108::10'
   seedvault:
     resolver: '10.89.110.1'
     alias: 'seedvault'

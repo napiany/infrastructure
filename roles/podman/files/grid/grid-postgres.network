@@ -1,4 +1,0 @@
-[Network]
-Internal=true
-Options=no_default_route=1
-NetworkDeleteOnStop=true

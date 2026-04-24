@@ -54,19 +54,6 @@
     - 'kanidm'
     - 'monitoring'
 
-- name: 'Include Grid manifest tasks'
-  ansible.builtin.include_tasks:
-    file: 'grid/manifest.yaml'
-    apply:
-      tags:
-        - 'podman'
-        - 'grid'
-        - 'monitoring'
-  tags:
-    - 'podman'
-    - 'grid'
-    - 'monitoring'
-
 - name: 'Include Ente manifest tasks'
   ansible.builtin.include_tasks:
     file: 'ente/manifest.yaml'
@@ -201,18 +188,6 @@
   tags:
     - 'podman'
     - 'kanidm'
-
-- name: 'Include Grid tasks'
-  ansible.builtin.include_tasks:
-    file: 'grid/main.yaml'
-    apply:
-      tags:
-        - 'podman'
-        - 'grid'
-  when: '''grid'' in podman_containers_selected'
-  tags:
-    - 'podman'
-    - 'grid'
 
 - name: 'Include Ente tasks'
   ansible.builtin.include_tasks:

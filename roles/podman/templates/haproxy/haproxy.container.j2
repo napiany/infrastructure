@@ -20,9 +20,6 @@ Network=haproxy-vaultwarden.network:ip6={{ podman_haproxy_networks.vaultwarden.p
 {% if 'seedvault' in podman_containers_selected %}
 Network=haproxy-seedvault.network:ip6={{ podman_haproxy_networks.seedvault.proxy_ipv6 }}
 {% endif %}
-{% if 'grid' in podman_containers_selected %}
-Network=haproxy-grid.network:ip6={{ podman_haproxy_networks.grid.proxy_ipv6 }}
-{% endif %}
 {% if 'ente' in podman_containers_selected %}
 Network=haproxy-ente.network:ip6={{ podman_haproxy_networks.ente.proxy_ipv6 }}
 {% endif %}

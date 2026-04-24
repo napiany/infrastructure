@@ -13,7 +13,6 @@
   + ([podman_haproxy_networks.kanidm.proxy_ipv6] if 'kanidm' in selected_containers else [])
   + ([podman_haproxy_networks.vaultwarden.proxy_ipv6] if 'vaultwarden' in selected_containers else [])
   + ([podman_haproxy_networks.seedvault.proxy_ipv6] if 'seedvault' in selected_containers else [])
-  + ([podman_haproxy_networks.grid.proxy_ipv6] if 'grid' in selected_containers else [])
   + ([podman_haproxy_networks.ente.proxy_ipv6] if 'ente' in selected_containers else [])
   + ([podman_haproxy_networks.stalwart.proxy_ipv6] if 'stalwart' in selected_containers else [])
   + ([podman_haproxy_networks.mollysocket.proxy_ipv6] if 'mollysocket' in selected_containers else [])
