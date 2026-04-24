@@ -206,7 +206,7 @@ prometheus.exporter.blackbox "probes" {
 
   target {
     name    = "mail_smtp"
-    address = "mail.napiany.com:25"
+    address = "{{ monitoring_blackbox_mail_probe_address }}:25"
     module  = "tcp_connect"
     labels = {
       "domain" = "mail.napiany.com:25",
@@ -216,7 +216,7 @@ prometheus.exporter.blackbox "probes" {
 
   target {
     name    = "mail_submissions"
-    address = "mail.napiany.com:465"
+    address = "{{ monitoring_blackbox_mail_probe_address }}:465"
     module  = "tcp_tls_connect_mail"
     labels = {
       "domain" = "mail.napiany.com:465",
@@ -226,7 +226,7 @@ prometheus.exporter.blackbox "probes" {
 
   target {
     name    = "mail_submission"
-    address = "mail.napiany.com:587"
+    address = "{{ monitoring_blackbox_mail_probe_address }}:587"
     module  = "tcp_connect"
     labels = {
       "domain" = "mail.napiany.com:587",
@@ -236,7 +236,7 @@ prometheus.exporter.blackbox "probes" {
 
   target {
     name    = "mail_imaptls"
-    address = "mail.napiany.com:993"
+    address = "{{ monitoring_blackbox_mail_probe_address }}:993"
     module  = "tcp_tls_connect_mail"
     labels = {
       "domain" = "mail.napiany.com:993",

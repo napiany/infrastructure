@@ -55,6 +55,18 @@
   changed_when: false
   when: 'not ansible_check_mode'
 
+- name: 'Check KVM device for gVisor'
+  ansible.builtin.stat:
+    path: '/dev/kvm'
+  register: 'podman_gvisor_kvm_device'
+
+- name: 'Validate KVM device for gVisor'
+  ansible.builtin.assert:
+    that:
+      - 'podman_gvisor_kvm_device.stat.exists | default(false)'
+      - 'podman_gvisor_kvm_device.stat.ischr | default(false)'
+    fail_msg: 'gVisor is configured with platform=kvm but /dev/kvm is unavailable.'
+
 - name: 'Persist KVM kernel modules for gVisor'
   ansible.builtin.template:
     src: 'gvisor/kvm-modules-load.conf.j2'

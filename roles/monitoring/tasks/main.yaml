@@ -34,6 +34,14 @@
       - 'push.napiany.com'
       - 'updates.push.napiany.com'
     monitoring_blackbox_probe_base_url: '{{ (''https://'' ~ monitoring_central_haproxy_ingress_ipv4) if (inventory_hostname == monitoring_central_host and monitoring_central_haproxy_ingress_ipv4 | length > 0) else ((''https://'' ~ monitoring_central_wireguard_ip) if (monitoring_central_wireguard_ip | length > 0) else '''') }}'
+    monitoring_blackbox_mail_probe_address: '{{ (''['' ~ monitoring_central_wireguard_ip ~ '']'') if (monitoring_central_wireguard_ip is search('':'')) else monitoring_central_wireguard_ip }}'
+
+- name: 'Validate Monitoring blackbox mail probe address'
+  ansible.builtin.assert:
+    that:
+      - 'monitoring_blackbox_mail_probe_address | default('''') | trim | length > 0'
+    fail_msg: 'Missing monitoring_blackbox_mail_probe_address for Stalwart mail probes.'
+  when: '''stalwart'' in monitoring_central_selected_containers'
 
 - name: 'Set Monitoring public blackbox target domains'
   ansible.builtin.set_fact:

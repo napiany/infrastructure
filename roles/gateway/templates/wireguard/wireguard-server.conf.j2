@@ -9,7 +9,7 @@ PostUp = sysctl -w net.ipv6.conf.all.forwarding=1
 PostUp = nft delete table inet gateway_web_forwarding >/dev/null 2>&1 || true
 PostUp = nft add table inet gateway_web_forwarding
 PostUp = nft 'add chain inet gateway_web_forwarding prerouting { type nat hook prerouting priority dstnat; policy accept; }'
-PostUp = nft 'add chain inet gateway_web_forwarding forward { type filter hook forward priority filter; policy accept; }'
+PostUp = nft 'add chain inet gateway_web_forwarding forward { type filter hook forward priority filter; policy drop; }'
 PostUp = nft 'add rule inet gateway_web_forwarding prerouting ip protocol tcp tcp dport 80 dnat ip to {{ miniserver_wg_ipv4 }}:80'
 PostUp = nft 'add rule inet gateway_web_forwarding prerouting ip protocol tcp tcp dport 443 dnat ip to {{ miniserver_wg_ipv4 }}:443'
 PostUp = nft 'add rule inet gateway_web_forwarding prerouting ip protocol udp udp dport 443 dnat ip to {{ miniserver_wg_ipv4 }}:443'
@@ -25,7 +25,7 @@ PostUp = nft 'add rule inet gateway_web_forwarding forward ip6 daddr {{ miniserv
 PostUp = nft 'add rule inet gateway_web_forwarding forward ip6 daddr {{ miniserver_wg_ipv6 }}/128 udp dport 443 accept'
 PostUp = nft delete table inet gateway_stalwart_egress >/dev/null 2>&1 || true
 PostUp = nft add table inet gateway_stalwart_egress
-PostUp = nft 'add chain inet gateway_stalwart_egress forward { type filter hook forward priority filter; policy accept; }'
+PostUp = nft 'add chain inet gateway_stalwart_egress forward { type filter hook forward priority filter; policy drop; }'
 PostUp = nft 'add chain inet gateway_stalwart_egress postrouting { type nat hook postrouting priority srcnat; policy accept; }'
 PostUp = nft 'add rule inet gateway_stalwart_egress forward ip saddr { {{ miniserver_wg_ipv4 }}/32, {{ gateway_stalwart_ipv4 }}/32 } accept'
 PostUp = nft 'add rule inet gateway_stalwart_egress forward ip daddr { {{ miniserver_wg_ipv4 }}/32, {{ gateway_stalwart_ipv4 }}/32 } ct state related,established accept'

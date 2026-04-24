@@ -115,13 +115,13 @@
   ansible.builtin.slurp:
     path: '{{ certbot_mountpoint }}/ansible/{{ podman_certificate_name }}.domains'
   register: 'podman_certificate_manifest_raw'
-  when: 'podman_certificate_manifest_file.stat.exists'
+  when: 'podman_certificate_manifest_file.stat.exists | default(false)'
 
 - name: 'Read current certificate challenge manifest'
   ansible.builtin.slurp:
     path: '{{ certbot_mountpoint }}/ansible/{{ podman_certificate_name }}.challenge'
   register: 'podman_certificate_challenge_manifest_raw'
-  when: 'podman_certificate_challenge_manifest_file.stat.exists'
+  when: 'podman_certificate_challenge_manifest_file.stat.exists | default(false)'
 
 - name: 'Set desired certificate manifest'
   ansible.builtin.set_fact:
@@ -129,7 +129,7 @@
     podman_certificate_current_manifest: '{{ (podman_certificate_manifest_raw.content | b64decode) if (podman_certificate_manifest_file.stat.exists | default(false)) else '''' }}'
     podman_certificate_desired_challenge_manifest: 'http-01-webroot:/var/www/certbot{{ ''\n'' }}'
     podman_certificate_current_challenge_manifest: '{{ (podman_certificate_challenge_manifest_raw.content | b64decode) if (podman_certificate_challenge_manifest_file.stat.exists | default(false)) else '''' }}'
-    podman_certificate_missing: '{{ not podman_certificate_file.stat.exists }}'
+    podman_certificate_missing: '{{ not (podman_certificate_file.stat.exists | default(false)) }}'
 
 - name: 'Reset certificate domain arguments'
   ansible.builtin.set_fact:
@@ -231,7 +231,7 @@
 
 - name: 'Set certificate consumer output state'
   ansible.builtin.set_fact:
-    podman_certificate_consumer_outputs_missing: '{{ (podman_certificate_file.stat.exists | default(false)) and ((podman_certificate_consumer_output_stats.results | rejectattr(''stat.exists'', ''equalto'', true) | list | length) > 0) }}'
+    podman_certificate_consumer_outputs_missing: '{{ (podman_certificate_file.stat.exists | default(false)) and (((podman_certificate_consumer_output_stats.results | default([])) | rejectattr(''stat.exists'', ''equalto'', true) | list | length) > 0) }}'
 
 - name: 'Set certificate deploy hook replay state'
   ansible.builtin.set_fact:
