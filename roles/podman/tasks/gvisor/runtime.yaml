@@ -84,9 +84,7 @@
       + ([''ente-museum'', ''ente-postgres'', ''ente-web'', ''ente-garage''] if ''ente'' in podman_containers_selected else [])
       + ([''vaultwarden'', ''vaultwarden-postgres''] if ''vaultwarden'' in podman_containers_selected else [])
       + ([''seedvault''] if ''seedvault'' in podman_containers_selected else [])
-      + ([''stalwart'', ''stalwart-postgres''] if ''stalwart'' in podman_containers_selected else [])
-      + ([''autoconnect'', ''autoendpoint'', ''autopush-valkey''] if ''autopush'' in podman_containers_selected else [])
-      + ([''mollysocket''] if ''mollysocket'' in podman_containers_selected else []))
+      + ([''stalwart'', ''stalwart-postgres''] if ''stalwart'' in podman_containers_selected else []))
       | unique }}'
 
 - name: 'Set Podman gVisor restart state'

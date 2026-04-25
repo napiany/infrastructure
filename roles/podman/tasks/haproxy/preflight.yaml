@@ -48,19 +48,6 @@
         restart_units:
           - 'haproxy.service'
           - 'stalwart.service'
-      - service: 'autopush'
-        src: 'autopush/haproxy-autopush.network'
-        dest: 'haproxy-autopush.network'
-        restart_units:
-          - 'haproxy.service'
-          - 'autoconnect.service'
-          - 'autoendpoint.service'
-      - service: 'mollysocket'
-        src: 'mollysocket/haproxy-mollysocket.network'
-        dest: 'haproxy-mollysocket.network'
-        restart_units:
-          - 'haproxy.service'
-          - 'mollysocket.service'
       - service: 'monitoring'
         src: 'monitoring/haproxy-prometheus.network'
         dest: 'haproxy-prometheus.network'

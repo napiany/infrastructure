@@ -136,11 +136,10 @@ prometheus.scrape "podman" {
 {% endif %}
 
 {% set monitoring_blackbox_has_public_targets = (monitoring_blackbox_public_domains | default([]) | length) > 0 %}
-{% set monitoring_blackbox_has_autopush_targets = 'autopush' in (monitoring_central_selected_containers | default([])) %}
 {% set monitoring_blackbox_has_monitoring_targets = true %}
 {% set monitoring_blackbox_has_mail_targets = 'stalwart' in (monitoring_central_selected_containers | default([])) %}
 {% set monitoring_blackbox_has_http_base_url = (monitoring_blackbox_probe_base_url | default('') | length) > 0 %}
-{% set monitoring_blackbox_enabled = (monitoring_blackbox_has_http_base_url and (monitoring_blackbox_has_public_targets or monitoring_blackbox_has_autopush_targets or monitoring_blackbox_has_monitoring_targets)) or monitoring_blackbox_has_mail_targets %}
+{% set monitoring_blackbox_enabled = (monitoring_blackbox_has_http_base_url and (monitoring_blackbox_has_public_targets or monitoring_blackbox_has_monitoring_targets)) or monitoring_blackbox_has_mail_targets %}
 {% if monitoring_blackbox_enabled %}
 prometheus.exporter.blackbox "probes" {
   config_file = "/etc/alloy/blackbox.yml"
@@ -157,28 +156,6 @@ prometheus.exporter.blackbox "probes" {
     }
   }
 {% endfor %}
-{% if monitoring_blackbox_has_autopush_targets %}
-
-  target {
-    name    = "autopush"
-    address = "{{ monitoring_blackbox_probe_base_url }}/health"
-    module  = "http_json_status_ok_push"
-    labels = {
-      "domain" = "push.napiany.com",
-      "prober" = "{{ inventory_hostname }}",
-    }
-  }
-
-  target {
-    name    = "autopush_updates"
-    address = "{{ monitoring_blackbox_probe_base_url }}/health"
-    module  = "http_json_status_ok_updates_push"
-    labels = {
-      "domain" = "updates.push.napiany.com",
-      "prober" = "{{ inventory_hostname }}",
-    }
-  }
-{% endif %}
 {% if monitoring_blackbox_has_monitoring_targets %}
 
   target {

@@ -6,8 +6,6 @@ podman_available_containers:
   - 'vaultwarden'
   - 'seedvault'
   - 'stalwart'
-  - 'autopush'
-  - 'mollysocket'
   - 'monitoring'
 
 podman_stalwart_ipv4: '10.89.103.2'
@@ -64,20 +62,6 @@ podman_haproxy_networks:
     ipv4: '{{ podman_stalwart_ipv4 }}'
     ipv6: '{{ podman_stalwart_ipv6 }}'
     proxy_ipv6: 'fd89:103::10'
-  autopush:
-    resolver: '10.89.104.1'
-    alias: 'autoconnect'
-    secondary_alias: 'autoendpoint'
-    ipv4: '10.89.104.2'
-    secondary_ipv4: '10.89.104.3'
-    proxy_ipv4: '10.89.104.10'
-  mollysocket:
-    resolver: '10.89.105.1'
-    alias: 'mollysocket'
-    ipv4: '10.89.105.2'
-    ipv6: 'fd89:105::2'
-    proxy_ipv4: '10.89.105.10'
-    proxy_ipv6: 'fd89:105::10'
   ente:
     resolver: '10.89.109.1'
     alias: 'ente-museum'

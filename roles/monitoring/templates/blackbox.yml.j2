@@ -45,40 +45,6 @@ modules:
         Host: 'alertmanager.napiany.com'
       tls_config:
         server_name: 'alertmanager.napiany.com'
-  http_json_status_ok_push:
-    prober: 'http'
-    timeout: '10s'
-    http:
-      method: 'GET'
-      valid_status_codes:
-        - 200
-      fail_if_not_ssl: true
-      fail_if_body_not_matches_regexp:
-        - '"status"\s*:\s*"OK"'
-      follow_redirects: false
-      preferred_ip_protocol: 'ip6'
-      ip_protocol_fallback: true
-      headers:
-        Host: 'push.napiany.com'
-      tls_config:
-        server_name: 'push.napiany.com'
-  http_json_status_ok_updates_push:
-    prober: 'http'
-    timeout: '10s'
-    http:
-      method: 'GET'
-      valid_status_codes:
-        - 200
-      fail_if_not_ssl: true
-      fail_if_body_not_matches_regexp:
-        - '"status"\s*:\s*"OK"'
-      follow_redirects: false
-      preferred_ip_protocol: 'ip6'
-      ip_protocol_fallback: true
-      headers:
-        Host: 'updates.push.napiany.com'
-      tls_config:
-        server_name: 'updates.push.napiany.com'
   tcp_connect:
     prober: 'tcp'
     timeout: '10s'

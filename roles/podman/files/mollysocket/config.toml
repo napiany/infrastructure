@@ -1,5 +1,0 @@
-db = '/data/mollysocket.db'
-allowed_endpoints = ['https://updates.push.napiany.com']
-webserver = true
-host = '0.0.0.0'
-port = 8020

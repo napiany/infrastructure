@@ -106,32 +106,6 @@
     - 'stalwart'
     - 'monitoring'
 
-- name: 'Include Autopush manifest tasks'
-  ansible.builtin.include_tasks:
-    file: 'autopush/manifest.yaml'
-    apply:
-      tags:
-        - 'podman'
-        - 'autopush'
-        - 'monitoring'
-  tags:
-    - 'podman'
-    - 'autopush'
-    - 'monitoring'
-
-- name: 'Include MollySocket manifest tasks'
-  ansible.builtin.include_tasks:
-    file: 'mollysocket/manifest.yaml'
-    apply:
-      tags:
-        - 'podman'
-        - 'mollysocket'
-        - 'monitoring'
-  tags:
-    - 'podman'
-    - 'mollysocket'
-    - 'monitoring'
-
 - name: 'Include Monitoring manifest tasks'
   ansible.builtin.include_tasks:
     file: 'monitoring/manifest.yaml'
@@ -236,30 +210,6 @@
   tags:
     - 'podman'
     - 'stalwart'
-
-- name: 'Include Autopush tasks'
-  ansible.builtin.include_tasks:
-    file: 'autopush/main.yaml'
-    apply:
-      tags:
-        - 'podman'
-        - 'autopush'
-  when: '''autopush'' in podman_containers_selected'
-  tags:
-    - 'podman'
-    - 'autopush'
-
-- name: 'Include MollySocket tasks'
-  ansible.builtin.include_tasks:
-    file: 'mollysocket/main.yaml'
-    apply:
-      tags:
-        - 'podman'
-        - 'mollysocket'
-  when: '''mollysocket'' in podman_containers_selected'
-  tags:
-    - 'podman'
-    - 'mollysocket'
 
 - name: 'Include Monitoring tasks'
   ansible.builtin.include_tasks:

@@ -5,8 +5,6 @@
 {% set wireguard_policy_routing_enabled = local_ingress_enabled or stalwart_enabled %}
 {% set haproxy_local_ingress_ipv4_sources = (
   [podman_haproxy_ingress_ipv4, podman_haproxy_crowdsec_ipv4]
-  + ([podman_haproxy_networks.autopush.proxy_ipv4] if 'autopush' in selected_containers else [])
-  + ([podman_haproxy_networks.mollysocket.proxy_ipv4] if 'mollysocket' in selected_containers else [])
 ) | unique %}
 {% set haproxy_local_ingress_ipv6_sources = (
   [podman_haproxy_ingress_ipv6, podman_haproxy_crowdsec_ipv6]
@@ -15,7 +13,6 @@
   + ([podman_haproxy_networks.seedvault.proxy_ipv6] if 'seedvault' in selected_containers else [])
   + ([podman_haproxy_networks.ente.proxy_ipv6] if 'ente' in selected_containers else [])
   + ([podman_haproxy_networks.stalwart.proxy_ipv6] if 'stalwart' in selected_containers else [])
-  + ([podman_haproxy_networks.mollysocket.proxy_ipv6] if 'mollysocket' in selected_containers else [])
   + ([podman_haproxy_networks.prometheus.proxy_ipv6] if 'monitoring' in selected_containers else [])
   + ([podman_haproxy_networks.alertmanager.proxy_ipv6] if 'monitoring' in selected_containers else [])
   + ([podman_haproxy_networks.grafana.proxy_ipv6] if 'monitoring' in selected_containers else [])

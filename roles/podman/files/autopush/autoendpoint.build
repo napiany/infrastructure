@@ -1,6 +1,0 @@
-[Service]
-Environment=BUILDAH_ISOLATION=chroot
-
-[Build]
-ImageTag=localhost/autoendpoint:latest
-File=/etc/containers/systemd/autoendpoint.containerfile

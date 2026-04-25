@@ -2,10 +2,6 @@
 {% set kanidm_domain = ((podman_services | default({})).get('kanidm', {})).get('domain', '') %}
 {% set stalwart_settings = (podman_services | default({})).get('stalwart', {}) %}
 {% set stalwart_certificate_blocks = stalwart_settings.get('certificate_blocks', [{'domains': stalwart_settings.get('domains', [])}] if stalwart_settings.get('domains', []) else []) %}
-{% set gateway_blackbox_probe_sources = (
-  ([hostvars['gateway'].monitoring_scrape_address] if ('gateway' in (groups['servers'] | default([])) and hostvars['gateway'].monitoring_scrape_address | default('') | trim | length > 0) else [])
-  + ([podman_wireguard_gateway_ipv6] if 'gateway' in (groups['servers'] | default([])) else [])
-) | unique %}
 global
     log stdout format raw local0
     tune.bufsize 65536
@@ -124,23 +120,6 @@ frontend local_https
     acl host_ente_paste hdr(host) -i paste.ente.napiany.com
     acl host_ente_memories hdr(host) -i memories.ente.napiany.com
 {% endif %}
-{% if 'autopush' in selected %}
-    acl host_push hdr(host) -i push.napiany.com
-    acl host_updates_push hdr(host) -i updates.push.napiany.com
-    acl autopush_local_path path -i /health /__heartbeat__ /__version__
-{% if gateway_blackbox_probe_sources | length > 0 %}
-    acl gateway_blackbox_probe_src src {{ gateway_blackbox_probe_sources | join(' ') }}
-{% endif %}
-    acl autopush_websocket_upgrade hdr(Upgrade) -i websocket
-    http-request track-sc0 src if host_push || host_updates_push
-    acl autopush_push_conn_limit sc_conn_cur(0) gt 10
-    acl autopush_push_req_limit sc_http_req_rate(0) gt 30
-    acl autopush_updates_conn_limit sc_conn_cur(0) gt 20
-    acl autopush_updates_req_limit sc_http_req_rate(0) gt 50
-{% endif %}
-{% if 'mollysocket' in selected %}
-    acl host_mollysocket hdr(host) -i mollysocket.napiany.com
-{% endif %}
 {% if 'monitoring' in selected %}
     acl host_prometheus hdr(host) -i prometheus.napiany.com
     acl host_alertmanager hdr(host) -i alertmanager.napiany.com
@@ -153,20 +132,6 @@ frontend local_https
 {% endif %}
 {% if 'vaultwarden' in selected %}
     http-request deny deny_status 403 if host_vaultwarden vaultwarden_admin !local_src
-{% endif %}
-{% if 'autopush' in selected %}
-    http-request deny deny_status 429 if host_push autopush_push_conn_limit
-    http-request deny deny_status 429 if host_push autopush_push_req_limit
-    http-request deny deny_status 429 if host_updates_push autopush_updates_conn_limit
-    http-request deny deny_status 429 if host_updates_push autopush_updates_req_limit
-{% if gateway_blackbox_probe_sources | length > 0 %}
-    http-request deny deny_status 403 if host_push autopush_local_path !local_src !gateway_blackbox_probe_src
-    http-request deny deny_status 403 if host_updates_push autopush_local_path !local_src !gateway_blackbox_probe_src
-{% else %}
-    http-request deny deny_status 403 if host_push autopush_local_path !local_src
-    http-request deny deny_status 403 if host_updates_push autopush_local_path !local_src
-{% endif %}
-    http-request return status 426 content-type text/plain lf-string 'WebSocket endpoint\n' if host_push !autopush_local_path !autopush_websocket_upgrade
 {% endif %}
 {% if 'monitoring' in selected %}
     http-request deny deny_status 403 if host_prometheus !local_src !acme_http01
@@ -199,9 +164,6 @@ frontend local_https
 {% if 'seedvault' in selected %}
     use_backend be_seedvault if host_seedvault
 {% endif %}
-{% if 'mollysocket' in selected %}
-    use_backend be_mollysocket if host_mollysocket
-{% endif %}
 {% if 'monitoring' in selected %}
     use_backend be_prometheus if host_prometheus
     use_backend be_alertmanager if host_alertmanager
@@ -211,10 +173,6 @@ frontend local_https
 {% for block in stalwart_certificate_blocks if (block.domains | default([]) | length) > 0 %}
     use_backend be_stalwart_https if host_stalwart_{{ loop.index }}
 {% endfor %}
-{% endif %}
-{% if 'autopush' in selected %}
-    use_backend be_autoconnect if host_push
-    use_backend be_autoendpoint if host_updates_push
 {% endif %}
     default_backend be_not_found
 
@@ -345,19 +303,6 @@ backend be_stalwart_imaptls
     timeout connect 10s
     timeout server 4h
     server stalwart_imaptls [{{ podman_haproxy_networks.stalwart.ipv6 }}]:993 send-proxy-v2
-{% endif %}
-
-{% if 'autopush' in selected %}
-backend be_autoconnect
-    server autoconnect {{ podman_haproxy_networks.autopush.ipv4 }}:8080
-
-backend be_autoendpoint
-    server autoendpoint {{ podman_haproxy_networks.autopush.secondary_ipv4 }}:8000
-{% endif %}
-
-{% if 'mollysocket' in selected %}
-backend be_mollysocket
-    server mollysocket {{ podman_haproxy_networks.mollysocket.ipv4 }}:8020 proto h2
 {% endif %}
 
 backend crowdsec-spoa

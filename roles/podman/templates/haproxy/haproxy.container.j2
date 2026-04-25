@@ -26,12 +26,6 @@ Network=haproxy-ente.network:ip6={{ podman_haproxy_networks.ente.proxy_ipv6 }}
 {% if 'stalwart' in podman_containers_selected %}
 Network=haproxy-stalwart.network:ip6={{ podman_haproxy_networks.stalwart.proxy_ipv6 }}
 {% endif %}
-{% if 'autopush' in podman_containers_selected %}
-Network=haproxy-autopush.network:ip={{ podman_haproxy_networks.autopush.proxy_ipv4 }}
-{% endif %}
-{% if 'mollysocket' in podman_containers_selected %}
-Network=haproxy-mollysocket.network:ip={{ podman_haproxy_networks.mollysocket.proxy_ipv4 }},ip6={{ podman_haproxy_networks.mollysocket.proxy_ipv6 }}
-{% endif %}
 {% if 'monitoring' in podman_containers_selected %}
 Network=haproxy-prometheus.network:ip6={{ podman_haproxy_networks.prometheus.proxy_ipv6 }}
 Network=haproxy-alertmanager.network:ip6={{ podman_haproxy_networks.alertmanager.proxy_ipv6 }}

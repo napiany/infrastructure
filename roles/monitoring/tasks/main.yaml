@@ -31,8 +31,6 @@
       - 'memories.ente.napiany.com'
       - 's3.ente.napiany.com'
       - 'seedvault.napiany.com'
-      - 'push.napiany.com'
-      - 'updates.push.napiany.com'
     monitoring_blackbox_probe_base_url: '{{ (''https://'' ~ monitoring_central_haproxy_ingress_ipv4) if (inventory_hostname == monitoring_central_host and monitoring_central_haproxy_ingress_ipv4 | length > 0) else ((''https://'' ~ monitoring_central_wireguard_ip) if (monitoring_central_wireguard_ip | length > 0) else '''') }}'
     monitoring_blackbox_mail_probe_address: '{{ (''['' ~ monitoring_central_wireguard_ip ~ '']'') if (monitoring_central_wireguard_ip is search('':'')) else monitoring_central_wireguard_ip }}'
 

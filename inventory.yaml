@@ -26,8 +26,6 @@ all:
             - 'vaultwarden'
             - 'seedvault'
             - 'stalwart'
-            - 'mollysocket'
-            - 'autopush'
             - 'monitoring'
           podman_services:
             kanidm:

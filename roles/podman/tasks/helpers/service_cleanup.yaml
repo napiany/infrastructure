@@ -174,9 +174,27 @@
   ansible.builtin.systemd:
     daemon_reload: true
 
+- name: 'List installed systemd service units after cleanup'
+  ansible.builtin.command:
+    argv:
+      - 'systemctl'
+      - 'list-unit-files'
+      - '--type=service'
+      - '--no-legend'
+      - '--plain'
+  register: 'podman_cleanup_installed_units_after_cleanup'
+  changed_when: false
+  when: '(podman_cleanup_existing_external_restart_units | default([]) | length) > 0'
+
+- name: 'Set startable dependent service cleanup units'
+  vars:
+    podman_cleanup_installed_unit_names_after_cleanup: '{{ podman_cleanup_installed_units_after_cleanup.stdout_lines | default([]) | map(''regex_replace'', ''^([^ ]+).*$'', ''\1'') | list }}'
+  ansible.builtin.set_fact:
+    podman_cleanup_startable_external_restart_units: '{{ podman_cleanup_existing_external_restart_units | default([]) | select(''in'', podman_cleanup_installed_unit_names_after_cleanup) | list }}'
+
 - name: 'Start dependent services after cleanup'
   ansible.builtin.systemd:
     name: '{{ item }}'
     state: 'started'
-  loop: '{{ podman_cleanup_existing_external_restart_units | default([]) }}'
-  when: '(podman_cleanup_existing_external_restart_units | default([]) | length) > 0'
+  loop: '{{ podman_cleanup_startable_external_restart_units | default([]) }}'
+  when: '(podman_cleanup_startable_external_restart_units | default([]) | length) > 0'

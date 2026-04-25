@@ -1,6 +1,0 @@
-[Service]
-Environment=BUILDAH_ISOLATION=chroot
-
-[Build]
-ImageTag=localhost/autoconnect:latest
-File=/etc/containers/systemd/autoconnect.containerfile
